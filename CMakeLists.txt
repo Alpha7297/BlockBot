@@ -10,6 +10,11 @@ qt_standard_project_setup()
 
 qt_add_executable(helloQt
     main.cpp
+    ui/App.cpp
+    core/Runtime.cpp
+    core/Block.cpp
+    core/Ops.cpp
+    core/Value.cpp
 )
 
 target_link_libraries(helloQt PRIVATE Qt6::Widgets)

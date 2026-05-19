@@ -27,9 +27,12 @@ using std::vector;
 using std::function;
 
 QTimer* timerPtr = nullptr;
+core::BlockExecutor* executorPtr = nullptr;
 
 class FloatBlock;
+class ControlCodeBlock;
 void refreshFloatAncestors(FloatBlock* block);
+void refreshAllControlLayouts();
 
 class CodeBlock:public QGraphicsPolygonItem{
 public:
@@ -53,6 +56,8 @@ public:
     int nextidx;
     CodeBlock* preTarget;
     CodeBlock* nextTarget;
+    ControlCodeBlock* insideParent;
+    ControlCodeBlock* insideTarget;
     CodeBlock(int _type,QString ss,int _idx,int base=false,
         QGraphicsItem * parent=nullptr):
             QGraphicsPolygonItem(parent){
@@ -94,6 +99,8 @@ public:
         nextidx=-1;
         preTarget=nullptr;
         nextTarget=nullptr;
+        insideParent=nullptr;
+        insideTarget=nullptr;
     };
     virtual CodeBlock* copy(){
         CodeBlock* newBlock=new CodeBlock(type,s,idx,false);
@@ -176,6 +183,7 @@ public:
             CodeBlock* codeParent=dynamic_cast<CodeBlock*>(parentItem());
             if(codeParent!=nullptr){
                 codeParent->refreshSize();
+                refreshAllControlLayouts();
             }
         }
     }
@@ -268,6 +276,9 @@ public:
         if(type==9){
             return std::abs(val);
         }
+        if(type==10){
+            return std::abs(val)<EPS?1.0:0.0;
+        }
         return 0.0;
     }
     void refreshSize(){
@@ -350,13 +361,31 @@ public:
         if(type==7){
             return a<b?a:b;
         }
+        if(type==8){
+            return std::abs(a-b)<EPS?1.0:0.0;
+        }
+        if(type==9){
+            return std::abs(a-b)>=EPS?1.0:0.0;
+        }
+        if(type==10){
+            return a<b-EPS?1.0:0.0;
+        }
+        if(type==11){
+            return a>b+EPS?1.0:0.0;
+        }
+        if(type==12){
+            return (std::abs(a)>=EPS&&std::abs(b)>=EPS)?1.0:0.0;
+        }
+        if(type==13){
+            return (std::abs(a)>=EPS||std::abs(b)>=EPS)?1.0:0.0;
+        }
         return 0.0;
     }
     void refreshSize(){
         text->setDefaultTextColor(Qt::white);
         qreal textWidth=text->boundingRect().width();
         qreal textHeight=text->boundingRect().height();
-        bool prefixLayout=type>=5;
+        bool prefixLayout=(type>=5&&type<=7);
         qreal wanted=0;
         if(prefixLayout){
             wanted=opHorizontalPadding+textWidth+opHorizontalPadding+
@@ -427,6 +456,74 @@ public:
     }
     CodeBlock* copy() override{
         FloatCodeBlock* newBlock=new FloatCodeBlock(type,s,idx,value,false);
+        newBlock->setPos(pos());
+        return newBlock;
+    }
+};
+
+class ControlCodeBlock:public CodeBlock{
+public:
+    int topHeight;
+    int innerHeight;
+    int bottomHeight;
+    int leftWidth;
+    FloatBlock* condition;
+    CodeBlock* inside;
+
+    ControlCodeBlock(int _type,QString ss,int _idx,FloatBlock* _condition=nullptr,
+                     int base=false,QGraphicsItem* parent=nullptr):
+        CodeBlock(_type,ss,_idx,base,parent){
+        topHeight=30;
+        innerHeight=30;
+        bottomHeight=20;
+        leftWidth=10;
+        inside=nullptr;
+        if(_condition==nullptr){
+            condition=new FloatBlock(0,0,false,this);
+        }
+        else{
+            condition=_condition->copy();
+            condition->setParentItem(this);
+        }
+        condition->setMovable(!base);
+        setBrush(QColor(54,92,122));
+        refreshSize();
+    }
+
+    void refreshSize() override{
+        qreal textWidth=text->boundingRect().width();
+        qreal textHeight=text->boundingRect().height();
+        topHeight=std::max(30,condition->wid+10);
+        len=static_cast<int>(std::ceil(std::max<qreal>(
+            90,20+textWidth+10+condition->len+10
+        )));
+        wid=topHeight+innerHeight+bottomHeight;
+
+        QPolygonF shape;
+        shape<<QPointF(0,0)
+             <<QPointF(len,0)
+             <<QPointF(len,topHeight)
+             <<QPointF(leftWidth,topHeight)
+             <<QPointF(leftWidth,topHeight+innerHeight)
+             <<QPointF(len,topHeight+innerHeight)
+             <<QPointF(len,wid)
+             <<QPointF(0,wid);
+        setPolygon(shape);
+        text->setPos(10,(topHeight-textHeight)/2);
+        condition->setPos(20+textWidth,(topHeight-condition->wid)/2);
+
+        QPolygonF shadowShape;
+        shadowShape<<QPointF(-shadowPadding,-shadowPadding)
+                   <<QPointF(len+shadowPadding,-shadowPadding)
+                   <<QPointF(len+shadowPadding,wid+shadowPadding)
+                   <<QPointF(-shadowPadding,wid+shadowPadding);
+        shadow->setPolygon(shadowShape);
+    }
+
+    CodeBlock* copy() override{
+        ControlCodeBlock* newBlock=new ControlCodeBlock(type,s,idx,condition,false);
+        newBlock->innerHeight=innerHeight;
+        newBlock->refreshSize();
         newBlock->setPos(pos());
         return newBlock;
     }
@@ -542,6 +639,12 @@ StartBlock* currentStartBlock=nullptr;
 CodeBlock* runningBlock=nullptr;
 qreal toolboxScrollY=0;
 qreal workspaceScrollY=0;
+qreal toolboxMaxScrollY=0;
+
+qreal nextDragZ(){
+    maxZ++;
+    return draggingZ+maxZ*1000;
+}
 
 class AppGraphicsView:public QGraphicsView{
 public:
@@ -570,6 +673,8 @@ FloatBlock* findAbsorbTarget(FloatBlock* moving);
 void attachOperatorToTarget(FloatBlock* moving,FloatBlock* target);
 FloatBlock* detachOperatorFromParent(FloatBlock* moving);
 void showAbsorbShadow(FloatBlock* moving,FloatBlock* target);
+void refreshAllControlLayouts();
+void syncControlInside(ControlCodeBlock* control);
 void syncScrollArea(int area);
 void refreshFloatAncestors(FloatBlock* block);
 bool inWorkspace(CodeBlock* block){
@@ -587,7 +692,27 @@ double codeBlockFloatValue(CodeBlock* block){
     if(floatBlock!=nullptr&&floatBlock->value!=nullptr){
         return floatBlock->value->getValue();
     }
+    ControlCodeBlock* controlBlock=dynamic_cast<ControlCodeBlock*>(block);
+    if(controlBlock!=nullptr&&controlBlock->condition!=nullptr){
+        return controlBlock->condition->getValue();
+    }
     return 0.0;
+}
+
+core::BlockExecutor::BlockSnapshot readRuntimeBlock(core::BlockExecutor::Node node){
+    core::BlockExecutor::BlockSnapshot snapshot;
+    CodeBlock* block=static_cast<CodeBlock*>(node);
+    if(block==nullptr){
+        return snapshot;
+    }
+    snapshot.type=block->type;
+    snapshot.value=codeBlockFloatValue(block);
+    snapshot.next=block->next;
+    ControlCodeBlock* control=dynamic_cast<ControlCodeBlock*>(block);
+    if(control!=nullptr){
+        snapshot.inside=control->inside;
+    }
+    return snapshot;
 }
 
 QPointF scrollAreaOrigin(int area){
@@ -652,6 +777,191 @@ void rememberFloatBlockStagePos(FloatBlock* block,int area){
     block->stagePos=sceneToStagePos(area,block->pos());
 }
 
+int codeChainHeight(CodeBlock* head){
+    int height=0;
+    CodeBlock* curr=head;
+    while(curr!=nullptr){
+        height+=curr->wid;
+        curr=curr->next;
+    }
+    return height;
+}
+
+void setCodeChainMoving(CodeBlock* head,bool moving){
+    CodeBlock* curr=head;
+    while(curr!=nullptr){
+        curr->ismoving=moving;
+        ControlCodeBlock* control=dynamic_cast<ControlCodeBlock*>(curr);
+        if(control!=nullptr){
+            setCodeChainMoving(control->inside,moving);
+        }
+        curr=curr->next;
+    }
+}
+
+void syncCodeChainFrom(CodeBlock* head,QPointF startPos){
+    CodeBlock* curr=head;
+    QPointF currPos=startPos;
+    while(curr!=nullptr){
+        curr->setPos(currPos);
+        ControlCodeBlock* control=dynamic_cast<ControlCodeBlock*>(curr);
+        if(control!=nullptr){
+            syncControlInside(control);
+        }
+        currPos+=QPointF(0,curr->wid);
+        curr=curr->next;
+    }
+}
+
+void syncInsideCodeChain(ControlCodeBlock* owner){
+    if(owner==nullptr){
+        return;
+    }
+    CodeBlock* curr=owner->inside;
+    QPointF currPos=owner->pos()+QPointF(owner->leftWidth,owner->topHeight);
+    while(curr!=nullptr){
+        curr->insideParent=owner;
+        curr->setPos(currPos);
+        ControlCodeBlock* control=dynamic_cast<ControlCodeBlock*>(curr);
+        if(control!=nullptr){
+            syncControlInside(control);
+        }
+        currPos+=QPointF(0,curr->wid);
+        curr=curr->next;
+    }
+}
+
+void offsetCodeChain(CodeBlock* head,QPointF offset){
+    CodeBlock* curr=head;
+    while(curr!=nullptr){
+        curr->setPos(curr->pos()+offset);
+        ControlCodeBlock* control=dynamic_cast<ControlCodeBlock*>(curr);
+        if(control!=nullptr){
+            offsetCodeChain(control->inside,offset);
+        }
+        curr=curr->next;
+    }
+}
+
+ControlCodeBlock* findInsideOwner(CodeBlock* block){
+    for(CodeBlock* candidate:codeBlocks){
+        ControlCodeBlock* control=dynamic_cast<ControlCodeBlock*>(candidate);
+        if(control==nullptr){
+            continue;
+        }
+        CodeBlock* curr=control->inside;
+        while(curr!=nullptr){
+            if(curr==block){
+                return control;
+            }
+            curr=curr->next;
+        }
+    }
+    return nullptr;
+}
+
+void refreshControlFromInside(ControlCodeBlock* control){
+    if(control==nullptr){
+        return;
+    }
+    CodeBlock* curr=control->inside;
+    while(curr!=nullptr){
+        ControlCodeBlock* child=dynamic_cast<ControlCodeBlock*>(curr);
+        if(child!=nullptr&&!child->dragging&&!child->ismoving){
+            refreshControlFromInside(child);
+        }
+        curr=curr->next;
+    }
+    control->innerHeight=control->inside==nullptr?30:codeChainHeight(control->inside);
+    control->refreshSize();
+    syncControlInside(control);
+}
+
+void syncControlInside(ControlCodeBlock* control){
+    if(control==nullptr||control->inside==nullptr){
+        return;
+    }
+    syncInsideCodeChain(control);
+}
+
+void previewControlAncestorGrowth(ControlCodeBlock* control){
+    ControlCodeBlock* curr=findInsideOwner(control);
+    while(curr!=nullptr){
+        int oldWid=curr->wid;
+        curr->innerHeight=curr->inside==nullptr?30:codeChainHeight(curr->inside);
+        curr->refreshSize();
+        int delta=curr->wid-oldWid;
+        if(delta!=0&&curr->next!=nullptr){
+            offsetCodeChain(curr->next,QPointF(0,delta));
+        }
+        curr=findInsideOwner(curr);
+    }
+}
+
+void previewControlInsideInsert(ControlCodeBlock* control,int insertHeight){
+    if(control==nullptr){
+        return;
+    }
+    int oldWid=control->wid;
+    control->innerHeight=std::max(30,codeChainHeight(control->inside)+insertHeight);
+    control->refreshSize();
+    if(control->next!=nullptr){
+        offsetCodeChain(control->next,QPointF(0,control->wid-oldWid));
+    }
+    previewControlAncestorGrowth(control);
+}
+
+void refreshAllControlLayouts(){
+    for(CodeBlock* block:codeBlocks){
+        ControlCodeBlock* control=dynamic_cast<ControlCodeBlock*>(block);
+        if(control!=nullptr&&!control->dragging&&!control->ismoving){
+            refreshControlFromInside(control);
+        }
+    }
+    for(CodeBlock* block:codeBlocks){
+        if(block!=nullptr&&block->pre==nullptr&&block->insideParent==nullptr&&
+           !block->dragging&&!block->ismoving){
+            syncCodeChainFrom(block,block->pos());
+        }
+    }
+    if(currentStartBlock!=nullptr&&!currentStartBlock->dragging&&!currentStartBlock->ismoving){
+        syncCodeChainFrom(currentStartBlock,currentStartBlock->pos());
+    }
+}
+
+ControlCodeBlock* findInsideAbsorbTarget(CodeBlock* moving){
+    if(moving==nullptr){
+        return nullptr;
+    }
+    ControlCodeBlock* bestTarget=nullptr;
+    qreal bestDistance=20;
+    for(CodeBlock* block:codeBlocks){
+        ControlCodeBlock* control=dynamic_cast<ControlCodeBlock*>(block);
+        if(control==nullptr||control->isbase||control->ismoving||control==moving){
+            continue;
+        }
+        QPointF slotPos=control->pos()+QPointF(control->leftWidth,control->topHeight);
+        qreal distance=QLineF(moving->pos(),slotPos).length();
+        if(distance<bestDistance){
+            bestDistance=distance;
+            bestTarget=control;
+        }
+    }
+    return bestTarget;
+}
+
+void rememberCodeTreeStagePos(CodeBlock* head,int area){
+    CodeBlock* curr=head;
+    while(curr!=nullptr){
+        rememberCodeBlockStagePos(curr,area);
+        ControlCodeBlock* control=dynamic_cast<ControlCodeBlock*>(curr);
+        if(control!=nullptr){
+            rememberCodeTreeStagePos(control->inside,area);
+        }
+        curr=curr->next;
+    }
+}
+
 void syncScrollArea(int area){
     for(CodeBlock* block:baseCodeBlocks){
         if(block->scrollArea==area&&!block->dragging){
@@ -671,11 +981,28 @@ void syncScrollArea(int area){
             block->setPos(stageToScenePos(area,block->stagePos));
         }
     }
+    refreshAllControlLayouts();
 }
 
 void deleteCodeBlock(CodeBlock* block){
     if(block==currentStartBlock){
         currentStartBlock=nullptr;
+    }
+    if(block->insideParent!=nullptr&&block->insideParent->inside==block){
+        ControlCodeBlock* owner=block->insideParent;
+        owner->inside=nullptr;
+        block->insideParent=nullptr;
+        refreshControlFromInside(owner);
+    }
+    ControlCodeBlock* control=dynamic_cast<ControlCodeBlock*>(block);
+    if(control!=nullptr){
+        CodeBlock* curr=control->inside;
+        while(curr!=nullptr){
+            CodeBlock* next=curr->next;
+            deleteCodeBlock(curr);
+            curr=next;
+        }
+        control->inside=nullptr;
     }
     codeBlocks.erase(
         std::remove(codeBlocks.begin(),codeBlocks.end(),block),
@@ -730,6 +1057,7 @@ void refreshFloatAncestors(FloatBlock* block){
     CodeBlock* codeParent=dynamic_cast<CodeBlock*>(parent);
     if(codeParent!=nullptr){
         codeParent->refreshSize();
+        refreshAllControlLayouts();
     }
 }
 
@@ -767,19 +1095,49 @@ void setFloatTreeZValue(FloatBlock* block,qreal z){
     }
 }
 
+void resetFloatTreeZValue(FloatBlock* block){
+    setFloatTreeZValue(block,10);
+}
+
+void setCodeTreeZValue(CodeBlock* block,qreal z){
+    CodeBlock* curr=block;
+    while(curr!=nullptr){
+        curr->setZValue(z);
+        FloatCodeBlock* floatCode=dynamic_cast<FloatCodeBlock*>(curr);
+        if(floatCode!=nullptr){
+            setFloatTreeZValue(floatCode->value,z+1);
+        }
+        ControlCodeBlock* controlCode=dynamic_cast<ControlCodeBlock*>(curr);
+        if(controlCode!=nullptr){
+            setFloatTreeZValue(controlCode->condition,z+1);
+            setCodeTreeZValue(controlCode->inside,z+1);
+        }
+        curr=curr->next;
+    }
+}
+
 FloatBlock* detachOperatorFromParent(FloatBlock* moving){
     if(moving==nullptr||!moving->isOperator()){
         return nullptr;
     }
     FloatBlock* parentBlock=dynamic_cast<FloatBlock*>(moving->parentItem());
     FloatCodeBlock* codeParent=dynamic_cast<FloatCodeBlock*>(moving->parentItem());
-    if(parentBlock==nullptr&&codeParent==nullptr){
+    ControlCodeBlock* controlParent=dynamic_cast<ControlCodeBlock*>(moving->parentItem());
+    if(parentBlock==nullptr&&codeParent==nullptr&&controlParent==nullptr){
         return nullptr;
     }
 
     QPointF oldScenePos=moving->scenePos();
-    QGraphicsItem* parentItem=parentBlock!=nullptr?
-        static_cast<QGraphicsItem*>(parentBlock):static_cast<QGraphicsItem*>(codeParent);
+    QGraphicsItem* parentItem=nullptr;
+    if(parentBlock!=nullptr){
+        parentItem=parentBlock;
+    }
+    else if(codeParent!=nullptr){
+        parentItem=codeParent;
+    }
+    else{
+        parentItem=controlParent;
+    }
     FloatBlock* placeholder=new FloatBlock(0,0,false,parentItem);
     placeholder->setMovable(true);
 
@@ -799,6 +1157,9 @@ FloatBlock* detachOperatorFromParent(FloatBlock* moving){
     if(codeParent!=nullptr&&codeParent->value==moving){
         codeParent->value=placeholder;
     }
+    if(controlParent!=nullptr&&controlParent->condition==moving){
+        controlParent->condition=placeholder;
+    }
 
     moving->setParentItem(nullptr);
     moving->setPos(oldScenePos);
@@ -810,6 +1171,11 @@ FloatBlock* detachOperatorFromParent(FloatBlock* moving){
     }
     if(codeParent!=nullptr){
         codeParent->refreshSize();
+        refreshAllControlLayouts();
+    }
+    if(controlParent!=nullptr){
+        controlParent->refreshSize();
+        refreshAllControlLayouts();
     }
     showAbsorbShadow(moving,placeholder);
     moving->absorbTarget=placeholder;
@@ -852,6 +1218,10 @@ FloatBlock* findAbsorbTarget(FloatBlock* moving){
         if(floatCode!=nullptr){
             collectFloatValueTargets(floatCode->value,moving,targets);
         }
+        ControlCodeBlock* controlCode=dynamic_cast<ControlCodeBlock*>(block);
+        if(controlCode!=nullptr){
+            collectFloatValueTargets(controlCode->condition,moving,targets);
+        }
     }
     FloatBlock* bestTarget=nullptr;
     qreal bestDistance=floatAttachDistance;
@@ -879,11 +1249,12 @@ void showAbsorbShadow(FloatBlock* moving,FloatBlock* target){
          <<QPointF(target->len+2,target->wid+2)<<QPointF(-2,target->wid+2);
     moving->absorbShadow->setPolygon(shape);
     moving->absorbShadow->setPos(target->scenePos());
-    moving->absorbShadow->setZValue(absorbHighlightZ);
+    qreal shadowZ=std::max(absorbHighlightZ,moving->zValue()+100);
+    moving->absorbShadow->setZValue(shadowZ);
     if(moving->absorbShadow->scene()==nullptr){
         moving->scene()->addItem(moving->absorbShadow);
     }
-    moving->absorbShadow->setZValue(absorbHighlightZ);
+    moving->absorbShadow->setZValue(shadowZ);
     moving->absorbShadow->show();
 }
 
@@ -908,6 +1279,22 @@ void attachOperatorToTarget(FloatBlock* moving,FloatBlock* target){
     clearAbsorbShadow(moving);
     FloatBlock* parentBlock=dynamic_cast<FloatBlock*>(target->parentItem());
     FloatCodeBlock* codeParent=dynamic_cast<FloatCodeBlock*>(target->parentItem());
+    ControlCodeBlock* controlParent=dynamic_cast<ControlCodeBlock*>(target->parentItem());
+    if(controlParent!=nullptr&&controlParent->condition==target){
+        QPointF targetLocalPos=target->pos();
+        controlParent->condition=moving;
+        eraseFloatBlockRecord(moving);
+        moving->setParentItem(controlParent);
+        moving->setPos(targetLocalPos);
+        moving->dragging=false;
+        moving->moved=false;
+        resetFloatTreeZValue(moving);
+        setInsertedOperatorInteractivity(moving);
+        delete target;
+        controlParent->refreshSize();
+        refreshAllControlLayouts();
+        return;
+    }
     if(codeParent!=nullptr&&codeParent->value==target){
         QPointF targetLocalPos=target->pos();
         codeParent->value=moving;
@@ -916,9 +1303,11 @@ void attachOperatorToTarget(FloatBlock* moving,FloatBlock* target){
         moving->setPos(targetLocalPos);
         moving->dragging=false;
         moving->moved=false;
+        resetFloatTreeZValue(moving);
         setInsertedOperatorInteractivity(moving);
         delete target;
         codeParent->refreshSize();
+        refreshAllControlLayouts();
         return;
     }
     if(parentBlock==nullptr){
@@ -929,6 +1318,7 @@ void attachOperatorToTarget(FloatBlock* moving,FloatBlock* target){
         }
         delete target;
         moving->setPos(targetPos);
+        resetFloatTreeZValue(moving);
         rememberFloatBlockStagePos(moving,scrollWorkspace);
         return;
     }
@@ -953,6 +1343,7 @@ void attachOperatorToTarget(FloatBlock* moving,FloatBlock* target){
     moving->setPos(targetLocalPos);
     moving->dragging=false;
     moving->moved=false;
+    resetFloatTreeZValue(moving);
     setInsertedOperatorInteractivity(moving);
     delete target;
     refreshFloatAncestors(parentBlock);
@@ -969,9 +1360,10 @@ void FloatBlock::mousePressEvent(QGraphicsSceneMouseEvent* event){
     }
     if(parentItem()!=nullptr){
         if(isOperator()){
+            qreal dragZ=nextDragZ();
             detachOperatorFromParent(this);
-            setZValue(draggingZ);
-            setFloatTreeZValue(this,draggingZ);
+            setZValue(dragZ);
+            setFloatTreeZValue(this,dragZ);
             dragging=true;
             moved=false;
             mouseOffset=event->pos();
@@ -984,12 +1376,13 @@ void FloatBlock::mousePressEvent(QGraphicsSceneMouseEvent* event){
         return;
     }
     if(isbase){
+        qreal dragZ=nextDragZ();
         FloatBlock* tempBlock=copy();
         tempBlock->idx=static_cast<int>(floatBlocks.size());
         floatBlocks.push_back(tempBlock);
         scene()->addItem(tempBlock);
-        tempBlock->setZValue(draggingZ);
-        setFloatTreeZValue(tempBlock,draggingZ);
+        tempBlock->setZValue(dragZ);
+        setFloatTreeZValue(tempBlock,dragZ);
         tempBlock->dragging=true;
         tempBlock->scrollArea=scrollNone;
         tempBlock->moved=false;
@@ -998,8 +1391,9 @@ void FloatBlock::mousePressEvent(QGraphicsSceneMouseEvent* event){
         event->accept();
         return;
     }
-    setZValue(draggingZ);
-    setFloatTreeZValue(this,draggingZ);
+    qreal dragZ=nextDragZ();
+    setZValue(dragZ);
+    setFloatTreeZValue(this,dragZ);
     scrollArea=scrollNone;
     dragging=true;
     moved=false;
@@ -1058,6 +1452,7 @@ void FloatBlock::mouseReleaseEvent(QGraphicsSceneMouseEvent* event){
             deleteFloatBlock(this);
             return;
         }
+        resetFloatTreeZValue(this);
         rememberFloatBlockStagePos(this,scrollWorkspace);
         if(!moved&&!isbase&&!isOperator()){
             bool ok=false;
@@ -1074,6 +1469,7 @@ void FloatBlock::mouseReleaseEvent(QGraphicsSceneMouseEvent* event){
 
 void CodeBlock::mousePressEvent(QGraphicsSceneMouseEvent* event){
     if(isbase){
+        qreal dragZ=nextDragZ();
         CodeBlock* tempBlock=copy();
         if(dynamic_cast<StartBlock*>(tempBlock)==nullptr){
             tempBlock->idx=codeBlocks.size();
@@ -1085,6 +1481,7 @@ void CodeBlock::mousePressEvent(QGraphicsSceneMouseEvent* event){
         scene()->addItem(tempBlock);
 
         tempBlock->ismoving=true;
+        setCodeChainMoving(tempBlock,true);
         CodeBlock* curr=tempBlock;
         if(curr->pre!=nullptr){
             curr->pre->next=nullptr;
@@ -1093,19 +1490,10 @@ void CodeBlock::mousePressEvent(QGraphicsSceneMouseEvent* event){
         while(curr->next!=nullptr){
             curr=curr->next;
             curr->ismoving=true;
-            curr->setZValue(draggingZ);
-            FloatCodeBlock* floatCode=dynamic_cast<FloatCodeBlock*>(curr);
-            if(floatCode!=nullptr){
-                setFloatTreeZValue(floatCode->value,draggingZ+1);
-            }
         }
-        tempBlock->setZValue(draggingZ);
-        FloatCodeBlock* tempFloatCode=dynamic_cast<FloatCodeBlock*>(tempBlock);
-        if(tempFloatCode!=nullptr){
-            setFloatTreeZValue(tempFloatCode->value,draggingZ+1);
-        }
+        setCodeTreeZValue(tempBlock,dragZ);
         tempBlock->shadow->setPos(tempBlock->pos());
-        tempBlock->shadow->setZValue(draggingZ-1);
+        tempBlock->shadow->setZValue(dragZ-1);
         scene()->addItem(tempBlock->shadow);
         tempBlock->dragging=true;
         tempBlock->scrollArea=scrollNone;
@@ -1114,29 +1502,29 @@ void CodeBlock::mousePressEvent(QGraphicsSceneMouseEvent* event){
         event->accept();
         return;
     }
+    qreal dragZ=nextDragZ();
     ismoving=true;
+    ControlCodeBlock* oldInsideOwner=findInsideOwner(this);
     CodeBlock* curr=this;
     if(curr->pre!=nullptr){
         curr->pre->next=nullptr;
         curr->pre=nullptr;
     }
+    if(oldInsideOwner!=nullptr&&oldInsideOwner->inside==this){
+        oldInsideOwner->inside=nullptr;
+    }
+    insideParent=nullptr;
+    refreshControlFromInside(oldInsideOwner);
+    refreshAllControlLayouts();
+    setCodeChainMoving(this,true);
     while(curr->next!=nullptr){
         curr=curr->next;
         curr->ismoving=true;
-        curr->setZValue(draggingZ);
-        FloatCodeBlock* floatCode=dynamic_cast<FloatCodeBlock*>(curr);
-        if(floatCode!=nullptr){
-            setFloatTreeZValue(floatCode->value,draggingZ+1);
-        }
     }
-    setZValue(draggingZ);
-    FloatCodeBlock* selfFloatCode=dynamic_cast<FloatCodeBlock*>(this);
-    if(selfFloatCode!=nullptr){
-        setFloatTreeZValue(selfFloatCode->value,draggingZ+1);
-    }
+    setCodeTreeZValue(this,dragZ);
     scrollArea=scrollNone;
     shadow->setPos(pos());
-    shadow->setZValue(draggingZ-1);
+    shadow->setZValue(dragZ-1);
     scene()->addItem(shadow);
     dragging=true;
     mouseOffset=event->pos();
@@ -1146,24 +1534,22 @@ void CodeBlock::mousePressEvent(QGraphicsSceneMouseEvent* event){
 void CodeBlock::mouseMoveEvent(QGraphicsSceneMouseEvent* event){
     int totalwid=wid;
     if(preTarget!=nullptr&&preTarget->next!=nullptr){
-        CodeBlock* curr=preTarget->next;
-        curr->setPos(curr->calculatePos());
-        while(curr->next!=nullptr){
-            curr=curr->next;
-            curr->setPos(curr->calculatePos());
-        }
+        syncCodeChainFrom(preTarget->next,preTarget->next->calculatePos());
     }
     CodeBlock* curr=this;
     preidx=-1;
     nextidx=-1;
     preTarget=nullptr;
     nextTarget=nullptr;
+    insideTarget=nullptr;
     while(curr->next!=nullptr){
         curr=curr->next;
         totalwid+=curr->wid;
     }
     if(dragging){
+        refreshAllControlLayouts();
         setPos(event->scenePos()-mouseOffset);
+        syncCodeChainFrom(this,pos());
         shadow->setPos(pos());
         if(dynamic_cast<StartBlock*>(this)==nullptr&&currentStartBlock!=nullptr&&!currentStartBlock->ismoving){
             QPointF startBottom=currentStartBlock->pos()+QPointF(0,currentStartBlock->wid);
@@ -1173,6 +1559,7 @@ void CodeBlock::mouseMoveEvent(QGraphicsSceneMouseEvent* event){
                 shadow->setPos(startBottom);
             }
         }
+        qreal bestPreDistance=preTarget==nullptr?20:QLineF(pos(),preTarget->pos()+QPointF(0,preTarget->wid)).length();
         for(auto & otherBlock:codeBlocks){
             if(otherBlock==this){
                 continue;
@@ -1182,13 +1569,15 @@ void CodeBlock::mouseMoveEvent(QGraphicsSceneMouseEvent* event){
                 continue;
             }
             QPointF otherPos=otherBlock->pos();
-            if(dynamic_cast<StartBlock*>(this)==nullptr&&preTarget==nullptr&&nextTarget==nullptr&&QLineF(pos(),otherPos+
-                QPointF(0,otherBlock->wid)).length()<20){
+            qreal distance=QLineF(pos(),otherPos+QPointF(0,otherBlock->wid)).length();
+            if(dynamic_cast<StartBlock*>(this)==nullptr&&nextTarget==nullptr&&distance<bestPreDistance){
+                bestPreDistance=distance;
                 preidx=otherBlock->idx;
                 preTarget=otherBlock;
                 shadow->setPos(otherBlock->pos()+QPointF(0,otherBlock->wid));
             }
         }
+        qreal bestNextDistance=20;
         for(auto & otherBlock:codeBlocks){
             if(otherBlock==this){
                 continue;
@@ -1200,23 +1589,47 @@ void CodeBlock::mouseMoveEvent(QGraphicsSceneMouseEvent* event){
             if(dynamic_cast<StartBlock*>(otherBlock)!=nullptr){
                 continue;
             }
-            if(nextTarget==nullptr&&preTarget==nullptr&&
-                QLineF(pos()+QPointF(0,totalwid),otherPos).length()<20){
-                if(otherBlock->pre!=nullptr){
+            qreal distance=QLineF(pos()+QPointF(0,totalwid),otherPos).length();
+            if(preTarget==nullptr&&distance<bestNextDistance){
+                if(otherBlock->pre!=nullptr&&findInsideOwner(otherBlock)==nullptr){
                     continue;
                 }
+                bestNextDistance=distance;
                 nextidx=otherBlock->idx;
                 nextTarget=otherBlock;
-                shadow->setPos(otherBlock->pos()-QPointF(0,wid));
+                shadow->setPos(otherBlock->pos()-QPointF(0,totalwid));
             }
         }
-        if(preTarget!=nullptr&&preTarget->next!=nullptr){
-            curr=preTarget->next;
-            curr->setPos(curr->pos()+QPointF(0,totalwid));
-            while(curr->next!=nullptr){
-                curr=curr->next;
-                curr->setPos(curr->pos()+QPointF(0,totalwid));
+        if(preTarget==nullptr){
+            insideTarget=findInsideAbsorbTarget(this);
+            if(insideTarget!=nullptr){
+                nextTarget=nullptr;
+                QPointF slotPos=insideTarget->pos()+QPointF(insideTarget->leftWidth,insideTarget->topHeight);
+                previewControlInsideInsert(insideTarget,totalwid);
+                shadow->setPos(slotPos);
+                if(insideTarget->inside!=nullptr){
+                    offsetCodeChain(insideTarget->inside,QPointF(0,totalwid));
+                }
             }
+        }
+        ControlCodeBlock* previewInsideOwner=nullptr;
+        if(preTarget!=nullptr){
+            previewInsideOwner=findInsideOwner(preTarget);
+        }
+        else if(insideTarget==nullptr&&nextTarget!=nullptr){
+            previewInsideOwner=nextTarget->insideParent;
+        }
+        if(previewInsideOwner!=nullptr){
+            previewControlInsideInsert(previewInsideOwner,totalwid);
+            if(nextTarget!=nullptr&&nextTarget->insideParent==previewInsideOwner){
+                offsetCodeChain(nextTarget,QPointF(0,totalwid));
+            }
+        }
+        if(preTarget!=nullptr){
+            insideTarget=nullptr;
+        }
+        if(preTarget!=nullptr&&preTarget->next!=nullptr){
+            offsetCodeChain(preTarget->next,QPointF(0,totalwid));
         }
         event->accept();
         return;
@@ -1265,7 +1678,35 @@ void CodeBlock::mouseReleaseEvent(QGraphicsSceneMouseEvent* event){
         }
         dragging=false;
         if(preTarget!=nullptr){
+            insideTarget=nullptr;
+            nextTarget=nullptr;
+        }
+        else if(insideTarget!=nullptr){
+            nextTarget=nullptr;
+        }
+        if(insideTarget!=nullptr){
+            CodeBlock* oldInside=insideTarget->inside;
+            CodeBlock* tail=this;
+            while(tail->next!=nullptr){
+                tail=tail->next;
+            }
+            if(oldInside!=nullptr&&oldInside!=this){
+                tail->next=oldInside;
+                oldInside->pre=tail;
+                oldInside->insideParent=nullptr;
+            }
+            insideTarget->inside=this;
+            insideParent=insideTarget;
+            pre=nullptr;
+            setPos(insideTarget->pos()+QPointF(insideTarget->leftWidth,insideTarget->topHeight));
+            refreshControlFromInside(insideTarget);
+            if(insideTarget->next!=nullptr){
+                syncCodeChainFrom(insideTarget->next,insideTarget->pos()+QPointF(0,insideTarget->wid));
+            }
+        }
+        else if(preTarget!=nullptr){
             CodeBlock* b=preTarget;
+            ControlCodeBlock* owner=findInsideOwner(b);
             if(b->next!=nullptr){
                 curr=this;
                 while(curr->next!=nullptr){
@@ -1286,9 +1727,13 @@ void CodeBlock::mouseReleaseEvent(QGraphicsSceneMouseEvent* event){
                 curr=curr->next;
             }
             curr->setPos(curr->calculatePos());
+            insideParent=nullptr;
+            refreshControlFromInside(owner);
         }
-        if(nextTarget!=nullptr){
+        else if(nextTarget!=nullptr){
             CodeBlock* b=nextTarget;
+            ControlCodeBlock* owner=b->insideParent;
+            CodeBlock* oldPrev=b->pre;
             curr=this;
             while(curr->next!=nullptr){
                 curr->setPos(b->pos()-QPointF(0,totalwid));
@@ -1296,6 +1741,20 @@ void CodeBlock::mouseReleaseEvent(QGraphicsSceneMouseEvent* event){
                 curr=curr->next;
             }
             curr->setPos(b->pos()-QPointF(0,totalwid));
+            if(oldPrev!=nullptr){
+                oldPrev->next=this;
+                pre=oldPrev;
+                insideParent=owner;
+            }
+            else if(owner!=nullptr){
+                owner->inside=this;
+                insideParent=owner;
+                b->insideParent=nullptr;
+                pre=nullptr;
+            }
+            else{
+                pre=nullptr;
+            }
             b->pre=curr;
             curr->next=b;
         }
@@ -1305,11 +1764,8 @@ void CodeBlock::mouseReleaseEvent(QGraphicsSceneMouseEvent* event){
         if(currentStartBlock!=nullptr){
             currentStartBlock->ismoving=false;
         }
-        curr=this;
-        while(curr!=nullptr){
-            rememberCodeBlockStagePos(curr,scrollWorkspace);
-            curr=curr->next;
-        }
+        refreshAllControlLayouts();
+        rememberCodeTreeStagePos(this,scrollWorkspace);
         scene()->removeItem(shadow);
         ungrabMouse();
         event->accept();
@@ -1367,6 +1823,9 @@ void drawStage(QGraphicsScene& scene){
             return;
         }
         runningBlock=currentStartBlock->next;
+        if(executorPtr!=nullptr){
+            executorPtr->reset(currentStartBlock->next);
+        }
         if(timerPtr!=nullptr){
             timerPtr->stop();
             timerPtr->start(300);
@@ -1409,7 +1868,7 @@ void drawToolbox(QGraphicsScene& scene){
         block->setZValue(10);
         scene.addItem(block);
         baseCodeBlocks.push_back(block);
-        y+=60;
+        y+=block->wid+20;
     };
     auto addFloat=[&](FloatBlock* block){
         setFloatBlockStagePos(block,scrollToolbox,QPointF(20,y));
@@ -1424,20 +1883,23 @@ void drawToolbox(QGraphicsScene& scene){
     addCode(new CodeBlock(1,"turn right",1,true));
     addCode(new FloatCodeBlock(3,"move",3,nullptr,true));
     addCode(new FloatCodeBlock(4,"wait",4,nullptr,true));
+    addCode(new ControlCodeBlock(5,"if",5,nullptr,true));
+    addCode(new ControlCodeBlock(6,"while",6,nullptr,true));
 
-    const QString unaryNames[]={"sin","cos","tan","asin","acos","atan","ln","log10","floor","abs"};
-    for(int i=0;i<10;i++){
+    const QString unaryNames[]={"sin","cos","tan","asin","acos","atan","ln","log10","floor","abs","not"};
+    for(int i=0;i<11;i++){
         addFloat(new UnaryOpBlock(i,unaryNames[i],i,nullptr,true));
     }
 
-    const QString binaryNames[]={"+","-","*","/","pow","arg","max","min"};
-    for(int i=0;i<8;i++){
+    const QString binaryNames[]={"+","-","*","/","pow","arg","max","min","==","!=","<",">","and","or"};
+    for(int i=0;i<14;i++){
         addFloat(new BinaryOpBlock(i,binaryNames[i],i,nullptr,nullptr,true));
     }
 
+    toolboxMaxScrollY=std::max<qreal>(0,y-500);
     toolboxSlider=new ScrollSlider(524,30,470);
     toolboxSlider->onChanged=[](qreal value){
-        toolboxScrollY=value*900;
+        toolboxScrollY=value*toolboxMaxScrollY;
         syncScrollArea(scrollToolbox);
     };
     scene.addItem(toolboxSlider);
@@ -1475,19 +1937,20 @@ int ui::runApp(int argc,char* argv[]){
     timerPtr=&timer;
     QPoint stageoffset(20,20);
     core::BlockExecutor executor;
+    executorPtr=&executor;
     RobotActionAdapter robotActions(player);
     QObject::connect(&timer,&QTimer::timeout,[&](){
-        if(runningBlock==nullptr){
+        if(!executor.running()){
             timer.stop();
             return;
         }
 
-        executor.executeOne(runningBlock->type,codeBlockFloatValue(runningBlock),robotActions);
+        bool stepped=executor.step(readRuntimeBlock,robotActions);
 
         player->SyncCell(squaresize,stageoffset);
-        runningBlock=runningBlock->next;
+        runningBlock=static_cast<CodeBlock*>(executor.currentNode());
 
-        if(runningBlock==nullptr){
+        if(!stepped||!executor.running()){
             timer.stop();
         }
     });

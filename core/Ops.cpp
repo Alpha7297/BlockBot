@@ -85,6 +85,9 @@ double UnaryFloatOp::getval(){
     if(type==9){
         return std::abs(val);
     }
+    if(type==10){
+        return std::abs(val)<EPS?1.0:0.0;
+    }
     return 0.0;
 }
 
@@ -126,6 +129,24 @@ double BinaryFloatOp::getval(){
     }
     if(type==7){
         return v1<v2?v1:v2;
+    }
+    if(type==8){
+        return std::abs(v1-v2)<EPS?1.0:0.0;
+    }
+    if(type==9){
+        return std::abs(v1-v2)>=EPS?1.0:0.0;
+    }
+    if(type==10){
+        return v1<v2-EPS?1.0:0.0;
+    }
+    if(type==11){
+        return v1>v2+EPS?1.0:0.0;
+    }
+    if(type==12){
+        return (std::abs(v1)>=EPS&&std::abs(v2)>=EPS)?1.0:0.0;
+    }
+    if(type==13){
+        return (std::abs(v1)>=EPS||std::abs(v2)>=EPS)?1.0:0.0;
     }
     return 0.0;
 }

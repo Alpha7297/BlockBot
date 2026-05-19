@@ -11,6 +11,7 @@ inline constexpr int floatAttachDistance=20;
 inline constexpr int screensize=40;
 inline constexpr int squaresize=320/screensize;
 inline constexpr double PI=3.14159265358979323846;
+inline constexpr double EPS=1e-8;
 inline constexpr int scrollNone=0;
 inline constexpr int scrollToolbox=1;
 inline constexpr int scrollWorkspace=2;
