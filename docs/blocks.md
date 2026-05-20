@@ -84,3 +84,12 @@ while 1
 单元操作符
 get x返回x对应内容
 set x y将变量x设置为y，命名需要完全一致
+
+## 数组积木
+
+只支持Double类型
+
+二元操作符 get x y，返回list列表的第y项，为floatvalue & 类型
+二元codeblock push x y，在list末尾加入y
+三元codeblock set x i y 把x的第i项设置为y
+单元codeblock clear x，清空x

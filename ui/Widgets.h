@@ -23,18 +23,12 @@ public:
 
     Button(int _type,QString _s,QGraphicsItem* parent=nullptr):QGraphicsPolygonItem(parent){
         s=_s,type=_type;
-        QPolygonF shape;
-        double radius=10.0;
-        for(int i=0;i<32;i++){
-            double angle=2.0*PI*i/32.0;
-            shape<<QPointF(radius+radius*std::cos(angle),radius+radius*std::sin(angle));
-        }
-        setPolygon(shape);
+        setCircleShape();
         setBrush(QColor(80,140,235));
         setPen(Qt::NoPen);
 
         QPolygonF shadowShape;
-        shadowShape<<QPointF(0,0)<<QPointF(20,0)<<QPointF(20,20)<<QPointF(0,20);
+        shadowShape<<QPointF(0,0)<<QPointF(24,0)<<QPointF(24,24)<<QPointF(0,24);
         shadow=new QGraphicsPolygonItem();
         shadow->setPolygon(shadowShape);
         shadow->setBrush(QColor(180,180,180,120));
@@ -43,6 +37,43 @@ public:
 
         setAcceptHoverEvents(true);
         setAcceptedMouseButtons(Qt::LeftButton);
+    }
+
+    void setCircleShape(){
+        QPolygonF shape;
+        double radius=10.0;
+        for(int i=0;i<32;i++){
+            double angle=2.0*PI*i/32.0;
+            shape<<QPointF(radius+radius*std::cos(angle),radius+radius*std::sin(angle));
+        }
+        setPolygon(shape);
+    }
+
+    void setPlayShape(){
+        QPolygonF shape;
+        shape<<QPointF(3,2)<<QPointF(21,12)<<QPointF(3,22);
+        setPolygon(shape);
+        setBrush(QColor(44,135,82));
+    }
+
+    void setLightningShape(){
+        QPolygonF shape;
+        shape<<QPointF(14,1)<<QPointF(5,13)<<QPointF(12,13)
+             <<QPointF(9,23)<<QPointF(20,10)<<QPointF(13,10);
+        setPolygon(shape);
+        setBrush(QColor(202,150,36));
+    }
+
+    void setStopShape(){
+        QPolygonF shape;
+        double radius=11.0;
+        QPointF center(12,12);
+        for(int i=0;i<8;i++){
+            double angle=PI/8.0+2.0*PI*i/8.0;
+            shape<<QPointF(center.x()+radius*std::cos(angle),center.y()+radius*std::sin(angle));
+        }
+        setPolygon(shape);
+        setBrush(QColor(180,48,48));
     }
 
     void hoverEnterEvent(QGraphicsSceneHoverEvent* event) override{

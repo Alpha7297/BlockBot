@@ -4,6 +4,8 @@ namespace core{
 
 std::map<std::string,int> float_map;
 std::vector<FloatValue> float_variables;
+std::map<std::string,int> list_map;
+std::vector<std::vector<FloatValue>> list_variables;
 
 FloatValue::FloatValue(){
     num=0;

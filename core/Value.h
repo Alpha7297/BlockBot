@@ -32,6 +32,8 @@ public:
 
 extern std::map<std::string,int> float_map;
 extern std::vector<FloatValue> float_variables;
+extern std::map<std::string,int> list_map;
+extern std::vector<std::vector<FloatValue>> list_variables;
 
 }
 

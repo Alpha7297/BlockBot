@@ -11,6 +11,7 @@ qt_standard_project_setup()
 qt_add_executable(helloQt
     main.cpp
     ui/App.cpp
+    message/Message.cpp
     core/Runtime.cpp
     core/Block.cpp
     core/Ops.cpp

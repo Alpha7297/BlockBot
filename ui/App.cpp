@@ -1,7 +1,14 @@
 #include <QApplication>
+#include <QDir>
+#include <QFile>
+#include <QFileInfo>
 #include <QGraphicsRectItem>
 #include <QGraphicsScene>
 #include <QGraphicsView>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QKeyEvent>
 #include <QPen>
 #include <QPoint>
 #include <QGraphicsPolygonItem>
@@ -12,27 +19,192 @@
 #include <QBrush>
 #include <QTimer>
 #include <QInputDialog>
+#include <QLineEdit>
+#include <QMouseEvent>
 #include <QTextDocument>
 #include <QWheelEvent>
 #include <algorithm>
 #include <cmath>
 #include <functional>
+#include <limits>
+#include <map>
 #include <vector>
 
 #include "App.h"
 #include "UiConstants.h"
 #include "Widgets.h"
 #include "../core/Runtime.h"
+#include "../message/Message.h"
 using std::vector;
 using std::function;
 
 QTimer* timerPtr = nullptr;
 core::BlockExecutor* executorPtr = nullptr;
+core::RuntimeState runtimeState;
+QGraphicsScene* appScene = nullptr;
+bool runtimeSkipCurrentBlock=false;
+bool runtimeStopRequested=false;
+bool contextMenuButtonPressed=false;
+vector<QString> undoCheckpoints;
+int undoCheckpointId=0;
+bool restoringUndo=false;
 
+class CodeBlock;
 class FloatBlock;
 class ControlCodeBlock;
+class VariableBlock;
+class RobotCoordBlock;
+class SetVariableBlock;
+class ListGetBlock;
+class PushListBlock;
+class SetListBlock;
+class ClearListBlock;
 void refreshFloatAncestors(FloatBlock* block);
 void refreshAllControlLayouts();
+void refreshVariableToolbox();
+void updateToolboxScrollRange();
+void checkEditedFloatWorkspaceWidth(FloatBlock* block);
+void checkEditedCodeWorkspaceWidth(CodeBlock* block);
+void clearContextMenu();
+void showUndoContextMenu(QPointF scenePos);
+bool isContextMenuItem(QGraphicsItem* item);
+bool isWorkspaceContentItem(QGraphicsItem* item);
+void clearUndoCache();
+void saveUndoCheckpoint();
+void undoLastCheckpoint();
+void rebuildFloatBlockRegistryFromScene();
+
+constexpr qreal variableHorizontalPadding=6;
+
+QColor variableColor(){
+    return QColor(194,92,0);
+}
+
+QColor listColor(){
+    return QColor(125,28,38);
+}
+
+QColor robotCoordColor(){
+    return QColor(42,86,150);
+}
+
+bool validVariableName(const QString& name){
+    if(name.isEmpty()||name.size()>10){
+        return false;
+    }
+    for(QChar ch:name){
+        if(!((ch>='A'&&ch<='Z')||(ch>='a'&&ch<='z'))){
+            return false;
+        }
+    }
+    return true;
+}
+
+double checkedDoubleResult(double value,const char* op){
+    if(std::isfinite(value)){
+        return value;
+    }
+    message::numericOutOfRange(op);
+    if(value<0){
+        return std::numeric_limits<double>::lowest();
+    }
+    return std::numeric_limits<double>::max();
+}
+
+class ClickTextItem:public QGraphicsTextItem{
+public:
+    std::function<void()> onClick;
+
+    ClickTextItem(QGraphicsItem* parent=nullptr):QGraphicsTextItem(parent){
+        setAcceptedMouseButtons(Qt::LeftButton);
+    }
+
+    void mousePressEvent(QGraphicsSceneMouseEvent* event) override{
+        if(event->button()!=Qt::LeftButton){
+            event->ignore();
+            return;
+        }
+        clearContextMenu();
+        if(onClick){
+            onClick();
+        }
+        event->accept();
+    }
+};
+
+class TextButton:public QGraphicsPolygonItem{
+public:
+    QGraphicsTextItem* text;
+    std::function<void()> onClick;
+
+    TextButton(QString label,QGraphicsItem* parent=nullptr):QGraphicsPolygonItem(parent){
+        text=new QGraphicsTextItem(label,this);
+        text->document()->setDocumentMargin(0);
+        text->setDefaultTextColor(Qt::white);
+        text->setAcceptedMouseButtons(Qt::NoButton);
+        refreshShape();
+        setBrush(QColor(80,120,170));
+        setPen(QPen(Qt::black,1.5));
+        setAcceptedMouseButtons(Qt::LeftButton);
+    }
+
+    void refreshShape(){
+        QRectF rect=text->boundingRect();
+        qreal width=rect.width()+20;
+        qreal height=rect.height()+10;
+        QPolygonF shape;
+        shape<<QPointF(0,0)<<QPointF(width,0)
+             <<QPointF(width,height)<<QPointF(0,height);
+        setPolygon(shape);
+        text->setPos(10,5);
+    }
+
+    void mousePressEvent(QGraphicsSceneMouseEvent* event) override{
+        if(onClick){
+            onClick();
+        }
+        event->accept();
+    }
+};
+
+class ContextMenuButton:public Button{
+public:
+    QGraphicsTextItem* label;
+
+    ContextMenuButton(QString text,QGraphicsItem* parent=nullptr):Button(0,"",parent){
+        label=new QGraphicsTextItem(text,this);
+        label->document()->setDocumentMargin(0);
+        label->setDefaultTextColor(Qt::white);
+        label->setAcceptedMouseButtons(Qt::NoButton);
+        QPolygonF shape;
+        shape<<QPointF(0,0)<<QPointF(56,0)<<QPointF(56,24)<<QPointF(0,24);
+        setPolygon(shape);
+        setBrush(QColor(70,80,96));
+        setPen(QPen(Qt::black,1.5));
+        QRectF rect=label->boundingRect();
+        label->setPos((56-rect.width())/2,(24-rect.height())/2);
+    }
+};
+
+void editNameText(QString& name,QGraphicsTextItem* textItem,const QString& title,function<void()> onChanged){
+    bool ok=false;
+    QString newName=QInputDialog::getText(nullptr,title,"name",
+        QLineEdit::Normal,name,&ok).trimmed();
+    if(!ok){
+        return;
+    }
+    if(!validVariableName(newName)){
+        message::invalidVariableName();
+        return;
+    }
+    name=newName;
+    if(textItem!=nullptr){
+        textItem->setPlainText(name);
+    }
+    if(onChanged){
+        onChanged();
+    }
+}
 
 class CodeBlock:public QGraphicsPolygonItem{
 public:
@@ -86,7 +258,7 @@ public:
         shadow->setPen(Qt::NoPen);
         shadow->setPos(pos());
         dragging=false;
-        setAcceptedMouseButtons(Qt::LeftButton);
+        setAcceptedMouseButtons(Qt::LeftButton|Qt::RightButton);
         mouseOffset=QPointF(0,0);
         pre=nullptr;
         next=nullptr;
@@ -160,13 +332,20 @@ public:
         refreshSize();
         setBrush(QColor(92,102,116));
         setPen(QPen(Qt::black,1.5));
-        setAcceptedMouseButtons(Qt::LeftButton);
+        setAcceptedMouseButtons(Qt::LeftButton|Qt::RightButton);
     }
     virtual bool isOperator() const{
         return false;
     }
     virtual double getValue() const{
         return data;
+    }
+    virtual void editValue(){
+        bool ok=false;
+        double value=QInputDialog::getDouble(nullptr,"Edit data","data",data,-1000000,1000000,6,&ok);
+        if(ok){
+            setData(value);
+        }
     }
     QString formatData() const{
         return QString::number(data,'g',6);
@@ -208,7 +387,7 @@ public:
     }
     void setMovable(bool value){
         movable=value;
-        setAcceptedMouseButtons(movable?Qt::LeftButton:Qt::NoButton);
+        setAcceptedMouseButtons(movable?(Qt::LeftButton|Qt::RightButton):Qt::NoButton);
     }
     virtual FloatBlock* copy(){
         FloatBlock* newBlock=new FloatBlock(type,idx,false);
@@ -219,6 +398,66 @@ public:
     void mousePressEvent(QGraphicsSceneMouseEvent* event) override;
     void mouseMoveEvent(QGraphicsSceneMouseEvent* event) override;
     void mouseReleaseEvent(QGraphicsSceneMouseEvent* event) override;
+};
+
+class VariableBlock:public FloatBlock{
+public:
+    QString variableName;
+
+    VariableBlock(QString name,int _idx,int base=false,QGraphicsItem* parent=nullptr):
+        FloatBlock(100,_idx,base,parent){
+        variableName=name;
+        text->setPlainText(variableName);
+        refreshSize();
+        setBrush(variableColor());
+    }
+
+    double getValue() const override{
+        double value=0.0;
+        std::string name=variableName.toStdString();
+        if(!runtimeState.getVariable(name,&value)){
+            QByteArray bytes=variableName.toUtf8();
+            message::variableNotFound(bytes.constData());
+            runtimeSkipCurrentBlock=true;
+            runtimeStopRequested=true;
+            return 0.0;
+        }
+        return value;
+    }
+
+    void setVariableName(const QString& name){
+        variableName=name.trimmed();
+        text->setPlainText(variableName);
+        refreshSize();
+        if(parentItem()!=nullptr){
+            FloatBlock* parentBlock=dynamic_cast<FloatBlock*>(parentItem());
+            if(parentBlock!=nullptr){
+                refreshFloatAncestors(parentBlock);
+            }
+            CodeBlock* codeParent=dynamic_cast<CodeBlock*>(parentItem());
+            if(codeParent!=nullptr){
+                codeParent->refreshSize();
+                refreshAllControlLayouts();
+            }
+        }
+    }
+
+    void refreshSize() override{
+        updateShape(text->boundingRect().width()+variableHorizontalPadding*2);
+        centerText();
+    }
+
+    void editValue() override{
+        editNameText(variableName,text,"Edit variable",[this](){
+            setVariableName(variableName);
+        });
+    }
+
+    FloatBlock* copy() override{
+        VariableBlock* newBlock=new VariableBlock(variableName,idx,false);
+        newBlock->setPos(pos());
+        return newBlock;
+    }
 };
 
 class UnaryOpBlock:public FloatBlock{
@@ -247,34 +486,44 @@ public:
     double getValue() const override{
         double val=slab->getValue();
         if(type==0){
-            return std::sin(val);
+            return checkedDoubleResult(std::sin(val),"sin");
         }
         if(type==1){
-            return std::cos(val);
+            return checkedDoubleResult(std::cos(val),"cos");
         }
         if(type==2){
-            return std::tan(val);
+            return checkedDoubleResult(std::tan(val),"tan");
         }
         if(type==3){
-            return std::asin(val);
+            if(val<-1.0-EPS||val>1.0+EPS){
+                message::inverseTrigOutOfRange("asin",val);
+                return 0.0;
+            }
+            val=std::max(-1.0,std::min(1.0,val));
+            return checkedDoubleResult(std::asin(val),"asin");
         }
         if(type==4){
-            return std::acos(val);
+            if(val<-1.0-EPS||val>1.0+EPS){
+                message::inverseTrigOutOfRange("acos",val);
+                return 0.0;
+            }
+            val=std::max(-1.0,std::min(1.0,val));
+            return checkedDoubleResult(std::acos(val),"acos");
         }
         if(type==5){
-            return std::atan(val);
+            return checkedDoubleResult(std::atan(val),"atan");
         }
         if(type==6){
-            return std::log(val);
+            return checkedDoubleResult(std::log(val),"ln");
         }
         if(type==7){
-            return std::log10(val);
+            return checkedDoubleResult(std::log10(val),"log10");
         }
         if(type==8){
-            return std::floor(val);
+            return checkedDoubleResult(std::floor(val),"floor");
         }
         if(type==9){
-            return std::abs(val);
+            return checkedDoubleResult(std::abs(val),"abs");
         }
         if(type==10){
             return std::abs(val)<EPS?1.0:0.0;
@@ -338,22 +587,26 @@ public:
         double a=left->getValue();
         double b=right->getValue();
         if(type==0){
-            return a+b;
+            return checkedDoubleResult(a+b,"addition");
         }
         if(type==1){
-            return a-b;
+            return checkedDoubleResult(a-b,"subtraction");
         }
         if(type==2){
-            return a*b;
+            return checkedDoubleResult(a*b,"multiplication");
         }
         if(type==3){
-            return a/b;
+            if(std::abs(b)<EPS){
+                message::divisionByZero();
+                return 0.0;
+            }
+            return checkedDoubleResult(a/b,"division");
         }
         if(type==4){
-            return std::pow(a,b);
+            return checkedDoubleResult(std::pow(a,b),"pow");
         }
         if(type==5){
-            return std::atan2(b,a);
+            return checkedDoubleResult(std::atan2(b,a),"arg");
         }
         if(type==6){
             return a>b?a:b;
@@ -456,6 +709,411 @@ public:
     }
     CodeBlock* copy() override{
         FloatCodeBlock* newBlock=new FloatCodeBlock(type,s,idx,value,false);
+        newBlock->setPos(pos());
+        return newBlock;
+    }
+};
+
+class SetVariableBlock:public CodeBlock{
+public:
+    QString variableName;
+    ClickTextItem* variableText;
+    QGraphicsRectItem* variableFrame;
+    FloatBlock* value;
+
+    SetVariableBlock(int _idx,QString name="x",FloatBlock* _value=nullptr,
+                     int base=false,QGraphicsItem* parent=nullptr):
+        CodeBlock(7,"set",_idx,base,parent){
+        variableName=name;
+        variableFrame=new QGraphicsRectItem(this);
+        variableFrame->setBrush(QColor(220,220,220));
+        variableFrame->setPen(QPen(Qt::black,1.5));
+        variableFrame->setAcceptedMouseButtons(Qt::NoButton);
+        variableFrame->setZValue(1);
+        variableText=new ClickTextItem(this);
+        variableText->setDefaultTextColor(Qt::black);
+        variableText->document()->setDocumentMargin(0);
+        variableText->setPlainText(variableName);
+        variableText->setZValue(2);
+        if(!base){
+            variableText->onClick=[this](){
+                editNameText(variableName,variableText,"Edit variable",[this](){
+                    refreshSize();
+                    refreshAllControlLayouts();
+                    checkEditedCodeWorkspaceWidth(this);
+                });
+            };
+        }
+        else{
+            variableText->setAcceptedMouseButtons(Qt::NoButton);
+        }
+        if(_value==nullptr){
+            value=new FloatBlock(0,0,false,this);
+        }
+        else{
+            value=_value->copy();
+            value->setParentItem(this);
+        }
+        value->setMovable(!base);
+        setBrush(variableColor());
+        refreshSize();
+    }
+
+    void refreshSize() override{
+        qreal textWidth=text->boundingRect().width();
+        qreal textHeight=text->boundingRect().height();
+        qreal variableWidth=variableText->boundingRect().width();
+        qreal variableHeight=variableText->boundingRect().height();
+        qreal variableBoxWidth=variableWidth+variableHorizontalPadding*2;
+        qreal variableBoxHeight=std::max<qreal>(floatBlockWidth,variableHeight+6);
+        wid=std::max(40,value->wid+10);
+        len=static_cast<int>(std::ceil(20+textWidth+10+variableBoxWidth+10+value->len+10));
+        QPolygonF shape;
+        shape<<QPointF(0,0)<<QPointF(len,0)
+             <<QPointF(len,wid)<<QPointF(0,wid);
+        setPolygon(shape);
+        text->setPos(10,(wid-textHeight)/2);
+        qreal variableBoxX=20+textWidth;
+        qreal variableBoxY=(wid-variableBoxHeight)/2;
+        variableFrame->setRect(0,0,variableBoxWidth,variableBoxHeight);
+        variableFrame->setPos(variableBoxX,variableBoxY);
+        variableText->setPos(variableBoxX+variableHorizontalPadding,(wid-variableHeight)/2);
+        value->setPos(variableBoxX+variableBoxWidth+10,(wid-value->wid)/2);
+
+        QPolygonF shadowShape;
+        shadowShape<<QPointF(-shadowPadding,-shadowPadding)
+                   <<QPointF(len+shadowPadding,-shadowPadding)
+                   <<QPointF(len+shadowPadding,wid+shadowPadding)
+                   <<QPointF(-shadowPadding,wid+shadowPadding);
+        shadow->setPolygon(shadowShape);
+    }
+
+    CodeBlock* copy() override{
+        SetVariableBlock* newBlock=new SetVariableBlock(idx,variableName,value,false);
+        newBlock->setPos(pos());
+        return newBlock;
+    }
+};
+
+class ListGetBlock:public FloatBlock{
+public:
+    QString listName;
+    ClickTextItem* listText;
+    QGraphicsRectItem* listFrame;
+    FloatBlock* index;
+
+    ListGetBlock(QString name,int _idx,FloatBlock* _index=nullptr,
+                 int base=false,QGraphicsItem* parent=nullptr):
+        FloatBlock(101,_idx,base,parent){
+        listName=name;
+        s="get";
+        text->setPlainText(s);
+        listFrame=new QGraphicsRectItem(this);
+        listFrame->setBrush(QColor(220,220,220));
+        listFrame->setPen(QPen(Qt::black,1.5));
+        listFrame->setAcceptedMouseButtons(Qt::NoButton);
+        listFrame->setZValue(1);
+        listText=new ClickTextItem(this);
+        listText->setDefaultTextColor(Qt::black);
+        listText->document()->setDocumentMargin(0);
+        listText->setPlainText(listName);
+        listText->setZValue(2);
+        if(!base){
+            listText->onClick=[this](){
+                editNameText(listName,listText,"Edit list",[this](){
+                    refreshSize();
+                    refreshFloatAncestors(this);
+                    checkEditedFloatWorkspaceWidth(this);
+                });
+            };
+        }
+        else{
+            listText->setAcceptedMouseButtons(Qt::NoButton);
+        }
+        if(_index==nullptr){
+            index=new FloatBlock(0,0,false,this);
+        }
+        else{
+            index=_index->copy();
+            index->setParentItem(this);
+        }
+        index->setMovable(!base);
+        refreshSize();
+        setBrush(listColor());
+    }
+
+    bool isOperator() const override{
+        return true;
+    }
+
+    double getValue() const override{
+        std::string name=listName.toStdString();
+        if(!runtimeState.hasList(name)){
+            QByteArray bytes=listName.toUtf8();
+            message::listNotFound(bytes.constData());
+            runtimeStopRequested=true;
+            return 0.0;
+        }
+        int idx=static_cast<int>(std::floor(index->getValue()));
+        double value=0.0;
+        if(!runtimeState.getListValue(name,idx,&value)){
+            QByteArray bytes=listName.toUtf8();
+            message::listIndexOutOfRange(bytes.constData(),idx);
+            runtimeStopRequested=true;
+            return 0.0;
+        }
+        return value;
+    }
+
+    void refreshSize() override{
+        text->setDefaultTextColor(Qt::white);
+        qreal textWidth=text->boundingRect().width();
+        qreal textHeight=text->boundingRect().height();
+        qreal nameWidth=listText->boundingRect().width();
+        qreal nameHeight=listText->boundingRect().height();
+        qreal nameBoxWidth=nameWidth+variableHorizontalPadding*2;
+        qreal nameBoxHeight=std::max<qreal>(floatBlockWidth,nameHeight+6);
+        qreal wanted=opHorizontalPadding+textWidth+opHorizontalPadding+
+                     nameBoxWidth+opHorizontalPadding+index->len+opHorizontalPadding;
+        updateShape(wanted);
+        wid=std::max(std::max(index->wid,floatBlockWidth),static_cast<int>(nameBoxHeight))+opVerticalPadding*2;
+        updatePolygon();
+        text->setPos(opHorizontalPadding,(wid-textHeight)/2);
+        qreal boxX=opHorizontalPadding+textWidth+opHorizontalPadding;
+        qreal boxY=(wid-nameBoxHeight)/2;
+        listFrame->setRect(0,0,nameBoxWidth,nameBoxHeight);
+        listFrame->setPos(boxX,boxY);
+        listText->setPos(boxX+variableHorizontalPadding,(wid-nameHeight)/2);
+        index->setPos(boxX+nameBoxWidth+opHorizontalPadding,(wid-index->wid)/2);
+        setPen(QPen(Qt::black,1.5));
+    }
+
+    FloatBlock* copy() override{
+        ListGetBlock* newBlock=new ListGetBlock(listName,idx,index,false);
+        newBlock->setPos(pos());
+        return newBlock;
+    }
+};
+
+class PushListBlock:public CodeBlock{
+public:
+    QString listName;
+    ClickTextItem* listText;
+    QGraphicsRectItem* listFrame;
+    FloatBlock* value;
+
+    PushListBlock(int _idx,QString name="x",FloatBlock* _value=nullptr,
+                  int base=false,QGraphicsItem* parent=nullptr):
+        CodeBlock(8,"push",_idx,base,parent){
+        listName=name;
+        listFrame=new QGraphicsRectItem(this);
+        listFrame->setBrush(QColor(220,220,220));
+        listFrame->setPen(QPen(Qt::black,1.5));
+        listFrame->setAcceptedMouseButtons(Qt::NoButton);
+        listFrame->setZValue(1);
+        listText=new ClickTextItem(this);
+        listText->setDefaultTextColor(Qt::black);
+        listText->document()->setDocumentMargin(0);
+        listText->setPlainText(listName);
+        listText->setZValue(2);
+        if(!base){
+            listText->onClick=[this](){
+                editNameText(listName,listText,"Edit list",[this](){
+                    refreshSize();
+                    refreshAllControlLayouts();
+                    checkEditedCodeWorkspaceWidth(this);
+                });
+            };
+        }
+        else{
+            listText->setAcceptedMouseButtons(Qt::NoButton);
+        }
+        value=_value==nullptr?new FloatBlock(0,0,false,this):_value->copy();
+        value->setParentItem(this);
+        value->setMovable(!base);
+        setBrush(listColor());
+        refreshSize();
+    }
+
+    void refreshSize() override{
+        qreal textWidth=text->boundingRect().width();
+        qreal textHeight=text->boundingRect().height();
+        qreal nameWidth=listText->boundingRect().width();
+        qreal nameHeight=listText->boundingRect().height();
+        qreal nameBoxWidth=nameWidth+variableHorizontalPadding*2;
+        qreal nameBoxHeight=std::max<qreal>(floatBlockWidth,nameHeight+6);
+        wid=std::max(40,value->wid+10);
+        len=static_cast<int>(std::ceil(20+textWidth+10+nameBoxWidth+10+value->len+10));
+        QPolygonF shape;
+        shape<<QPointF(0,0)<<QPointF(len,0)<<QPointF(len,wid)<<QPointF(0,wid);
+        setPolygon(shape);
+        text->setPos(10,(wid-textHeight)/2);
+        qreal boxX=20+textWidth;
+        qreal boxY=(wid-nameBoxHeight)/2;
+        listFrame->setRect(0,0,nameBoxWidth,nameBoxHeight);
+        listFrame->setPos(boxX,boxY);
+        listText->setPos(boxX+variableHorizontalPadding,(wid-nameHeight)/2);
+        value->setPos(boxX+nameBoxWidth+10,(wid-value->wid)/2);
+
+        QPolygonF shadowShape;
+        shadowShape<<QPointF(-shadowPadding,-shadowPadding)
+                   <<QPointF(len+shadowPadding,-shadowPadding)
+                   <<QPointF(len+shadowPadding,wid+shadowPadding)
+                   <<QPointF(-shadowPadding,wid+shadowPadding);
+        shadow->setPolygon(shadowShape);
+    }
+
+    CodeBlock* copy() override{
+        PushListBlock* newBlock=new PushListBlock(idx,listName,value,false);
+        newBlock->setPos(pos());
+        return newBlock;
+    }
+};
+
+class SetListBlock:public CodeBlock{
+public:
+    QString listName;
+    ClickTextItem* listText;
+    QGraphicsRectItem* listFrame;
+    FloatBlock* index;
+    FloatBlock* value;
+
+    SetListBlock(int _idx,QString name="x",FloatBlock* _index=nullptr,
+                 FloatBlock* _value=nullptr,int base=false,QGraphicsItem* parent=nullptr):
+        CodeBlock(9,"set",_idx,base,parent){
+        listName=name;
+        listFrame=new QGraphicsRectItem(this);
+        listFrame->setBrush(QColor(220,220,220));
+        listFrame->setPen(QPen(Qt::black,1.5));
+        listFrame->setAcceptedMouseButtons(Qt::NoButton);
+        listFrame->setZValue(1);
+        listText=new ClickTextItem(this);
+        listText->setDefaultTextColor(Qt::black);
+        listText->document()->setDocumentMargin(0);
+        listText->setPlainText(listName);
+        listText->setZValue(2);
+        if(!base){
+            listText->onClick=[this](){
+                editNameText(listName,listText,"Edit list",[this](){
+                    refreshSize();
+                    refreshAllControlLayouts();
+                    checkEditedCodeWorkspaceWidth(this);
+                });
+            };
+        }
+        else{
+            listText->setAcceptedMouseButtons(Qt::NoButton);
+        }
+        index=_index==nullptr?new FloatBlock(0,0,false,this):_index->copy();
+        value=_value==nullptr?new FloatBlock(0,0,false,this):_value->copy();
+        index->setParentItem(this);
+        value->setParentItem(this);
+        index->setMovable(!base);
+        value->setMovable(!base);
+        setBrush(listColor());
+        refreshSize();
+    }
+
+    void refreshSize() override{
+        qreal textWidth=text->boundingRect().width();
+        qreal textHeight=text->boundingRect().height();
+        qreal nameWidth=listText->boundingRect().width();
+        qreal nameHeight=listText->boundingRect().height();
+        qreal nameBoxWidth=nameWidth+variableHorizontalPadding*2;
+        qreal nameBoxHeight=std::max<qreal>(floatBlockWidth,nameHeight+6);
+        wid=std::max(40,std::max(index->wid,value->wid)+10);
+        len=static_cast<int>(std::ceil(20+textWidth+10+nameBoxWidth+10+index->len+10+value->len+10));
+        QPolygonF shape;
+        shape<<QPointF(0,0)<<QPointF(len,0)<<QPointF(len,wid)<<QPointF(0,wid);
+        setPolygon(shape);
+        text->setPos(10,(wid-textHeight)/2);
+        qreal boxX=20+textWidth;
+        qreal boxY=(wid-nameBoxHeight)/2;
+        listFrame->setRect(0,0,nameBoxWidth,nameBoxHeight);
+        listFrame->setPos(boxX,boxY);
+        listText->setPos(boxX+variableHorizontalPadding,(wid-nameHeight)/2);
+        index->setPos(boxX+nameBoxWidth+10,(wid-index->wid)/2);
+        value->setPos(boxX+nameBoxWidth+10+index->len+10,(wid-value->wid)/2);
+
+        QPolygonF shadowShape;
+        shadowShape<<QPointF(-shadowPadding,-shadowPadding)
+                   <<QPointF(len+shadowPadding,-shadowPadding)
+                   <<QPointF(len+shadowPadding,wid+shadowPadding)
+                   <<QPointF(-shadowPadding,wid+shadowPadding);
+        shadow->setPolygon(shadowShape);
+    }
+
+    CodeBlock* copy() override{
+        SetListBlock* newBlock=new SetListBlock(idx,listName,index,value,false);
+        newBlock->setPos(pos());
+        return newBlock;
+    }
+};
+
+class ClearListBlock:public CodeBlock{
+public:
+    QString listName;
+    ClickTextItem* listText;
+    QGraphicsRectItem* listFrame;
+
+    ClearListBlock(int _idx,QString name="x",int base=false,QGraphicsItem* parent=nullptr):
+        CodeBlock(10,"clear",_idx,base,parent){
+        listName=name;
+        listFrame=new QGraphicsRectItem(this);
+        listFrame->setBrush(QColor(220,220,220));
+        listFrame->setPen(QPen(Qt::black,1.5));
+        listFrame->setAcceptedMouseButtons(Qt::NoButton);
+        listFrame->setZValue(1);
+        listText=new ClickTextItem(this);
+        listText->setDefaultTextColor(Qt::black);
+        listText->document()->setDocumentMargin(0);
+        listText->setPlainText(listName);
+        listText->setZValue(2);
+        if(!base){
+            listText->onClick=[this](){
+                editNameText(listName,listText,"Edit list",[this](){
+                    refreshSize();
+                    refreshAllControlLayouts();
+                    checkEditedCodeWorkspaceWidth(this);
+                });
+            };
+        }
+        else{
+            listText->setAcceptedMouseButtons(Qt::NoButton);
+        }
+        setBrush(listColor());
+        refreshSize();
+    }
+
+    void refreshSize() override{
+        qreal textWidth=text->boundingRect().width();
+        qreal textHeight=text->boundingRect().height();
+        qreal nameWidth=listText->boundingRect().width();
+        qreal nameHeight=listText->boundingRect().height();
+        qreal nameBoxWidth=nameWidth+variableHorizontalPadding*2;
+        qreal nameBoxHeight=std::max<qreal>(floatBlockWidth,nameHeight+6);
+        wid=40;
+        len=static_cast<int>(std::ceil(20+textWidth+10+nameBoxWidth+10));
+        QPolygonF shape;
+        shape<<QPointF(0,0)<<QPointF(len,0)<<QPointF(len,wid)<<QPointF(0,wid);
+        setPolygon(shape);
+        text->setPos(10,(wid-textHeight)/2);
+        qreal boxX=20+textWidth;
+        qreal boxY=(wid-nameBoxHeight)/2;
+        listFrame->setRect(0,0,nameBoxWidth,nameBoxHeight);
+        listFrame->setPos(boxX,boxY);
+        listText->setPos(boxX+variableHorizontalPadding,(wid-nameHeight)/2);
+
+        QPolygonF shadowShape;
+        shadowShape<<QPointF(-shadowPadding,-shadowPadding)
+                   <<QPointF(len+shadowPadding,-shadowPadding)
+                   <<QPointF(len+shadowPadding,wid+shadowPadding)
+                   <<QPointF(-shadowPadding,wid+shadowPadding);
+        shadow->setPolygon(shadowShape);
+    }
+
+    CodeBlock* copy() override{
+        ClearListBlock* newBlock=new ClearListBlock(idx,listName,false);
         newBlock->setPos(pos());
         return newBlock;
     }
@@ -598,6 +1256,48 @@ public:
     }
 };
 
+extern Robot* player;
+
+class RobotCoordBlock:public FloatBlock{
+public:
+    int coordType;
+
+    RobotCoordBlock(int _coordType,int _idx,int base=false,QGraphicsItem* parent=nullptr):
+        FloatBlock(102,_idx,base,parent){
+        coordType=_coordType;
+        text->setPlainText(coordType==0?"robotx":"roboty");
+        refreshSize();
+        setBrush(robotCoordColor());
+    }
+
+    double getValue() const override{
+        if(player==nullptr){
+            return 0.0;
+        }
+        return coordType==0?player->gridx:player->gridy;
+    }
+
+    void refreshSize() override{
+        updateShape(text->boundingRect().width()+variableHorizontalPadding*2);
+        centerText();
+    }
+
+    void editValue() override{
+    }
+
+    FloatBlock* copy() override{
+        RobotCoordBlock* newBlock=new RobotCoordBlock(coordType,idx,false);
+        newBlock->setPos(pos());
+        return newBlock;
+    }
+};
+
+bool canAbsorbIntoFloatSlot(FloatBlock* block){
+    return block!=nullptr&&(block->isOperator()||
+        dynamic_cast<VariableBlock*>(block)!=nullptr||
+        dynamic_cast<RobotCoordBlock*>(block)!=nullptr);
+}
+
 class RobotActionAdapter:public core::RobotActions{
 public:
     Robot* robot;
@@ -620,6 +1320,53 @@ public:
 
     void waitFrames(double) override{
     }
+
+    void setVariable(const std::string& name,double value) override{
+        if(!runtimeState.setVariable(name,value)){
+            QString key=QString::fromStdString(name);
+            QByteArray bytes=key.toUtf8();
+            message::variableNotFound(bytes.constData());
+            runtimeStopRequested=true;
+            return;
+        }
+    }
+
+    void pushList(const std::string& name,double value) override{
+        if(!runtimeState.pushList(name,value)){
+            QString key=QString::fromStdString(name);
+            QByteArray bytes=key.toUtf8();
+            message::listNotFound(bytes.constData());
+            runtimeStopRequested=true;
+            return;
+        }
+    }
+
+    void setListValue(const std::string& name,double index,double value) override{
+        QString key=QString::fromStdString(name);
+        if(!runtimeState.hasList(name)){
+            QByteArray bytes=key.toUtf8();
+            message::listNotFound(bytes.constData());
+            runtimeStopRequested=true;
+            return;
+        }
+        int idx=static_cast<int>(std::floor(index));
+        if(!runtimeState.setListValue(name,idx,value)){
+            QByteArray bytes=key.toUtf8();
+            message::listIndexOutOfRange(bytes.constData(),idx);
+            runtimeStopRequested=true;
+            return;
+        }
+    }
+
+    void clearList(const std::string& name) override{
+        if(!runtimeState.clearList(name)){
+            QString key=QString::fromStdString(name);
+            QByteArray bytes=key.toUtf8();
+            message::listNotFound(bytes.constData());
+            runtimeStopRequested=true;
+            return;
+        }
+    }
 };
 
 int maxZ=10;
@@ -630,16 +1377,29 @@ QGraphicsRectItem* toolboxBackground;
 QGraphicsRectItem* workspaceBackground;
 QGraphicsRectItem* squares[screensize][screensize];
 Button* runButton=nullptr;
+Button* fastRunButton=nullptr;
+Button* activeRunButton=nullptr;
+TextButton* createVariableButton=nullptr;
+TextButton* createListButton=nullptr;
 ScrollSlider* toolboxSlider=nullptr;
 ScrollSlider* workspaceSlider=nullptr;
 vector<CodeBlock*> codeBlocks;
 vector<CodeBlock*> baseCodeBlocks;
 vector<FloatBlock*> floatBlocks;
+vector<VariableBlock*> variableBaseBlocks;
+SetVariableBlock* variableSetBaseBlock=nullptr;
+vector<CodeBlock*> listLabelBaseBlocks;
+ListGetBlock* listGetBaseBlock=nullptr;
+PushListBlock* pushListBaseBlock=nullptr;
+SetListBlock* setListBaseBlock=nullptr;
+ClearListBlock* clearListBaseBlock=nullptr;
 StartBlock* currentStartBlock=nullptr;
 CodeBlock* runningBlock=nullptr;
+vector<ContextMenuButton*> contextMenuButtons;
 qreal toolboxScrollY=0;
 qreal workspaceScrollY=0;
 qreal toolboxMaxScrollY=0;
+int variableToolboxStartY=0;
 
 qreal nextDragZ(){
     maxZ++;
@@ -651,6 +1411,32 @@ public:
     AppGraphicsView(QGraphicsScene* scene):QGraphicsView(scene){}
 
 protected:
+    void mousePressEvent(QMouseEvent* event) override{
+        QGraphicsItem* item=itemAt(event->pos());
+        bool onContextMenu=isContextMenuItem(item);
+        QPointF scenePoint=mapToScene(event->pos());
+        if(event->button()==Qt::RightButton&&
+           QRectF(560,20,380,500).contains(scenePoint)&&
+           !onContextMenu&&!isWorkspaceContentItem(item)){
+            showUndoContextMenu(scenePoint);
+            event->accept();
+            return;
+        }
+        if(!onContextMenu){
+            clearContextMenu();
+        }
+        QGraphicsView::mousePressEvent(event);
+    }
+
+    void keyPressEvent(QKeyEvent* event) override{
+        if(event->key()==Qt::Key_Z&&(event->modifiers()&Qt::ControlModifier)){
+            undoLastCheckpoint();
+            event->accept();
+            return;
+        }
+        QGraphicsView::keyPressEvent(event);
+    }
+
     void wheelEvent(QWheelEvent* event) override{
         QPointF scenePoint=mapToScene(event->position().toPoint());
         qreal delta=-event->angleDelta().y()/1200.0;
@@ -669,14 +1455,34 @@ protected:
 };
 
 void clearAbsorbShadow(FloatBlock* block);
+void deleteCodeBlock(CodeBlock* block);
+void deleteFloatBlock(FloatBlock* block);
+void deleteFloatTreeItems(FloatBlock* block);
+void clearContextMenu();
+void showCodeContextMenu(CodeBlock* block,QPointF scenePos);
+void showFloatContextMenu(FloatBlock* block,QPointF scenePos);
 FloatBlock* findAbsorbTarget(FloatBlock* moving);
 void attachOperatorToTarget(FloatBlock* moving,FloatBlock* target);
 FloatBlock* detachOperatorFromParent(FloatBlock* moving);
 void showAbsorbShadow(FloatBlock* moving,FloatBlock* target);
 void refreshAllControlLayouts();
+void refreshControlFromInside(ControlCodeBlock* control);
 void syncControlInside(ControlCodeBlock* control);
 void syncScrollArea(int area);
+void syncCodeChainFrom(CodeBlock* head,QPointF startPos);
+void rememberCodeTreeStagePos(CodeBlock* head,int area);
+void rememberFloatBlockStagePos(FloatBlock* block,int area);
+void setCodeBlockStagePos(CodeBlock* block,int area,QPointF pos);
+void setFloatBlockStagePos(FloatBlock* block,int area,QPointF pos);
+QPointF sceneToStagePos(int area,QPointF scenePos);
+void setInsertedOperatorInteractivity(FloatBlock* block);
+void setCodeTreeZValue(CodeBlock* block,qreal z);
+void resetFloatTreeZValue(FloatBlock* block);
+void replaceFloatExpressionWithValue(FloatBlock* root);
 void refreshFloatAncestors(FloatBlock* block);
+FloatBlock* rootFloatBlock(FloatBlock* block);
+void eraseFloatTreeRecords(FloatBlock* block);
+void eraseCodeEmbeddedFloatRecords(CodeBlock* block);
 bool inWorkspace(CodeBlock* block){
     QRectF workspaceRect(560,20,380,500);
     return workspaceRect.contains(block->sceneBoundingRect());
@@ -687,10 +1493,922 @@ bool inWorkspace(FloatBlock* block){
     return workspaceRect.contains(block->sceneBoundingRect());
 }
 
+QRectF workspaceRect(){
+    return QRectF(560,20,380,500);
+}
+
+bool outsideWorkspaceHorizontal(const QRectF& rect){
+    QRectF bounds=workspaceRect();
+    return rect.left()<bounds.left()||rect.right()>bounds.right();
+}
+
+bool outsideWorkspaceVertical(const QRectF& rect){
+    QRectF bounds=workspaceRect();
+    return rect.top()<bounds.top()||rect.bottom()>bounds.bottom();
+}
+
+QRectF codeTreeSceneRect(CodeBlock* head){
+    QRectF rect;
+    bool initialized=false;
+    CodeBlock* curr=head;
+    while(curr!=nullptr){
+        QRectF currRect=curr->sceneBoundingRect();
+        if(!initialized){
+            rect=currRect;
+            initialized=true;
+        }
+        else{
+            rect=rect.united(currRect);
+        }
+        ControlCodeBlock* control=dynamic_cast<ControlCodeBlock*>(curr);
+        if(control!=nullptr&&control->inside!=nullptr){
+            rect=rect.united(codeTreeSceneRect(control->inside));
+        }
+        curr=curr->next;
+    }
+    return rect;
+}
+
+QPointF clampVerticalDeltaToWorkspace(const QRectF& rect){
+    QRectF bounds=workspaceRect();
+    qreal dy=0;
+    if(rect.height()>bounds.height()){
+        dy=bounds.top()-rect.top();
+    }
+    else if(rect.top()<bounds.top()){
+        dy=bounds.top()-rect.top();
+    }
+    else if(rect.bottom()>bounds.bottom()){
+        dy=bounds.bottom()-rect.bottom();
+    }
+    return QPointF(0,dy);
+}
+
+CodeBlock* codeChainHead(CodeBlock* block){
+    if(block==nullptr){
+        return nullptr;
+    }
+    CodeBlock* head=block;
+    while(head->pre!=nullptr){
+        head=head->pre;
+    }
+    return head;
+}
+
+CodeBlock* containingCodeBlock(QGraphicsItem* item){
+    QGraphicsItem* curr=item;
+    while(curr!=nullptr){
+        CodeBlock* block=dynamic_cast<CodeBlock*>(curr);
+        if(block!=nullptr){
+            return block;
+        }
+        curr=curr->parentItem();
+    }
+    return nullptr;
+}
+
+void deleteCodeChain(CodeBlock* head){
+    CodeBlock* curr=head;
+    while(curr!=nullptr){
+        CodeBlock* next=curr->next;
+        curr->next=nullptr;
+        deleteCodeBlock(curr);
+        curr=next;
+    }
+}
+
+void addCodeTreeToScene(CodeBlock* head){
+    CodeBlock* curr=head;
+    while(curr!=nullptr){
+        curr->idx=static_cast<int>(codeBlocks.size());
+        codeBlocks.push_back(curr);
+        if(appScene!=nullptr&&curr->scene()==nullptr){
+            appScene->addItem(curr);
+        }
+        ControlCodeBlock* control=dynamic_cast<ControlCodeBlock*>(curr);
+        if(control!=nullptr){
+            CodeBlock* inside=control->inside;
+            while(inside!=nullptr){
+                inside->insideParent=control;
+                inside=inside->next;
+            }
+            addCodeTreeToScene(control->inside);
+        }
+        curr=curr->next;
+    }
+}
+
+CodeBlock* cloneCodeTree(CodeBlock* source){
+    CodeBlock* first=nullptr;
+    CodeBlock* prev=nullptr;
+    CodeBlock* curr=source;
+    while(curr!=nullptr){
+        CodeBlock* clone=curr->copy();
+        clone->pre=prev;
+        clone->next=nullptr;
+        clone->insideParent=nullptr;
+        clone->insideTarget=nullptr;
+        clone->preTarget=nullptr;
+        clone->nextTarget=nullptr;
+        clone->dragging=false;
+        clone->ismoving=false;
+        if(prev!=nullptr){
+            prev->next=clone;
+        }
+        else{
+            first=clone;
+        }
+        ControlCodeBlock* sourceControl=dynamic_cast<ControlCodeBlock*>(curr);
+        ControlCodeBlock* cloneControl=dynamic_cast<ControlCodeBlock*>(clone);
+        if(sourceControl!=nullptr&&cloneControl!=nullptr){
+            cloneControl->inside=cloneCodeTree(sourceControl->inside);
+            CodeBlock* inside=cloneControl->inside;
+            while(inside!=nullptr){
+                inside->insideParent=cloneControl;
+                inside=inside->next;
+            }
+            refreshControlFromInside(cloneControl);
+        }
+        prev=clone;
+        curr=curr->next;
+    }
+    return first;
+}
+
+void copyCodeContext(CodeBlock* block){
+    if(block==nullptr||block->isbase){
+        return;
+    }
+    CodeBlock* source=dynamic_cast<StartBlock*>(block)!=nullptr?block->next:block;
+    if(source==nullptr){
+        return;
+    }
+    CodeBlock* copy=cloneCodeTree(source);
+    if(copy==nullptr){
+        return;
+    }
+    addCodeTreeToScene(copy);
+    QPointF targetPos=source->pos()+QPointF(source->len+40,0);
+    syncCodeChainFrom(copy,targetPos);
+    setCodeTreeZValue(copy,10);
+    rememberCodeTreeStagePos(copy,scrollWorkspace);
+    refreshAllControlLayouts();
+    saveUndoCheckpoint();
+}
+
+void deleteCodeContext(CodeBlock* block){
+    if(block==nullptr||block->isbase){
+        return;
+    }
+    if(block->pre!=nullptr){
+        block->pre->next=nullptr;
+        block->pre=nullptr;
+    }
+    ControlCodeBlock* owner=block->insideParent;
+    if(owner!=nullptr&&owner->inside==block){
+        owner->inside=nullptr;
+        block->insideParent=nullptr;
+        refreshControlFromInside(owner);
+    }
+    deleteCodeChain(block);
+    refreshAllControlLayouts();
+}
+
+void copyFloatContext(FloatBlock* block){
+    if(block==nullptr||block->isbase||appScene==nullptr){
+        return;
+    }
+    FloatBlock* copy=block->copy();
+    copy->setParentItem(nullptr);
+    copy->idx=static_cast<int>(floatBlocks.size());
+    floatBlocks.push_back(copy);
+    appScene->addItem(copy);
+    copy->setPos(block->scenePos()+QPointF(block->len+30,0));
+    copy->scrollArea=scrollWorkspace;
+    resetFloatTreeZValue(copy);
+    setInsertedOperatorInteractivity(copy);
+    rememberFloatBlockStagePos(copy,scrollWorkspace);
+    saveUndoCheckpoint();
+}
+
+void deleteFloatContext(FloatBlock* block){
+    if(block==nullptr||block->isbase){
+        return;
+    }
+    if(block->parentItem()!=nullptr){
+        replaceFloatExpressionWithValue(block);
+        refreshAllControlLayouts();
+        saveUndoCheckpoint();
+        return;
+    }
+    QPointF oldPos=block->pos();
+    int oldArea=block->scrollArea;
+    FloatBlock* placeholder=new FloatBlock(0,0,false);
+    placeholder->idx=static_cast<int>(floatBlocks.size());
+    placeholder->setPos(oldPos);
+    placeholder->scrollArea=oldArea;
+    if(appScene!=nullptr){
+        appScene->addItem(placeholder);
+    }
+    floatBlocks.push_back(placeholder);
+    rememberFloatBlockStagePos(placeholder,oldArea==scrollWorkspace?scrollWorkspace:scrollNone);
+    deleteFloatBlock(block);
+    saveUndoCheckpoint();
+}
+
+QJsonObject serializeFloatBlock(FloatBlock* block){
+    QJsonObject object;
+    if(block==nullptr){
+        return object;
+    }
+    object["type"]=block->type;
+    object["data"]=block->data;
+    VariableBlock* variable=dynamic_cast<VariableBlock*>(block);
+    if(variable!=nullptr){
+        object["kind"]="variable";
+        object["name"]=variable->variableName;
+        return object;
+    }
+    RobotCoordBlock* robotCoord=dynamic_cast<RobotCoordBlock*>(block);
+    if(robotCoord!=nullptr){
+        object["kind"]="robotCoord";
+        object["coordType"]=robotCoord->coordType;
+        return object;
+    }
+    UnaryOpBlock* unary=dynamic_cast<UnaryOpBlock*>(block);
+    if(unary!=nullptr){
+        object["kind"]="unary";
+        object["text"]=unary->s;
+        object["slab"]=serializeFloatBlock(unary->slab);
+        return object;
+    }
+    BinaryOpBlock* binary=dynamic_cast<BinaryOpBlock*>(block);
+    if(binary!=nullptr){
+        object["kind"]="binary";
+        object["text"]=binary->s;
+        object["left"]=serializeFloatBlock(binary->left);
+        object["right"]=serializeFloatBlock(binary->right);
+        return object;
+    }
+    ListGetBlock* listGet=dynamic_cast<ListGetBlock*>(block);
+    if(listGet!=nullptr){
+        object["kind"]="listGet";
+        object["name"]=listGet->listName;
+        object["index"]=serializeFloatBlock(listGet->index);
+        return object;
+    }
+    object["kind"]="number";
+    return object;
+}
+
+FloatBlock* deserializeFloatBlock(const QJsonObject& object,QGraphicsItem* parent){
+    QString kind=object["kind"].toString("number");
+    if(kind=="variable"){
+        return new VariableBlock(object["name"].toString("x"),0,false,parent);
+    }
+    if(kind=="robotCoord"){
+        return new RobotCoordBlock(object["coordType"].toInt(),0,false,parent);
+    }
+    if(kind=="unary"){
+        FloatBlock* slab=deserializeFloatBlock(object["slab"].toObject(),nullptr);
+        UnaryOpBlock* block=new UnaryOpBlock(object["type"].toInt(),object["text"].toString(),0,slab,false,parent);
+        deleteFloatBlock(slab);
+        block->slab->setMovable(true);
+        block->refreshSize();
+        return block;
+    }
+    if(kind=="binary"){
+        FloatBlock* left=deserializeFloatBlock(object["left"].toObject(),nullptr);
+        FloatBlock* right=deserializeFloatBlock(object["right"].toObject(),nullptr);
+        BinaryOpBlock* block=new BinaryOpBlock(object["type"].toInt(),object["text"].toString(),0,left,right,false,parent);
+        deleteFloatBlock(left);
+        deleteFloatBlock(right);
+        block->left->setMovable(true);
+        block->right->setMovable(true);
+        block->refreshSize();
+        return block;
+    }
+    if(kind=="listGet"){
+        FloatBlock* index=deserializeFloatBlock(object["index"].toObject(),nullptr);
+        ListGetBlock* block=new ListGetBlock(object["name"].toString("x"),0,index,false,parent);
+        deleteFloatBlock(index);
+        block->index->setMovable(true);
+        block->refreshSize();
+        return block;
+    }
+    FloatBlock* block=new FloatBlock(object["type"].toInt(),0,false,parent);
+    block->setData(object["data"].toDouble(0.0));
+    return block;
+}
+
+QJsonObject serializeCodeBlock(CodeBlock* block){
+    QJsonObject object;
+    if(block==nullptr){
+        return object;
+    }
+    object["type"]=block->type;
+    object["text"]=block->s;
+    QPointF stage=sceneToStagePos(scrollWorkspace,block->pos());
+    object["x"]=stage.x();
+    object["y"]=stage.y();
+    if(dynamic_cast<StartBlock*>(block)!=nullptr){
+        object["kind"]="start";
+    }
+    else if(FloatCodeBlock* floatCode=dynamic_cast<FloatCodeBlock*>(block)){
+        object["kind"]="floatCode";
+        object["value"]=serializeFloatBlock(floatCode->value);
+    }
+    else if(SetVariableBlock* setVariable=dynamic_cast<SetVariableBlock*>(block)){
+        object["kind"]="setVariable";
+        object["name"]=setVariable->variableName;
+        object["value"]=serializeFloatBlock(setVariable->value);
+    }
+    else if(PushListBlock* pushList=dynamic_cast<PushListBlock*>(block)){
+        object["kind"]="pushList";
+        object["name"]=pushList->listName;
+        object["value"]=serializeFloatBlock(pushList->value);
+    }
+    else if(SetListBlock* setList=dynamic_cast<SetListBlock*>(block)){
+        object["kind"]="setList";
+        object["name"]=setList->listName;
+        object["index"]=serializeFloatBlock(setList->index);
+        object["value"]=serializeFloatBlock(setList->value);
+    }
+    else if(ClearListBlock* clearList=dynamic_cast<ClearListBlock*>(block)){
+        object["kind"]="clearList";
+        object["name"]=clearList->listName;
+    }
+    else if(ControlCodeBlock* control=dynamic_cast<ControlCodeBlock*>(block)){
+        object["kind"]="control";
+        object["condition"]=serializeFloatBlock(control->condition);
+        object["inside"]=serializeCodeBlock(control->inside);
+    }
+    else{
+        object["kind"]="code";
+    }
+    object["next"]=serializeCodeBlock(block->next);
+    return object;
+}
+
+CodeBlock* deserializeCodeBlock(const QJsonObject& object){
+    if(object.isEmpty()){
+        return nullptr;
+    }
+    QString kind=object["kind"].toString("code");
+    CodeBlock* block=nullptr;
+    if(kind=="start"){
+        block=new StartBlock(-1,false);
+    }
+    else if(kind=="floatCode"){
+        FloatBlock* value=deserializeFloatBlock(object["value"].toObject(),nullptr);
+        block=new FloatCodeBlock(object["type"].toInt(),object["text"].toString(),0,
+            value,false);
+        deleteFloatBlock(value);
+    }
+    else if(kind=="setVariable"){
+        FloatBlock* value=deserializeFloatBlock(object["value"].toObject(),nullptr);
+        block=new SetVariableBlock(0,object["name"].toString("x"),
+            value,false);
+        deleteFloatBlock(value);
+    }
+    else if(kind=="pushList"){
+        FloatBlock* value=deserializeFloatBlock(object["value"].toObject(),nullptr);
+        block=new PushListBlock(0,object["name"].toString("x"),
+            value,false);
+        deleteFloatBlock(value);
+    }
+    else if(kind=="setList"){
+        FloatBlock* index=deserializeFloatBlock(object["index"].toObject(),nullptr);
+        FloatBlock* value=deserializeFloatBlock(object["value"].toObject(),nullptr);
+        block=new SetListBlock(0,object["name"].toString("x"),
+            index,value,false);
+        deleteFloatBlock(index);
+        deleteFloatBlock(value);
+    }
+    else if(kind=="clearList"){
+        block=new ClearListBlock(0,object["name"].toString("x"),false);
+    }
+    else if(kind=="control"){
+        FloatBlock* condition=deserializeFloatBlock(object["condition"].toObject(),nullptr);
+        ControlCodeBlock* control=new ControlCodeBlock(object["type"].toInt(),object["text"].toString(),0,
+            condition,false);
+        deleteFloatBlock(condition);
+        control->inside=deserializeCodeBlock(object["inside"].toObject());
+        CodeBlock* inside=control->inside;
+        while(inside!=nullptr){
+            inside->insideParent=control;
+            inside=inside->next;
+        }
+        refreshControlFromInside(control);
+        block=control;
+    }
+    else{
+        block=new CodeBlock(object["type"].toInt(),object["text"].toString(),0,false);
+    }
+    CodeBlock* next=deserializeCodeBlock(object["next"].toObject());
+    block->next=next;
+    if(next!=nullptr){
+        next->pre=block;
+    }
+    return block;
+}
+
+vector<CodeBlock*> workspaceCodeRootsFromScene(){
+    vector<CodeBlock*> roots;
+    if(appScene==nullptr){
+        return roots;
+    }
+    for(QGraphicsItem* item:appScene->items()){
+        CodeBlock* block=dynamic_cast<CodeBlock*>(item);
+        if(block==nullptr||block->isbase||block->scrollArea!=scrollWorkspace){
+            continue;
+        }
+        if(block->pre!=nullptr||block->insideParent!=nullptr){
+            continue;
+        }
+        if(std::find(roots.begin(),roots.end(),block)==roots.end()){
+            roots.push_back(block);
+        }
+    }
+    return roots;
+}
+
+vector<CodeBlock*> workspaceCodeItemsFromScene(){
+    vector<CodeBlock*> items;
+    if(appScene==nullptr){
+        return items;
+    }
+    for(QGraphicsItem* item:appScene->items()){
+        CodeBlock* block=dynamic_cast<CodeBlock*>(item);
+        if(block==nullptr||block->isbase||block->scrollArea!=scrollWorkspace){
+            continue;
+        }
+        if(std::find(items.begin(),items.end(),block)==items.end()){
+            items.push_back(block);
+        }
+    }
+    return items;
+}
+
+vector<FloatBlock*> workspaceFloatRootsFromScene(){
+    vector<FloatBlock*> roots;
+    if(appScene==nullptr){
+        return roots;
+    }
+    for(QGraphicsItem* item:appScene->items()){
+        FloatBlock* block=dynamic_cast<FloatBlock*>(item);
+        if(block==nullptr||block->isbase||block->parentItem()!=nullptr||
+           block->scrollArea!=scrollWorkspace){
+            continue;
+        }
+        if(std::find(roots.begin(),roots.end(),block)==roots.end()){
+            roots.push_back(block);
+        }
+    }
+    return roots;
+}
+
+void rebuildCodeRegistryFromScene(){
+    codeBlocks.clear();
+    currentStartBlock=nullptr;
+    if(appScene==nullptr){
+        return;
+    }
+    for(QGraphicsItem* item:appScene->items()){
+        CodeBlock* block=dynamic_cast<CodeBlock*>(item);
+        if(block==nullptr||block->isbase||block->scrollArea!=scrollWorkspace){
+            continue;
+        }
+        block->idx=static_cast<int>(codeBlocks.size());
+        codeBlocks.push_back(block);
+        StartBlock* start=dynamic_cast<StartBlock*>(block);
+        if(start!=nullptr){
+            currentStartBlock=start;
+        }
+    }
+}
+
+void rebuildFloatBlockRegistryFromScene(){
+    floatBlocks.clear();
+    if(appScene==nullptr){
+        return;
+    }
+    for(QGraphicsItem* item:appScene->items()){
+        FloatBlock* block=dynamic_cast<FloatBlock*>(item);
+        if(block==nullptr||block->parentItem()!=nullptr){
+            continue;
+        }
+        block->idx=static_cast<int>(floatBlocks.size());
+        floatBlocks.push_back(block);
+    }
+}
+
+QJsonObject serializeWorkspace(){
+    QJsonObject root;
+    QJsonArray codeRoots;
+    for(CodeBlock* block:workspaceCodeRootsFromScene()){
+        codeRoots.append(serializeCodeBlock(block));
+    }
+    QJsonArray freeFloats;
+    for(FloatBlock* block:workspaceFloatRootsFromScene()){
+        QJsonObject object;
+        object["value"]=serializeFloatBlock(block);
+        QPointF stage=sceneToStagePos(scrollWorkspace,block->pos());
+        object["x"]=stage.x();
+        object["y"]=stage.y();
+        freeFloats.append(object);
+    }
+    root["codeRoots"]=codeRoots;
+    root["freeFloats"]=freeFloats;
+    return root;
+}
+
+void clearWorkspaceForUndo(){
+    clearContextMenu();
+    vector<CodeBlock*> codeItems=workspaceCodeItemsFromScene();
+    currentStartBlock=nullptr;
+    for(CodeBlock* block:codeItems){
+        if(block==nullptr){
+            continue;
+        }
+        if(block->shadow!=nullptr&&block->shadow->scene()!=nullptr){
+            block->shadow->scene()->removeItem(block->shadow);
+        }
+        if(block->scene()!=nullptr){
+            block->scene()->removeItem(block);
+        }
+    }
+    vector<FloatBlock*> freeFloats=workspaceFloatRootsFromScene();
+    for(FloatBlock* block:freeFloats){
+        if(block==nullptr){
+            continue;
+        }
+        clearAbsorbShadow(block);
+        if(block->scene()!=nullptr){
+            block->scene()->removeItem(block);
+        }
+    }
+    rebuildCodeRegistryFromScene();
+    rebuildFloatBlockRegistryFromScene();
+}
+
+void restoreWorkspace(const QJsonObject& root){
+    restoringUndo=true;
+    clearWorkspaceForUndo();
+    QJsonArray codeRoots=root["codeRoots"].toArray();
+    for(const QJsonValue& value:codeRoots){
+        QJsonObject object=value.toObject();
+        CodeBlock* block=deserializeCodeBlock(object);
+        if(block==nullptr){
+            continue;
+        }
+        QPointF stagePos(object["x"].toDouble(),object["y"].toDouble());
+        setCodeBlockStagePos(block,scrollWorkspace,stagePos);
+        if(dynamic_cast<StartBlock*>(block)!=nullptr){
+            currentStartBlock=static_cast<StartBlock*>(block);
+            if(appScene!=nullptr&&block->scene()==nullptr){
+                appScene->addItem(block);
+            }
+            addCodeTreeToScene(block->next);
+        }
+        else{
+            addCodeTreeToScene(block);
+        }
+        syncCodeChainFrom(block,block->pos());
+        setCodeTreeZValue(block,10);
+        rememberCodeTreeStagePos(block,scrollWorkspace);
+    }
+    QJsonArray freeFloats=root["freeFloats"].toArray();
+    for(const QJsonValue& value:freeFloats){
+        QJsonObject object=value.toObject();
+        FloatBlock* block=deserializeFloatBlock(object["value"].toObject(),nullptr);
+        block->idx=static_cast<int>(floatBlocks.size());
+        block->scrollArea=scrollWorkspace;
+        floatBlocks.push_back(block);
+        if(appScene!=nullptr){
+            appScene->addItem(block);
+        }
+        setFloatBlockStagePos(block,scrollWorkspace,QPointF(object["x"].toDouble(),object["y"].toDouble()));
+        resetFloatTreeZValue(block);
+        setInsertedOperatorInteractivity(block);
+    }
+    refreshAllControlLayouts();
+    restoringUndo=false;
+}
+
+QString writeUndoFile(const QJsonObject& snapshot){
+    QDir dir(QDir::current());
+    dir.mkpath("cache");
+    QString path=dir.filePath(QString("cache/undo_%1.json").arg(undoCheckpointId++));
+    QFile file(path);
+    if(file.open(QIODevice::WriteOnly|QIODevice::Truncate)){
+        file.write(QJsonDocument(snapshot).toJson(QJsonDocument::Compact));
+        file.close();
+    }
+    return path;
+}
+
+void clearUndoCache(){
+    undoCheckpoints.clear();
+    undoCheckpointId=0;
+    QDir dir(QDir::current().filePath("cache"));
+    if(!dir.exists()){
+        return;
+    }
+    QStringList filters;
+    filters<<"undo_*.json";
+    QFileInfoList files=dir.entryInfoList(filters,QDir::Files);
+    for(const QFileInfo& file:files){
+        QFile::remove(file.absoluteFilePath());
+    }
+}
+
+void saveUndoCheckpoint(){
+    if(restoringUndo){
+        return;
+    }
+    undoCheckpoints.push_back(writeUndoFile(serializeWorkspace()));
+}
+
+void undoLastCheckpoint(){
+    if(undoCheckpoints.size()<2){
+        return;
+    }
+    QFile::remove(undoCheckpoints.back());
+    undoCheckpoints.pop_back();
+    QFile file(undoCheckpoints.back());
+    if(!file.open(QIODevice::ReadOnly)){
+        return;
+    }
+    QJsonDocument document=QJsonDocument::fromJson(file.readAll());
+    file.close();
+    if(!document.isObject()){
+        return;
+    }
+    restoreWorkspace(document.object());
+}
+
+void clearContextMenu(){
+    for(ContextMenuButton* button:contextMenuButtons){
+        if(button->shadow!=nullptr&&button->shadow->scene()!=nullptr){
+            button->shadow->scene()->removeItem(button->shadow);
+        }
+        delete button->shadow;
+        button->shadow=nullptr;
+        if(button->scene()!=nullptr){
+            button->scene()->removeItem(button);
+        }
+        delete button;
+    }
+    contextMenuButtons.clear();
+}
+
+bool isContextMenuItem(QGraphicsItem* item){
+    QGraphicsItem* curr=item;
+    while(curr!=nullptr){
+        if(dynamic_cast<ContextMenuButton*>(curr)!=nullptr){
+            return true;
+        }
+        curr=curr->parentItem();
+    }
+    return false;
+}
+
+bool isWorkspaceContentItem(QGraphicsItem* item){
+    QGraphicsItem* curr=item;
+    while(curr!=nullptr){
+        if(dynamic_cast<CodeBlock*>(curr)!=nullptr||
+           dynamic_cast<FloatBlock*>(curr)!=nullptr||
+           dynamic_cast<ScrollSlider*>(curr)!=nullptr||
+           dynamic_cast<Button*>(curr)!=nullptr||
+           dynamic_cast<TextButton*>(curr)!=nullptr){
+            return true;
+        }
+        curr=curr->parentItem();
+    }
+    return false;
+}
+
+void addContextMenuButton(QString label,QPointF pos,function<void()> action){
+    if(appScene==nullptr){
+        return;
+    }
+    ContextMenuButton* button=new ContextMenuButton(label);
+    button->setPos(pos);
+    button->setZValue(absorbHighlightZ+1000);
+    button->onClick=[action](){
+        contextMenuButtonPressed=true;
+        for(ContextMenuButton* menuButton:contextMenuButtons){
+            menuButton->hide();
+            menuButton->setAcceptedMouseButtons(Qt::NoButton);
+            if(menuButton->shadow!=nullptr){
+                menuButton->shadow->hide();
+            }
+        }
+        QTimer::singleShot(0,[action](){
+            clearContextMenu();
+            if(action){
+                action();
+            }
+            contextMenuButtonPressed=false;
+        });
+    };
+    appScene->addItem(button);
+    contextMenuButtons.push_back(button);
+}
+
+void showUndoContextMenu(QPointF scenePos){
+    clearContextMenu();
+    addContextMenuButton("undo",scenePos,[](){
+        undoLastCheckpoint();
+    });
+}
+
+void showCodeContextMenu(CodeBlock* block,QPointF scenePos){
+    clearContextMenu();
+    if(block==nullptr||block->isbase){
+        return;
+    }
+    addContextMenuButton("copy",scenePos,[block](){
+        copyCodeContext(block);
+    });
+    addContextMenuButton("delete",scenePos+QPointF(0,28),[block](){
+        deleteCodeContext(block);
+    });
+}
+
+void showFloatContextMenu(FloatBlock* block,QPointF scenePos){
+    clearContextMenu();
+    if(block==nullptr||block->isbase){
+        return;
+    }
+    addContextMenuButton("copy",scenePos,[block](){
+        copyFloatContext(block);
+    });
+    addContextMenuButton("delete",scenePos+QPointF(0,28),[block](){
+        deleteFloatContext(block);
+    });
+}
+
+void scheduleDeleteCodeChain(CodeBlock* head){
+    if(head==nullptr){
+        return;
+    }
+    QTimer::singleShot(0,[head](){
+        deleteCodeChain(head);
+        refreshAllControlLayouts();
+    });
+}
+
+void replaceFloatExpressionWithValue(FloatBlock* root){
+    if(root==nullptr){
+        return;
+    }
+    QGraphicsItem* parent=root->parentItem();
+    if(parent==nullptr){
+        deleteFloatBlock(root);
+        return;
+    }
+
+    QPointF localPos=root->pos();
+    FloatBlock* parentBlock=dynamic_cast<FloatBlock*>(parent);
+    FloatCodeBlock* codeParent=dynamic_cast<FloatCodeBlock*>(parent);
+    SetVariableBlock* setParent=dynamic_cast<SetVariableBlock*>(parent);
+    ControlCodeBlock* controlParent=dynamic_cast<ControlCodeBlock*>(parent);
+    FloatBlock* placeholder=new FloatBlock(0,0,false,parent);
+    placeholder->setMovable(true);
+    placeholder->setPos(localPos);
+
+    UnaryOpBlock* unaryParent=dynamic_cast<UnaryOpBlock*>(parentBlock);
+    if(unaryParent!=nullptr&&unaryParent->slab==root){
+        unaryParent->slab=placeholder;
+    }
+    BinaryOpBlock* binaryParent=dynamic_cast<BinaryOpBlock*>(parentBlock);
+    if(binaryParent!=nullptr){
+        if(binaryParent->left==root){
+            binaryParent->left=placeholder;
+        }
+        if(binaryParent->right==root){
+            binaryParent->right=placeholder;
+        }
+    }
+    if(codeParent!=nullptr&&codeParent->value==root){
+        codeParent->value=placeholder;
+    }
+    if(setParent!=nullptr&&setParent->value==root){
+        setParent->value=placeholder;
+    }
+    PushListBlock* pushParent=dynamic_cast<PushListBlock*>(parent);
+    SetListBlock* setListParent=dynamic_cast<SetListBlock*>(parent);
+    ListGetBlock* getParent=dynamic_cast<ListGetBlock*>(parent);
+    if(pushParent!=nullptr&&pushParent->value==root){
+        pushParent->value=placeholder;
+    }
+    if(setListParent!=nullptr){
+        if(setListParent->index==root){
+            setListParent->index=placeholder;
+        }
+        if(setListParent->value==root){
+            setListParent->value=placeholder;
+        }
+    }
+    if(getParent!=nullptr&&getParent->index==root){
+        getParent->index=placeholder;
+    }
+    if(controlParent!=nullptr&&controlParent->condition==root){
+        controlParent->condition=placeholder;
+    }
+
+    deleteFloatBlock(root);
+
+    if(parentBlock!=nullptr){
+        refreshFloatAncestors(parentBlock);
+    }
+    if(codeParent!=nullptr){
+        codeParent->refreshSize();
+        refreshAllControlLayouts();
+    }
+    if(setParent!=nullptr){
+        setParent->refreshSize();
+        refreshAllControlLayouts();
+    }
+    if(pushParent!=nullptr){
+        pushParent->refreshSize();
+        refreshAllControlLayouts();
+    }
+    if(setListParent!=nullptr){
+        setListParent->refreshSize();
+        refreshAllControlLayouts();
+    }
+    if(getParent!=nullptr){
+        getParent->refreshSize();
+        refreshFloatAncestors(getParent);
+    }
+    if(controlParent!=nullptr){
+        controlParent->refreshSize();
+        refreshAllControlLayouts();
+    }
+}
+
+void scheduleRemoveFloatExpression(FloatBlock* block){
+    if(block==nullptr){
+        return;
+    }
+    FloatBlock* root=rootFloatBlock(block);
+    QTimer::singleShot(0,[root](){
+        replaceFloatExpressionWithValue(root);
+        refreshAllControlLayouts();
+    });
+}
+
+void checkEditedCodeWorkspaceWidth(CodeBlock* block){
+    if(block==nullptr){
+        return;
+    }
+    CodeBlock* head=codeChainHead(block);
+    if(head!=nullptr&&head->scrollArea==scrollWorkspace&&outsideWorkspaceHorizontal(codeTreeSceneRect(head))){
+        message::workspaceWidthLimitReached();
+    }
+}
+
+void checkEditedFloatWorkspaceWidth(FloatBlock* block){
+    if(block==nullptr){
+        return;
+    }
+    CodeBlock* owner=containingCodeBlock(block);
+    if(owner!=nullptr){
+        CodeBlock* head=codeChainHead(owner);
+        if(head!=nullptr&&head->scrollArea==scrollWorkspace&&outsideWorkspaceHorizontal(codeTreeSceneRect(head))){
+            message::workspaceWidthLimitReached();
+            scheduleRemoveFloatExpression(block);
+        }
+        return;
+    }
+    if(block->parentItem()==nullptr&&block->scrollArea==scrollWorkspace&&
+       outsideWorkspaceHorizontal(block->sceneBoundingRect())){
+        message::workspaceWidthLimitReached();
+        QTimer::singleShot(0,[block](){
+            deleteFloatBlock(block);
+        });
+    }
+}
+
 double codeBlockFloatValue(CodeBlock* block){
     FloatCodeBlock* floatBlock=dynamic_cast<FloatCodeBlock*>(block);
     if(floatBlock!=nullptr&&floatBlock->value!=nullptr){
         return floatBlock->value->getValue();
+    }
+    SetVariableBlock* setBlock=dynamic_cast<SetVariableBlock*>(block);
+    if(setBlock!=nullptr&&setBlock->value!=nullptr){
+        return setBlock->value->getValue();
+    }
+    PushListBlock* pushBlock=dynamic_cast<PushListBlock*>(block);
+    if(pushBlock!=nullptr&&pushBlock->value!=nullptr){
+        return pushBlock->value->getValue();
+    }
+    SetListBlock* setListBlock=dynamic_cast<SetListBlock*>(block);
+    if(setListBlock!=nullptr&&setListBlock->value!=nullptr){
+        return setListBlock->value->getValue();
     }
     ControlCodeBlock* controlBlock=dynamic_cast<ControlCodeBlock*>(block);
     if(controlBlock!=nullptr&&controlBlock->condition!=nullptr){
@@ -706,8 +2424,31 @@ core::BlockExecutor::BlockSnapshot readRuntimeBlock(core::BlockExecutor::Node no
         return snapshot;
     }
     snapshot.type=block->type;
+    runtimeSkipCurrentBlock=false;
     snapshot.value=codeBlockFloatValue(block);
+    if(runtimeSkipCurrentBlock){
+        snapshot.type=-999;
+    }
     snapshot.next=block->next;
+    SetVariableBlock* setBlock=dynamic_cast<SetVariableBlock*>(block);
+    if(setBlock!=nullptr){
+        snapshot.variableName=setBlock->variableName.toStdString();
+    }
+    PushListBlock* pushBlock=dynamic_cast<PushListBlock*>(block);
+    if(pushBlock!=nullptr){
+        snapshot.listName=pushBlock->listName.toStdString();
+    }
+    SetListBlock* setListBlock=dynamic_cast<SetListBlock*>(block);
+    if(setListBlock!=nullptr){
+        snapshot.listName=setListBlock->listName.toStdString();
+        if(setListBlock->index!=nullptr){
+            snapshot.indexValue=setListBlock->index->getValue();
+        }
+    }
+    ClearListBlock* clearListBlock=dynamic_cast<ClearListBlock*>(block);
+    if(clearListBlock!=nullptr){
+        snapshot.listName=clearListBlock->listName.toStdString();
+    }
     ControlCodeBlock* control=dynamic_cast<ControlCodeBlock*>(block);
     if(control!=nullptr){
         snapshot.inside=control->inside;
@@ -984,7 +2725,93 @@ void syncScrollArea(int area){
     refreshAllControlLayouts();
 }
 
+void refreshVariableToolbox(){
+    for(VariableBlock* block:variableBaseBlocks){
+        deleteFloatBlock(block);
+    }
+    variableBaseBlocks.clear();
+    for(CodeBlock* block:listLabelBaseBlocks){
+        baseCodeBlocks.erase(
+            std::remove(baseCodeBlocks.begin(),baseCodeBlocks.end(),block),
+            baseCodeBlocks.end()
+        );
+        if(block->scene()!=nullptr){
+            block->scene()->removeItem(block);
+        }
+        delete block;
+    }
+    listLabelBaseBlocks.clear();
+    if(appScene==nullptr){
+        return;
+    }
+    int y=variableToolboxStartY;
+    int idx=static_cast<int>(floatBlocks.size());
+    for(const auto& item:runtimeState.variables()){
+        VariableBlock* block=new VariableBlock(QString::fromStdString(item.first),idx++,true);
+        setFloatBlockStagePos(block,scrollToolbox,QPointF(20,y));
+        block->setZValue(10);
+        appScene->addItem(block);
+        floatBlocks.push_back(block);
+        variableBaseBlocks.push_back(block);
+        y+=60;
+    }
+    if(variableSetBaseBlock!=nullptr){
+        setCodeBlockStagePos(variableSetBaseBlock,scrollToolbox,QPointF(20,y));
+        y+=variableSetBaseBlock->wid+20;
+    }
+    for(const auto& item:runtimeState.lists()){
+        CodeBlock* labelBlock=new CodeBlock(-2,QString::fromStdString(item.first),-1,true);
+        labelBlock->setBrush(listColor());
+        labelBlock->setAcceptedMouseButtons(Qt::NoButton);
+        setCodeBlockStagePos(labelBlock,scrollToolbox,QPointF(20,y));
+        labelBlock->setZValue(10);
+        appScene->addItem(labelBlock);
+        baseCodeBlocks.push_back(labelBlock);
+        listLabelBaseBlocks.push_back(labelBlock);
+        y+=labelBlock->wid+20;
+    }
+    if(listGetBaseBlock!=nullptr){
+        setFloatBlockStagePos(listGetBaseBlock,scrollToolbox,QPointF(20,y));
+        y+=listGetBaseBlock->wid+20;
+    }
+    if(pushListBaseBlock!=nullptr){
+        setCodeBlockStagePos(pushListBaseBlock,scrollToolbox,QPointF(20,y));
+        y+=pushListBaseBlock->wid+20;
+    }
+    if(setListBaseBlock!=nullptr){
+        setCodeBlockStagePos(setListBaseBlock,scrollToolbox,QPointF(20,y));
+        y+=setListBaseBlock->wid+20;
+    }
+    if(clearListBaseBlock!=nullptr){
+        setCodeBlockStagePos(clearListBaseBlock,scrollToolbox,QPointF(20,y));
+        y+=clearListBaseBlock->wid+20;
+    }
+    updateToolboxScrollRange();
+    syncScrollArea(scrollToolbox);
+}
+
+void updateToolboxScrollRange(){
+    qreal bottom=0;
+    for(CodeBlock* block:baseCodeBlocks){
+        if(block!=nullptr&&block->scrollArea==scrollToolbox){
+            bottom=std::max<qreal>(bottom,block->stagePos.y()+block->wid);
+        }
+    }
+    for(FloatBlock* block:floatBlocks){
+        if(block!=nullptr&&block->parentItem()==nullptr&&block->scrollArea==scrollToolbox){
+            bottom=std::max<qreal>(bottom,block->stagePos.y()+block->wid);
+        }
+    }
+    toolboxMaxScrollY=std::max<qreal>(0,bottom+20-500);
+    if(toolboxSlider!=nullptr){
+        toolboxSlider->setValue(toolboxSlider->value());
+    }
+}
+
 void deleteCodeBlock(CodeBlock* block){
+    if(block==nullptr){
+        return;
+    }
     if(block==currentStartBlock){
         currentStartBlock=nullptr;
     }
@@ -1008,6 +2835,7 @@ void deleteCodeBlock(CodeBlock* block){
         std::remove(codeBlocks.begin(),codeBlocks.end(),block),
         codeBlocks.end()
     );
+    eraseCodeEmbeddedFloatRecords(block);
     if(block->scene()!=nullptr){
         block->scene()->removeItem(block);
     }
@@ -1015,11 +2843,35 @@ void deleteCodeBlock(CodeBlock* block){
 }
 
 void deleteFloatBlock(FloatBlock* block){
+    deleteFloatTreeItems(block);
+}
+
+void deleteFloatTreeItems(FloatBlock* block){
+    if(block==nullptr){
+        return;
+    }
     clearAbsorbShadow(block);
-    floatBlocks.erase(
-        std::remove(floatBlocks.begin(),floatBlocks.end(),block),
-        floatBlocks.end()
-    );
+    eraseFloatTreeRecords(block);
+    UnaryOpBlock* unary=dynamic_cast<UnaryOpBlock*>(block);
+    if(unary!=nullptr){
+        deleteFloatTreeItems(unary->slab);
+        unary->slab=nullptr;
+    }
+    BinaryOpBlock* binary=dynamic_cast<BinaryOpBlock*>(block);
+    if(binary!=nullptr){
+        deleteFloatTreeItems(binary->left);
+        deleteFloatTreeItems(binary->right);
+        binary->left=nullptr;
+        binary->right=nullptr;
+    }
+    ListGetBlock* listGet=dynamic_cast<ListGetBlock*>(block);
+    if(listGet!=nullptr){
+        deleteFloatTreeItems(listGet->index);
+        listGet->index=nullptr;
+    }
+    if(block->parentItem()!=nullptr){
+        block->setParentItem(nullptr);
+    }
     if(block->scene()!=nullptr){
         block->scene()->removeItem(block);
     }
@@ -1031,6 +2883,53 @@ void eraseFloatBlockRecord(FloatBlock* block){
         std::remove(floatBlocks.begin(),floatBlocks.end(),block),
         floatBlocks.end()
     );
+}
+
+void eraseFloatTreeRecords(FloatBlock* block){
+    if(block==nullptr){
+        return;
+    }
+    UnaryOpBlock* unary=dynamic_cast<UnaryOpBlock*>(block);
+    if(unary!=nullptr){
+        eraseFloatTreeRecords(unary->slab);
+    }
+    BinaryOpBlock* binary=dynamic_cast<BinaryOpBlock*>(block);
+    if(binary!=nullptr){
+        eraseFloatTreeRecords(binary->left);
+        eraseFloatTreeRecords(binary->right);
+    }
+    ListGetBlock* listGet=dynamic_cast<ListGetBlock*>(block);
+    if(listGet!=nullptr){
+        eraseFloatTreeRecords(listGet->index);
+    }
+    eraseFloatBlockRecord(block);
+}
+
+void eraseCodeEmbeddedFloatRecords(CodeBlock* block){
+    if(block==nullptr){
+        return;
+    }
+    FloatCodeBlock* floatCode=dynamic_cast<FloatCodeBlock*>(block);
+    if(floatCode!=nullptr){
+        eraseFloatTreeRecords(floatCode->value);
+    }
+    SetVariableBlock* setCode=dynamic_cast<SetVariableBlock*>(block);
+    if(setCode!=nullptr){
+        eraseFloatTreeRecords(setCode->value);
+    }
+    PushListBlock* pushList=dynamic_cast<PushListBlock*>(block);
+    if(pushList!=nullptr){
+        eraseFloatTreeRecords(pushList->value);
+    }
+    SetListBlock* setList=dynamic_cast<SetListBlock*>(block);
+    if(setList!=nullptr){
+        eraseFloatTreeRecords(setList->index);
+        eraseFloatTreeRecords(setList->value);
+    }
+    ControlCodeBlock* control=dynamic_cast<ControlCodeBlock*>(block);
+    if(control!=nullptr){
+        eraseFloatTreeRecords(control->condition);
+    }
 }
 
 FloatBlock* rootFloatBlock(FloatBlock* block){
@@ -1075,6 +2974,11 @@ void setInsertedOperatorInteractivity(FloatBlock* block){
     if(binary!=nullptr){
         setInsertedOperatorInteractivity(binary->left);
         setInsertedOperatorInteractivity(binary->right);
+        return;
+    }
+    ListGetBlock* listGet=dynamic_cast<ListGetBlock*>(block);
+    if(listGet!=nullptr){
+        setInsertedOperatorInteractivity(listGet->index);
     }
 }
 
@@ -1092,6 +2996,11 @@ void setFloatTreeZValue(FloatBlock* block,qreal z){
     if(binary!=nullptr){
         setFloatTreeZValue(binary->left,z+1);
         setFloatTreeZValue(binary->right,z+1);
+        return;
+    }
+    ListGetBlock* listGet=dynamic_cast<ListGetBlock*>(block);
+    if(listGet!=nullptr){
+        setFloatTreeZValue(listGet->index,z+1);
     }
 }
 
@@ -1106,6 +3015,19 @@ void setCodeTreeZValue(CodeBlock* block,qreal z){
         FloatCodeBlock* floatCode=dynamic_cast<FloatCodeBlock*>(curr);
         if(floatCode!=nullptr){
             setFloatTreeZValue(floatCode->value,z+1);
+        }
+        SetVariableBlock* setCode=dynamic_cast<SetVariableBlock*>(curr);
+        if(setCode!=nullptr){
+            setFloatTreeZValue(setCode->value,z+1);
+        }
+        PushListBlock* pushList=dynamic_cast<PushListBlock*>(curr);
+        if(pushList!=nullptr){
+            setFloatTreeZValue(pushList->value,z+1);
+        }
+        SetListBlock* setList=dynamic_cast<SetListBlock*>(curr);
+        if(setList!=nullptr){
+            setFloatTreeZValue(setList->index,z+1);
+            setFloatTreeZValue(setList->value,z+1);
         }
         ControlCodeBlock* controlCode=dynamic_cast<ControlCodeBlock*>(curr);
         if(controlCode!=nullptr){
@@ -1122,8 +3044,12 @@ FloatBlock* detachOperatorFromParent(FloatBlock* moving){
     }
     FloatBlock* parentBlock=dynamic_cast<FloatBlock*>(moving->parentItem());
     FloatCodeBlock* codeParent=dynamic_cast<FloatCodeBlock*>(moving->parentItem());
+    SetVariableBlock* setParent=dynamic_cast<SetVariableBlock*>(moving->parentItem());
+    PushListBlock* pushParent=dynamic_cast<PushListBlock*>(moving->parentItem());
+    SetListBlock* setListParent=dynamic_cast<SetListBlock*>(moving->parentItem());
     ControlCodeBlock* controlParent=dynamic_cast<ControlCodeBlock*>(moving->parentItem());
-    if(parentBlock==nullptr&&codeParent==nullptr&&controlParent==nullptr){
+    if(parentBlock==nullptr&&codeParent==nullptr&&setParent==nullptr&&
+       pushParent==nullptr&&setListParent==nullptr&&controlParent==nullptr){
         return nullptr;
     }
 
@@ -1134,6 +3060,15 @@ FloatBlock* detachOperatorFromParent(FloatBlock* moving){
     }
     else if(codeParent!=nullptr){
         parentItem=codeParent;
+    }
+    else if(setParent!=nullptr){
+        parentItem=setParent;
+    }
+    else if(pushParent!=nullptr){
+        parentItem=pushParent;
+    }
+    else if(setListParent!=nullptr){
+        parentItem=setListParent;
     }
     else{
         parentItem=controlParent;
@@ -1154,8 +3089,26 @@ FloatBlock* detachOperatorFromParent(FloatBlock* moving){
             binaryParent->right=placeholder;
         }
     }
+    ListGetBlock* getParent=dynamic_cast<ListGetBlock*>(parentBlock);
+    if(getParent!=nullptr&&getParent->index==moving){
+        getParent->index=placeholder;
+    }
     if(codeParent!=nullptr&&codeParent->value==moving){
         codeParent->value=placeholder;
+    }
+    if(setParent!=nullptr&&setParent->value==moving){
+        setParent->value=placeholder;
+    }
+    if(pushParent!=nullptr&&pushParent->value==moving){
+        pushParent->value=placeholder;
+    }
+    if(setListParent!=nullptr){
+        if(setListParent->index==moving){
+            setListParent->index=placeholder;
+        }
+        if(setListParent->value==moving){
+            setListParent->value=placeholder;
+        }
     }
     if(controlParent!=nullptr&&controlParent->condition==moving){
         controlParent->condition=placeholder;
@@ -1164,13 +3117,25 @@ FloatBlock* detachOperatorFromParent(FloatBlock* moving){
     moving->setParentItem(nullptr);
     moving->setPos(oldScenePos);
     moving->setMovable(true);
-    eraseFloatBlockRecord(moving);
+    eraseFloatTreeRecords(moving);
     floatBlocks.push_back(moving);
     if(parentBlock!=nullptr){
         refreshFloatAncestors(parentBlock);
     }
     if(codeParent!=nullptr){
         codeParent->refreshSize();
+        refreshAllControlLayouts();
+    }
+    if(setParent!=nullptr){
+        setParent->refreshSize();
+        refreshAllControlLayouts();
+    }
+    if(pushParent!=nullptr){
+        pushParent->refreshSize();
+        refreshAllControlLayouts();
+    }
+    if(setListParent!=nullptr){
+        setListParent->refreshSize();
         refreshAllControlLayouts();
     }
     if(controlParent!=nullptr){
@@ -1202,11 +3167,16 @@ void collectFloatValueTargets(FloatBlock* root,FloatBlock* moving,vector<FloatBl
     if(binary!=nullptr){
         collectFloatValueTargets(binary->left,moving,targets);
         collectFloatValueTargets(binary->right,moving,targets);
+        return;
+    }
+    ListGetBlock* listGet=dynamic_cast<ListGetBlock*>(root);
+    if(listGet!=nullptr){
+        collectFloatValueTargets(listGet->index,moving,targets);
     }
 }
 
 FloatBlock* findAbsorbTarget(FloatBlock* moving){
-    if(moving==nullptr||!moving->isOperator()){
+    if(!canAbsorbIntoFloatSlot(moving)){
         return nullptr;
     }
     vector<FloatBlock*> targets;
@@ -1217,6 +3187,19 @@ FloatBlock* findAbsorbTarget(FloatBlock* moving){
         FloatCodeBlock* floatCode=dynamic_cast<FloatCodeBlock*>(block);
         if(floatCode!=nullptr){
             collectFloatValueTargets(floatCode->value,moving,targets);
+        }
+        SetVariableBlock* setCode=dynamic_cast<SetVariableBlock*>(block);
+        if(setCode!=nullptr){
+            collectFloatValueTargets(setCode->value,moving,targets);
+        }
+        PushListBlock* pushCode=dynamic_cast<PushListBlock*>(block);
+        if(pushCode!=nullptr){
+            collectFloatValueTargets(pushCode->value,moving,targets);
+        }
+        SetListBlock* setListCode=dynamic_cast<SetListBlock*>(block);
+        if(setListCode!=nullptr){
+            collectFloatValueTargets(setListCode->index,moving,targets);
+            collectFloatValueTargets(setListCode->value,moving,targets);
         }
         ControlCodeBlock* controlCode=dynamic_cast<ControlCodeBlock*>(block);
         if(controlCode!=nullptr){
@@ -1273,53 +3256,109 @@ void clearAbsorbShadow(FloatBlock* block){
 }
 
 void attachOperatorToTarget(FloatBlock* moving,FloatBlock* target){
-    if(moving==nullptr||target==nullptr||!moving->isOperator()){
+    if(moving==nullptr||target==nullptr||
+       !canAbsorbIntoFloatSlot(moving)){
         return;
     }
     clearAbsorbShadow(moving);
     FloatBlock* parentBlock=dynamic_cast<FloatBlock*>(target->parentItem());
     FloatCodeBlock* codeParent=dynamic_cast<FloatCodeBlock*>(target->parentItem());
+    SetVariableBlock* setParent=dynamic_cast<SetVariableBlock*>(target->parentItem());
+    PushListBlock* pushParent=dynamic_cast<PushListBlock*>(target->parentItem());
+    SetListBlock* setListParent=dynamic_cast<SetListBlock*>(target->parentItem());
     ControlCodeBlock* controlParent=dynamic_cast<ControlCodeBlock*>(target->parentItem());
     if(controlParent!=nullptr&&controlParent->condition==target){
         QPointF targetLocalPos=target->pos();
         controlParent->condition=moving;
-        eraseFloatBlockRecord(moving);
+        eraseFloatTreeRecords(moving);
         moving->setParentItem(controlParent);
         moving->setPos(targetLocalPos);
         moving->dragging=false;
         moving->moved=false;
         resetFloatTreeZValue(moving);
         setInsertedOperatorInteractivity(moving);
-        delete target;
+        deleteFloatBlock(target);
         controlParent->refreshSize();
         refreshAllControlLayouts();
+        checkEditedFloatWorkspaceWidth(moving);
+        return;
+    }
+    if(setParent!=nullptr&&setParent->value==target){
+        QPointF targetLocalPos=target->pos();
+        setParent->value=moving;
+        eraseFloatTreeRecords(moving);
+        moving->setParentItem(setParent);
+        moving->setPos(targetLocalPos);
+        moving->dragging=false;
+        moving->moved=false;
+        resetFloatTreeZValue(moving);
+        setInsertedOperatorInteractivity(moving);
+        deleteFloatBlock(target);
+        setParent->refreshSize();
+        refreshAllControlLayouts();
+        checkEditedFloatWorkspaceWidth(moving);
         return;
     }
     if(codeParent!=nullptr&&codeParent->value==target){
         QPointF targetLocalPos=target->pos();
         codeParent->value=moving;
-        eraseFloatBlockRecord(moving);
+        eraseFloatTreeRecords(moving);
         moving->setParentItem(codeParent);
         moving->setPos(targetLocalPos);
         moving->dragging=false;
         moving->moved=false;
         resetFloatTreeZValue(moving);
         setInsertedOperatorInteractivity(moving);
-        delete target;
+        deleteFloatBlock(target);
         codeParent->refreshSize();
         refreshAllControlLayouts();
+        checkEditedFloatWorkspaceWidth(moving);
+        return;
+    }
+    if(pushParent!=nullptr&&pushParent->value==target){
+        QPointF targetLocalPos=target->pos();
+        pushParent->value=moving;
+        eraseFloatTreeRecords(moving);
+        moving->setParentItem(pushParent);
+        moving->setPos(targetLocalPos);
+        moving->dragging=false;
+        moving->moved=false;
+        resetFloatTreeZValue(moving);
+        setInsertedOperatorInteractivity(moving);
+        deleteFloatBlock(target);
+        pushParent->refreshSize();
+        refreshAllControlLayouts();
+        checkEditedFloatWorkspaceWidth(moving);
+        return;
+    }
+    if(setListParent!=nullptr&&(setListParent->index==target||setListParent->value==target)){
+        QPointF targetLocalPos=target->pos();
+        if(setListParent->index==target){
+            setListParent->index=moving;
+        }
+        if(setListParent->value==target){
+            setListParent->value=moving;
+        }
+        eraseFloatTreeRecords(moving);
+        moving->setParentItem(setListParent);
+        moving->setPos(targetLocalPos);
+        moving->dragging=false;
+        moving->moved=false;
+        resetFloatTreeZValue(moving);
+        setInsertedOperatorInteractivity(moving);
+        deleteFloatBlock(target);
+        setListParent->refreshSize();
+        refreshAllControlLayouts();
+        checkEditedFloatWorkspaceWidth(moving);
         return;
     }
     if(parentBlock==nullptr){
         QPointF targetPos=target->pos();
-        eraseFloatBlockRecord(target);
-        if(target->scene()!=nullptr){
-            target->scene()->removeItem(target);
-        }
-        delete target;
+        deleteFloatBlock(target);
         moving->setPos(targetPos);
         resetFloatTreeZValue(moving);
         rememberFloatBlockStagePos(moving,scrollWorkspace);
+        checkEditedFloatWorkspaceWidth(moving);
         return;
     }
 
@@ -1337,19 +3376,36 @@ void attachOperatorToTarget(FloatBlock* moving,FloatBlock* target){
             binaryParent->right=moving;
         }
     }
+    ListGetBlock* getParent=dynamic_cast<ListGetBlock*>(parentBlock);
+    if(getParent!=nullptr&&getParent->index==target){
+        getParent->index=moving;
+    }
 
-    eraseFloatBlockRecord(moving);
+    eraseFloatTreeRecords(moving);
     moving->setParentItem(parentBlock);
     moving->setPos(targetLocalPos);
     moving->dragging=false;
     moving->moved=false;
     resetFloatTreeZValue(moving);
     setInsertedOperatorInteractivity(moving);
-    delete target;
+    deleteFloatBlock(target);
     refreshFloatAncestors(parentBlock);
+    checkEditedFloatWorkspaceWidth(moving);
 }
 
 void FloatBlock::mousePressEvent(QGraphicsSceneMouseEvent* event){
+    if(event->button()==Qt::RightButton){
+        if(contextMenuButtonPressed){
+            event->accept();
+            return;
+        }
+        showFloatContextMenu(this,event->scenePos());
+        event->accept();
+        return;
+    }
+    if(!contextMenuButtonPressed){
+        clearContextMenu();
+    }
     if(event->button()!=Qt::LeftButton){
         event->ignore();
         return;
@@ -1427,13 +3483,14 @@ void FloatBlock::mouseMoveEvent(QGraphicsSceneMouseEvent* event){
 }
 
 void FloatBlock::mouseReleaseEvent(QGraphicsSceneMouseEvent* event){
+    if(event->button()!=Qt::LeftButton){
+        event->accept();
+        return;
+    }
     if(parentItem()!=nullptr){
         if(!moved&&!isOperator()){
-            bool ok=false;
-            double value=QInputDialog::getDouble(nullptr,"Edit data","data",data,-1000000,1000000,6,&ok);
-            if(ok){
-                setData(value);
-            }
+            editValue();
+            checkEditedFloatWorkspaceWidth(this);
         }
         event->accept();
         return;
@@ -1441,26 +3498,35 @@ void FloatBlock::mouseReleaseEvent(QGraphicsSceneMouseEvent* event){
     if(dragging){
         dragging=false;
         ungrabMouse();
-        if(absorbTarget!=nullptr&&isOperator()){
+        if(outsideWorkspaceHorizontal(sceneBoundingRect())){
+            clearAbsorbShadow(this);
+            deleteFloatBlock(this);
+            saveUndoCheckpoint();
+            return;
+        }
+        if(absorbTarget!=nullptr&&canAbsorbIntoFloatSlot(this)){
             FloatBlock* target=absorbTarget;
             attachOperatorToTarget(this,target);
+            saveUndoCheckpoint();
             event->accept();
             return;
         }
         clearAbsorbShadow(this);
+        if(outsideWorkspaceVertical(sceneBoundingRect())){
+            setPos(pos()+clampVerticalDeltaToWorkspace(sceneBoundingRect()));
+        }
         if(!inWorkspace(this)){
             deleteFloatBlock(this);
+            saveUndoCheckpoint();
             return;
         }
         resetFloatTreeZValue(this);
         rememberFloatBlockStagePos(this,scrollWorkspace);
         if(!moved&&!isbase&&!isOperator()){
-            bool ok=false;
-            double value=QInputDialog::getDouble(nullptr,"Edit data","data",data,-1000000,1000000,6,&ok);
-            if(ok){
-                setData(value);
-            }
+            editValue();
+            checkEditedFloatWorkspaceWidth(this);
         }
+        saveUndoCheckpoint();
         event->accept();
         return;
     }
@@ -1468,6 +3534,18 @@ void FloatBlock::mouseReleaseEvent(QGraphicsSceneMouseEvent* event){
 }
 
 void CodeBlock::mousePressEvent(QGraphicsSceneMouseEvent* event){
+    if(event->button()==Qt::RightButton){
+        if(contextMenuButtonPressed){
+            event->accept();
+            return;
+        }
+        showCodeContextMenu(this,event->scenePos());
+        event->accept();
+        return;
+    }
+    if(!contextMenuButtonPressed){
+        clearContextMenu();
+    }
     if(isbase){
         qreal dragZ=nextDragZ();
         CodeBlock* tempBlock=copy();
@@ -1655,21 +3733,29 @@ void CodeBlock::mouseReleaseEvent(QGraphicsSceneMouseEvent* event){
     }
     if(dragging){
         StartBlock* releasedStart=dynamic_cast<StartBlock*>(this);
+        QRectF releaseRect=codeTreeSceneRect(this);
+        if(!isbase&&outsideWorkspaceHorizontal(releaseRect)){
+            scene()->removeItem(shadow);
+            deleteCodeChain(this);
+            saveUndoCheckpoint();
+            return;
+        }
+        bool hasAbsorbTarget=preTarget!=nullptr||nextTarget!=nullptr||insideTarget!=nullptr;
+        if(!isbase&&!hasAbsorbTarget&&outsideWorkspaceVertical(releaseRect)){
+            offsetCodeChain(this,clampVerticalDeltaToWorkspace(releaseRect));
+            shadow->setPos(pos());
+        }
+        if(!isbase&&!hasAbsorbTarget&&!inWorkspace(this)){
+            scene()->removeItem(shadow);
+            deleteCodeChain(this);
+            saveUndoCheckpoint();
+            return;
+        }
         if(releasedStart!=nullptr&&currentStartBlock!=nullptr&&currentStartBlock!=releasedStart){
+            message::multithreadingNotAllowed();
             releasedStart->ismoving=false;
             scene()->removeItem(shadow);
             deleteCodeBlock(this);
-            return;
-        }
-        if(!isbase&&!inWorkspace(this)){
-            scene()->removeItem(shadow);
-            CodeBlock* curr=this;
-            while(curr->next!=nullptr){
-                CodeBlock* nxt=curr->next;
-                deleteCodeBlock(curr);
-                curr=nxt;
-            }
-            deleteCodeBlock(curr);
             return;
         }
         if(releasedStart!=nullptr){
@@ -1765,9 +3851,11 @@ void CodeBlock::mouseReleaseEvent(QGraphicsSceneMouseEvent* event){
             currentStartBlock->ismoving=false;
         }
         refreshAllControlLayouts();
+        setCodeTreeZValue(this,10);
         rememberCodeTreeStagePos(this,scrollWorkspace);
         scene()->removeItem(shadow);
         ungrabMouse();
+        saveUndoCheckpoint();
         event->accept();
         return;
     }
@@ -1794,6 +3882,61 @@ void resetRobot(){
     player->SyncCell(squaresize,QPoint(20,20));
 }
 
+void resetRunButtons(){
+    if(runButton!=nullptr){
+        runButton->setPlayShape();
+    }
+    if(fastRunButton!=nullptr){
+        fastRunButton->setLightningShape();
+    }
+    activeRunButton=nullptr;
+}
+
+void stopProgram(){
+    runtimeStopRequested=true;
+    runningBlock=nullptr;
+    if(timerPtr!=nullptr){
+        timerPtr->stop();
+    }
+    if(executorPtr!=nullptr){
+        executorPtr->reset(nullptr);
+    }
+    resetRunButtons();
+}
+
+void startProgram(Button* button,int intervalMs){
+    if(activeRunButton!=nullptr){
+        stopProgram();
+    }
+    resetRobot();
+    runtimeState.resetAll();
+    runtimeStopRequested=false;
+    if(currentStartBlock==nullptr||currentStartBlock->next==nullptr){
+        resetRunButtons();
+        return;
+    }
+    runningBlock=currentStartBlock->next;
+    if(executorPtr!=nullptr){
+        executorPtr->reset(currentStartBlock->next);
+    }
+    if(button!=nullptr){
+        activeRunButton=button;
+        button->setStopShape();
+    }
+    if(timerPtr!=nullptr){
+        timerPtr->stop();
+        timerPtr->start(intervalMs);
+    }
+}
+
+void toggleProgram(Button* button,int intervalMs){
+    if(activeRunButton==button){
+        stopProgram();
+        return;
+    }
+    startProgram(button,intervalMs);
+}
+
 void drawStage(QGraphicsScene& scene){
     stage=scene.addRect(20,20,320,320);
     stage->setBrush(Qt::white);
@@ -1815,23 +3958,66 @@ void drawStage(QGraphicsScene& scene){
     player->setZValue(10);
     scene.addItem(player);
     runButton=new Button(0,"");
+    runButton->setPlayShape();
     runButton->setPos(320,360);
     runButton->setZValue(20);
-    runButton->onClick = [&](){
-        resetRobot();
-        if(currentStartBlock==nullptr||currentStartBlock->next==nullptr){
-            return;
-        }
-        runningBlock=currentStartBlock->next;
-        if(executorPtr!=nullptr){
-            executorPtr->reset(currentStartBlock->next);
-        }
-        if(timerPtr!=nullptr){
-            timerPtr->stop();
-            timerPtr->start(300);
-        }
+    runButton->onClick = [](){
+        toggleProgram(runButton,300);
     };
     scene.addItem(runButton);
+
+    fastRunButton=new Button(1,"");
+    fastRunButton->setLightningShape();
+    fastRunButton->setPos(320,384);
+    fastRunButton->setZValue(20);
+    fastRunButton->onClick=[](){
+        toggleProgram(fastRunButton,40);
+    };
+    scene.addItem(fastRunButton);
+
+    createVariableButton=new TextButton("create new variable");
+    createVariableButton->setPos(20,360);
+    createVariableButton->setBrush(variableColor());
+    createVariableButton->setZValue(20);
+    createVariableButton->onClick=[](){
+        bool ok=false;
+        QString name=QInputDialog::getText(nullptr,"Create new variable","name",
+            QLineEdit::Normal,"",&ok).trimmed();
+        if(!ok){
+            return;
+        }
+        if(!validVariableName(name)){
+            message::invalidVariableName();
+            return;
+        }
+        if(!runtimeState.hasVariable(name.toStdString())){
+            runtimeState.createVariable(name.toStdString());
+        }
+        refreshVariableToolbox();
+    };
+    scene.addItem(createVariableButton);
+
+    createListButton=new TextButton("create new list");
+    createListButton->setPos(20,405);
+    createListButton->setBrush(listColor());
+    createListButton->setZValue(20);
+    createListButton->onClick=[](){
+        bool ok=false;
+        QString name=QInputDialog::getText(nullptr,"Create new list","name",
+            QLineEdit::Normal,"",&ok).trimmed();
+        if(!ok){
+            return;
+        }
+        if(!validVariableName(name)){
+            message::invalidVariableName();
+            return;
+        }
+        if(!runtimeState.hasList(name.toStdString())){
+            runtimeState.createList(name.toStdString());
+        }
+        refreshVariableToolbox();
+    };
+    scene.addItem(createListButton);
 }
 
 void addPanelMasks(QGraphicsScene& scene,QRectF panelRect,bool protectStage=false){
@@ -1895,8 +4081,32 @@ void drawToolbox(QGraphicsScene& scene){
     for(int i=0;i<14;i++){
         addFloat(new BinaryOpBlock(i,binaryNames[i],i,nullptr,nullptr,true));
     }
+    addFloat(new RobotCoordBlock(0,static_cast<int>(floatBlocks.size()),true));
+    addFloat(new RobotCoordBlock(1,static_cast<int>(floatBlocks.size()),true));
 
-    toolboxMaxScrollY=std::max<qreal>(0,y-500);
+    variableToolboxStartY=y;
+    variableSetBaseBlock=new SetVariableBlock(7,"x",nullptr,true);
+    variableSetBaseBlock->setZValue(10);
+    scene.addItem(variableSetBaseBlock);
+    baseCodeBlocks.push_back(variableSetBaseBlock);
+    listGetBaseBlock=new ListGetBlock("x",static_cast<int>(floatBlocks.size()),nullptr,true);
+    listGetBaseBlock->setZValue(10);
+    scene.addItem(listGetBaseBlock);
+    floatBlocks.push_back(listGetBaseBlock);
+    pushListBaseBlock=new PushListBlock(8,"x",nullptr,true);
+    pushListBaseBlock->setZValue(10);
+    scene.addItem(pushListBaseBlock);
+    baseCodeBlocks.push_back(pushListBaseBlock);
+    setListBaseBlock=new SetListBlock(9,"x",nullptr,nullptr,true);
+    setListBaseBlock->setZValue(10);
+    scene.addItem(setListBaseBlock);
+    baseCodeBlocks.push_back(setListBaseBlock);
+    clearListBaseBlock=new ClearListBlock(10,"x",true);
+    clearListBaseBlock->setZValue(10);
+    scene.addItem(clearListBaseBlock);
+    baseCodeBlocks.push_back(clearListBaseBlock);
+    refreshVariableToolbox();
+    updateToolboxScrollRange();
     toolboxSlider=new ScrollSlider(524,30,470);
     toolboxSlider->onChanged=[](qreal value){
         toolboxScrollY=value*toolboxMaxScrollY;
@@ -1925,6 +4135,7 @@ int ui::runApp(int argc,char* argv[]){
     player=new Robot();
 
     QGraphicsScene scene;
+    appScene=&scene;
     QGraphicsRectItem* background=scene.addRect(-10000,-10000,20000,20000);
     background->setBrush(Qt::white);
     background->setPen(Qt::NoPen);
@@ -1932,6 +4143,8 @@ int ui::runApp(int argc,char* argv[]){
     drawStage(scene);
     drawToolbox(scene);
     drawWorkspace(scene);
+    clearUndoCache();
+    saveUndoCheckpoint();
 
     QTimer timer;
     timerPtr=&timer;
@@ -1942,16 +4155,26 @@ int ui::runApp(int argc,char* argv[]){
     QObject::connect(&timer,&QTimer::timeout,[&](){
         if(!executor.running()){
             timer.stop();
+            resetRunButtons();
             return;
         }
 
         bool stepped=executor.step(readRuntimeBlock,robotActions);
+        if(runtimeStopRequested){
+            executor.reset(nullptr);
+            runningBlock=nullptr;
+            timer.stop();
+            resetRunButtons();
+            return;
+        }
 
         player->SyncCell(squaresize,stageoffset);
         runningBlock=static_cast<CodeBlock*>(executor.currentNode());
 
         if(!stepped||!executor.running()){
             timer.stop();
+            runningBlock=nullptr;
+            resetRunButtons();
         }
     });
 
