@@ -43,6 +43,8 @@ public:
     virtual void pushList(const std::string& name,double value);
     virtual void setListValue(const std::string& name,double index,double value);
     virtual void clearList(const std::string& name);
+    virtual void enterCustomBlock(const std::string& name,double value);
+    virtual void leaveCustomBlock(const std::string& name);
 };
 
 class BlockExecutor{
@@ -55,8 +57,10 @@ public:
         double indexValue = 0.0;
         std::string variableName;
         std::string listName;
+        std::string customName;
         Node next = nullptr;
         Node inside = nullptr;
+        Node callTarget = nullptr;
     };
 
     using BlockReader = std::function<BlockSnapshot(Node)>;
@@ -72,6 +76,7 @@ private:
         Node control = nullptr;
         Node after = nullptr;
         bool repeat = false;
+        std::string customName;
     };
 
     Node current = nullptr;

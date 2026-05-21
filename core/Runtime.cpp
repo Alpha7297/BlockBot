@@ -115,6 +115,12 @@ void RobotActions::setListValue(const std::string&,double,double){
 void RobotActions::clearList(const std::string&){
 }
 
+void RobotActions::enterCustomBlock(const std::string&,double){
+}
+
+void RobotActions::leaveCustomBlock(const std::string&){
+}
+
 void BlockExecutor::reset(Node firstBlock){
     current=firstBlock;
     frames.clear();
@@ -139,6 +145,9 @@ bool BlockExecutor::step(const BlockReader& readBlock,RobotActions& actions){
     while(current==nullptr&&!frames.empty()){
         Frame frame=frames.back();
         frames.pop_back();
+        if(!frame.customName.empty()){
+            actions.leaveCustomBlock(frame.customName);
+        }
         current=frame.repeat?frame.control:frame.after;
     }
     if(current==nullptr){
@@ -152,7 +161,7 @@ bool BlockExecutor::step(const BlockReader& readBlock,RobotActions& actions){
     }
     if(block.type==5){
         if(std::abs(block.value)>=1e-8&&block.inside!=nullptr){
-            frames.push_back({nullptr,block.next,false});
+            frames.push_back({nullptr,block.next,false,""});
             current=block.inside;
         }
         else{
@@ -162,7 +171,7 @@ bool BlockExecutor::step(const BlockReader& readBlock,RobotActions& actions){
     }
     if(block.type==6){
         if(std::abs(block.value)>=1e-8&&block.inside!=nullptr){
-            frames.push_back({current,block.next,true});
+            frames.push_back({current,block.next,true,""});
             current=block.inside;
         }
         else{
@@ -204,6 +213,17 @@ bool BlockExecutor::step(const BlockReader& readBlock,RobotActions& actions){
     if(block.type==10){
         actions.clearList(block.listName);
         current=block.next;
+        return true;
+    }
+    if(block.type==11){
+        if(block.callTarget!=nullptr){
+            actions.enterCustomBlock(block.customName,block.value);
+            frames.push_back({nullptr,block.next,false,block.customName});
+            current=block.callTarget;
+        }
+        else{
+            current=block.next;
+        }
         return true;
     }
 

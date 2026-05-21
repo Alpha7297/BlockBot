@@ -3,6 +3,9 @@
 
 namespace ui{
 
+void resetLevelConfig();
+void setLevelCell(int x,int y,int type);
+void setRobotStart(int x,int y,int direction);
 int runApp(int argc,char* argv[]);
 
 }
