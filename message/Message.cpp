@@ -61,6 +61,13 @@ void listNotFound(const char* name){
     );
 }
 
+void readOnlyValue(const char* name){
+    showRuntimeError(
+        QString("\"%1\" is read-only in this level. Program execution was stopped.")
+            .arg(QString::fromUtf8(name))
+    );
+}
+
 void listIndexOutOfRange(const char* name,int index){
     showRuntimeError(
         QString("List \"%1\" index %2 is out of range. Program execution was stopped.")

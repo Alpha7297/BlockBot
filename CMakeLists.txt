@@ -12,6 +12,7 @@ qt_add_executable(helloQt
     main.cpp
     ui/App.cpp
     message/Message.cpp
+    level/Level.cpp
     core/Runtime.cpp
     core/Block.cpp
     core/Ops.cpp

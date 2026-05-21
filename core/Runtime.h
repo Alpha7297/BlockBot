@@ -3,6 +3,7 @@
 
 #include <functional>
 #include <map>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -10,18 +11,24 @@ namespace core{
 
 class RuntimeState{
 public:
-    bool createVariable(const std::string& name);
+    bool createVariable(const std::string& name,bool readOnly=false);
+    bool createReadOnlyVariable(const std::string& name);
     bool hasVariable(const std::string& name) const;
+    bool variableReadOnly(const std::string& name) const;
     bool getVariable(const std::string& name,double* value) const;
     bool setVariable(const std::string& name,double value);
+    bool forceSetVariable(const std::string& name,double value,bool readOnly=false);
     const std::map<std::string,double>& variables() const;
 
-    bool createList(const std::string& name);
+    bool createList(const std::string& name,bool readOnly=false);
+    bool createReadOnlyList(const std::string& name);
     bool hasList(const std::string& name) const;
+    bool listReadOnly(const std::string& name) const;
     bool getListValue(const std::string& name,int index,double* value) const;
     bool pushList(const std::string& name,double value);
     bool setListValue(const std::string& name,int index,double value);
     bool clearList(const std::string& name);
+    bool forceSetList(const std::string& name,const std::vector<double>& values,bool readOnly=false);
     int listSize(const std::string& name) const;
     const std::map<std::string,std::vector<double>>& lists() const;
 
@@ -30,6 +37,8 @@ public:
 private:
     std::map<std::string,double> floatVariables;
     std::map<std::string,std::vector<double>> floatLists;
+    std::set<std::string> readOnlyVariables;
+    std::set<std::string> readOnlyLists;
 };
 
 class RobotActions{

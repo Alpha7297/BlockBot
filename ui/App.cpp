@@ -12,6 +12,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QKeyEvent>
+#include <QMessageBox>
 #include <QPen>
 #include <QPoint>
 #include <QGraphicsPolygonItem>
@@ -37,6 +38,7 @@
 #include "UiConstants.h"
 #include "Widgets.h"
 #include "../core/Runtime.h"
+#include "../level/Level.h"
 #include "../message/Message.h"
 using std::vector;
 using std::function;
@@ -47,11 +49,19 @@ core::RuntimeState runtimeState;
 QGraphicsScene* appScene = nullptr;
 bool runtimeSkipCurrentBlock=false;
 bool runtimeStopRequested=false;
+bool levelTestRunning=false;
+bool levelTestFailed=false;
+int levelTestStepCount=0;
+int levelTestCaseIndex=0;
+int levelTestCaseTotal=1;
 bool contextMenuButtonPressed=false;
 vector<QString> undoCheckpoints;
 int undoCheckpointId=0;
 bool restoringUndo=false;
 bool suppressCustomReferenceRemoval=false;
+
+constexpr int levelTestIntervalMs=40;
+constexpr int levelTestStepLimit=10000;
 
 class CodeBlock;
 class FloatBlock;
@@ -1528,6 +1538,8 @@ const T min(const T a,const T b){
     return a<b?a:b;
 }
 
+extern int mapdata[screensize][screensize];
+
 class Robot:public QGraphicsPolygonItem{
 public:
     int gridx;
@@ -1539,9 +1551,9 @@ public:
         setPolygon(shape);
         setBrush(Qt::green);
         setPen(Qt::NoPen);
-        gridx=5,gridy=5;
+        gridx=0;
+        gridy=0;
         direction=0;
-        setPos(gridx,gridy);
         setTransformOriginPoint(4,4);
         setRotation(direction*90);
     }
@@ -1554,21 +1566,38 @@ public:
         setRotation(direction*90);
     }
     void moveForward(int step){
-        int newx=gridx,newy=gridy;
-        if(direction==0){
-            newx+=step;
+        int count=std::abs(step);
+        int sign=step>=0?1:-1;
+        for(int i=0;i<count;i++){
+            int newx=gridx;
+            int newy=gridy;
+            if(direction==0){
+                newx+=sign;
+            }
+            if(direction==1){
+                newy+=sign;
+            }
+            if(direction==2){
+                newx-=sign;
+            }
+            if(direction==3){
+                newy-=sign;
+            }
+            if(newx<0||newx>=screensize||newy<0||newy>=screensize){
+                return;
+            }
+            int cell=mapdata[newx][newy];
+            if(cell==level::CellWall){
+                return;
+            }
+            gridx=newx;
+            gridy=newy;
+            if(cell==level::CellTrap){
+                levelTestFailed=true;
+                runtimeStopRequested=true;
+                return;
+            }
         }
-        if(direction==1){
-            newy+=step;
-        }
-        if(direction==2){
-            newx-=step;
-        }
-        if(direction==3){
-            newy-=step;
-        }
-        gridx=max(0,min(newx,screensize-1));
-        gridy=max(0,min(newy,screensize-1));
     }
     void SyncCell(int cellSize,QPoint offset){
         setPos(gridx*cellSize+offset.x(),gridy*cellSize+offset.y());
@@ -1700,9 +1729,14 @@ public:
     }
 
     void setVariable(const std::string& name,double value) override{
+        QString key=QString::fromStdString(name);
+        QByteArray bytes=key.toUtf8();
+        if(runtimeState.variableReadOnly(name)){
+            message::readOnlyValue(bytes.constData());
+            runtimeStopRequested=true;
+            return;
+        }
         if(!runtimeState.setVariable(name,value)){
-            QString key=QString::fromStdString(name);
-            QByteArray bytes=key.toUtf8();
             message::variableNotFound(bytes.constData());
             runtimeStopRequested=true;
             return;
@@ -1710,9 +1744,14 @@ public:
     }
 
     void pushList(const std::string& name,double value) override{
+        QString key=QString::fromStdString(name);
+        QByteArray bytes=key.toUtf8();
+        if(runtimeState.listReadOnly(name)){
+            message::readOnlyValue(bytes.constData());
+            runtimeStopRequested=true;
+            return;
+        }
         if(!runtimeState.pushList(name,value)){
-            QString key=QString::fromStdString(name);
-            QByteArray bytes=key.toUtf8();
             message::listNotFound(bytes.constData());
             runtimeStopRequested=true;
             return;
@@ -1721,15 +1760,19 @@ public:
 
     void setListValue(const std::string& name,double index,double value) override{
         QString key=QString::fromStdString(name);
+        QByteArray bytes=key.toUtf8();
+        if(runtimeState.listReadOnly(name)){
+            message::readOnlyValue(bytes.constData());
+            runtimeStopRequested=true;
+            return;
+        }
         if(!runtimeState.hasList(name)){
-            QByteArray bytes=key.toUtf8();
             message::listNotFound(bytes.constData());
             runtimeStopRequested=true;
             return;
         }
         int idx=static_cast<int>(std::floor(index));
         if(!runtimeState.setListValue(name,idx,value)){
-            QByteArray bytes=key.toUtf8();
             message::listIndexOutOfRange(bytes.constData(),idx);
             runtimeStopRequested=true;
             return;
@@ -1737,9 +1780,14 @@ public:
     }
 
     void clearList(const std::string& name) override{
+        QString key=QString::fromStdString(name);
+        QByteArray bytes=key.toUtf8();
+        if(runtimeState.listReadOnly(name)){
+            message::readOnlyValue(bytes.constData());
+            runtimeStopRequested=true;
+            return;
+        }
         if(!runtimeState.clearList(name)){
-            QString key=QString::fromStdString(name);
-            QByteArray bytes=key.toUtf8();
             message::listNotFound(bytes.constData());
             runtimeStopRequested=true;
             return;
@@ -1760,11 +1808,7 @@ public:
 };
 
 int maxZ=10;
-int initialMapdata[screensize][screensize];
 int mapdata[screensize][screensize];
-int initialRobotX=5;
-int initialRobotY=5;
-int initialRobotDirection=0;
 Robot* player=nullptr;
 QGraphicsRectItem* stage;
 QGraphicsRectItem* toolboxBackground;
@@ -1773,6 +1817,8 @@ QGraphicsRectItem* squares[screensize][screensize];
 Button* runButton=nullptr;
 Button* fastRunButton=nullptr;
 Button* activeRunButton=nullptr;
+TextButton* testButton=nullptr;
+QGraphicsTextItem* testStatusText=nullptr;
 TextButton* createVariableButton=nullptr;
 TextButton* createListButton=nullptr;
 TextButton* createCustomBlockButton=nullptr;
@@ -1903,6 +1949,13 @@ void syncScrollArea(int area);
 void syncCodeChainFrom(CodeBlock* head,QPointF startPos);
 void rememberCodeTreeStagePos(CodeBlock* head,int area);
 void rememberFloatBlockStagePos(FloatBlock* block,int area);
+void stopProgram();
+void resetRobot();
+void resetRunButtons();
+void updateTestStatusText();
+void beginLevelTestCase(int index);
+void finishLevelTest(bool forcedFail,const QString& message=QString());
+void startLevelTestRun();
 void setCodeBlockStagePos(CodeBlock* block,int area,QPointF pos);
 void setFloatBlockStagePos(FloatBlock* block,int area,QPointF pos);
 QPointF sceneToStagePos(int area,QPointF scenePos);
@@ -4609,42 +4662,204 @@ void CodeBlock::mouseReleaseEvent(QGraphicsSceneMouseEvent* event){
     QGraphicsPolygonItem::mouseReleaseEvent(event);
 }
 
-void ui::resetLevelConfig(){
+level::TestContext currentLevelTestContext(){
+    level::TestContext context;
+    context.map.assign(screensize,std::vector<int>(screensize,0));
     for(int i=0;i<screensize;i++){
         for(int j=0;j<screensize;j++){
-            initialMapdata[i][j]=0;
+            context.map[i][j]=mapdata[i][j];
         }
     }
-    initialRobotX=5;
-    initialRobotY=5;
-    initialRobotDirection=0;
+    if(player!=nullptr){
+        context.robot.x=player->gridx;
+        context.robot.y=player->gridy;
+        context.robot.direction=player->direction;
+    }
+    context.runtime=&runtimeState;
+    return context;
+}
+
+void updateTestStatusText(){
+    if(testStatusText==nullptr){
+        return;
+    }
+    if(!levelTestRunning){
+        testStatusText->setPlainText("");
+        return;
+    }
+    testStatusText->setPlainText(
+        QString("running on case %1").arg(levelTestCaseIndex+1)
+    );
+}
+
+void finishLevelTest(bool forcedFail,const QString& message){
+    if(timerPtr!=nullptr){
+        timerPtr->stop();
+    }
+    if(executorPtr!=nullptr){
+        executorPtr->reset(nullptr);
+    }
+    runningBlock=nullptr;
+    if(forcedFail||levelTestFailed){
+        levelTestRunning=false;
+        resetRunButtons();
+        updateTestStatusText();
+        QString text=message.isEmpty()?
+            QString("Test case %1 failed: robot entered a trap or execution was stopped.")
+                .arg(levelTestCaseIndex+1):
+            message;
+        QMessageBox::warning(nullptr,"Test Result",text);
+        return;
+    }
+    level::TestResult result=level::testActiveLevelCase(levelTestCaseIndex,
+        currentLevelTestContext());
+    if(!result.passed){
+        levelTestRunning=false;
+        resetRunButtons();
+        updateTestStatusText();
+        QMessageBox::warning(nullptr,"Test Result",
+            QString::fromStdString(result.message));
+        return;
+    }
+    levelTestCaseIndex++;
+    if(levelTestCaseIndex>=levelTestCaseTotal){
+        levelTestRunning=false;
+        resetRunButtons();
+        updateTestStatusText();
+        QMessageBox::information(nullptr,"Test Result",
+            QString("All %1 test case(s) passed.").arg(levelTestCaseTotal));
+        return;
+    }
+    beginLevelTestCase(levelTestCaseIndex);
+}
+
+void beginLevelTestCase(int index){
+    resetRobot();
+    runtimeState.resetAll();
+    level::prepareActiveTestCase(index,runtimeState);
+    customParameterStacks.clear();
+    runtimeStopRequested=false;
+    levelTestFailed=false;
+    levelTestStepCount=0;
+    updateTestStatusText();
+    if(currentStartBlock==nullptr||currentStartBlock->next==nullptr){
+        finishLevelTest(true,"Test failed: no runnable start chain exists.");
+        return;
+    }
+    runningBlock=currentStartBlock->next;
+    if(executorPtr!=nullptr){
+        executorPtr->reset(currentStartBlock->next);
+    }
+    if(timerPtr!=nullptr){
+        timerPtr->stop();
+        timerPtr->start(level::activeTestIntervalMs());
+    }
+}
+
+void startLevelTestRun(){
+    if(activeRunButton!=nullptr||levelTestRunning){
+        stopProgram();
+    }
+    levelTestRunning=true;
+    levelTestCaseIndex=0;
+    levelTestCaseTotal=std::max(1,level::activeTestCaseCount());
+    beginLevelTestCase(levelTestCaseIndex);
+}
+
+void ui::resetLevelConfig(){
+    level::resetActiveLevel(screensize,screensize);
+    level::setActiveRobotStart(5,5,0);
 }
 
 void ui::setLevelCell(int x,int y,int type){
     if(x<0||x>=screensize||y<0||y>=screensize){
         return;
     }
-    initialMapdata[x][y]=type;
+    if(level::activeLevel().map().empty()){
+        ui::resetLevelConfig();
+    }
+    level::setActiveMapCell(x,y,type);
 }
 
 void ui::setRobotStart(int x,int y,int direction){
-    initialRobotX=std::max(0,std::min(x,screensize-1));
-    initialRobotY=std::max(0,std::min(y,screensize-1));
-    initialRobotDirection=((direction%4)+4)%4;
+    if(level::activeLevel().map().empty()){
+        ui::resetLevelConfig();
+    }
+    x=std::max(0,std::min(x,screensize-1));
+    y=std::max(0,std::min(y,screensize-1));
+    level::setActiveRobotStart(x,y,direction);
+}
+
+void ui::setReachPositionGoal(int x,int y){
+    if(level::activeLevel().map().empty()){
+        ui::resetLevelConfig();
+    }
+    level::setActiveReachPositionGoal(x,y);
+}
+
+void ui::enableLevelBlock(const char* blockName){
+    if(blockName==nullptr){
+        return;
+    }
+    level::enableActiveBlock(blockName);
+}
+
+void ui::disableLevelBlock(const char* blockName){
+    if(blockName==nullptr){
+        return;
+    }
+    level::disableActiveBlock(blockName);
+}
+
+void ui::setDataOutputCases(const std::vector<level::DataTestCase>& cases){
+    if(level::activeLevel().map().empty()){
+        ui::resetLevelConfig();
+    }
+    level::setActiveDataOutputCases(cases);
+    if(cases.empty()){
+        return;
+    }
+    for(const level::DataTestCase& testCase:cases){
+        for(const auto& item:testCase.inputVariables){
+            double value=runtimeState.hasVariable(item.first)?0.0:item.second;
+            runtimeState.forceSetVariable(item.first,value,true);
+        }
+        for(const auto& item:testCase.inputLists){
+            std::vector<double> value=runtimeState.hasList(item.first)?
+                std::vector<double>():item.second;
+            runtimeState.forceSetList(item.first,value,true);
+        }
+        for(const auto& item:testCase.expectedVariables){
+            if(!runtimeState.hasVariable(item.first)){
+                runtimeState.forceSetVariable(item.first,0.0,false);
+            }
+        }
+        for(const auto& item:testCase.expectedLists){
+            if(!runtimeState.hasList(item.first)){
+                runtimeState.forceSetList(item.first,std::vector<double>(),false);
+            }
+        }
+    }
+    refreshVariableToolbox();
 }
 
 void init(){
+    if(level::activeLevel().map().empty()){
+        ui::resetLevelConfig();
+    }
+    const level::LevelConfig& config=level::activeLevel();
     for(int i=0;i<screensize;i++){
         for(int j=0;j<screensize;j++){
-            mapdata[i][j]=initialMapdata[i][j];
+            mapdata[i][j]=config.mapCell(i,j);
         }
     }
 }
 
 void resetRobot(){
-    player->gridx=initialRobotX;
-    player->gridy=initialRobotY;
-    player->direction=initialRobotDirection;
+    level::RobotState start=level::activeLevel().robotStart();
+    player->gridx=std::max(0,std::min(start.x,screensize-1));
+    player->gridy=std::max(0,std::min(start.y,screensize-1));
+    player->direction=((start.direction%4)+4)%4;
     player->SyncCell(squaresize,QPoint(stageX,stageY));
 }
 
@@ -4660,6 +4875,12 @@ void resetRunButtons(){
 
 void stopProgram(){
     runtimeStopRequested=true;
+    levelTestRunning=false;
+    levelTestFailed=false;
+    levelTestStepCount=0;
+    levelTestCaseIndex=0;
+    levelTestCaseTotal=1;
+    updateTestStatusText();
     runningBlock=nullptr;
     if(timerPtr!=nullptr){
         timerPtr->stop();
@@ -4679,6 +4900,7 @@ void startProgram(Button* button,int intervalMs){
     runtimeState.resetAll();
     customParameterStacks.clear();
     runtimeStopRequested=false;
+    levelTestFailed=false;
     if(currentStartBlock==nullptr||currentStartBlock->next==nullptr){
         resetRunButtons();
         return;
@@ -4713,8 +4935,11 @@ void drawStage(QGraphicsScene& scene){
     for(int i=0;i<screensize;i++){
         for(int j=0;j<screensize;j++){
             squares[i][j]=scene.addRect(0,0,squaresize,squaresize);
-            if(mapdata[i][j]==1){
-                squares[i][j]->setBrush(Qt::red);
+            if(mapdata[i][j]==level::CellWall){
+                squares[i][j]->setBrush(QColor(126,76,36));
+            }
+            else if(mapdata[i][j]==level::CellTrap){
+                squares[i][j]->setBrush(QColor(178,48,48));
             }
             else{
                 squares[i][j]->setBrush(Qt::gray);
@@ -4722,7 +4947,7 @@ void drawStage(QGraphicsScene& scene){
             squares[i][j]->setPos(stageX+i*squaresize,stageY+j*squaresize);
         }
     }
-    player->SyncCell(squaresize,QPoint(stageX,stageY));
+    resetRobot();
     player->setZValue(10);
     scene.addItem(player);
     runButton=new Button(0,"");
@@ -4742,6 +4967,22 @@ void drawStage(QGraphicsScene& scene){
         toggleProgram(fastRunButton,40);
     };
     scene.addItem(fastRunButton);
+
+    testButton=new TextButton("test");
+    testButton->setPos(260,360);
+    testButton->setBrush(QColor(70,80,96));
+    testButton->setZValue(20);
+    testButton->onClick=[](){
+        startLevelTestRun();
+    };
+    scene.addItem(testButton);
+    testStatusText=new QGraphicsTextItem();
+    testStatusText->document()->setDocumentMargin(0);
+    testStatusText->setDefaultTextColor(QColor(70,80,96));
+    testStatusText->setPos(230,390);
+    testStatusText->setZValue(20);
+    testStatusText->setAcceptedMouseButtons(Qt::NoButton);
+    scene.addItem(testStatusText);
 
     createVariableButton=new TextButton("create new variable");
     createVariableButton->setPos(20,360);
@@ -4985,15 +5226,36 @@ int ui::runApp(int argc,char* argv[]){
     QObject::connect(&timer,&QTimer::timeout,[&](){
         if(!executor.running()){
             timer.stop();
+            if(levelTestRunning){
+                finishLevelTest(false);
+                return;
+            }
             resetRunButtons();
             return;
         }
 
         bool stepped=executor.step(readRuntimeBlock,robotActions);
+        if(levelTestRunning){
+            levelTestStepCount++;
+            if(levelTestStepCount>levelTestStepLimit){
+                player->SyncCell(squaresize,stageoffset);
+                double seconds=levelTestStepLimit*level::activeTestIntervalMs()/1000.0;
+                finishLevelTest(true,
+                    QString("Test failed: execution timed out after %1 steps, about %2 seconds.")
+                        .arg(levelTestStepLimit)
+                        .arg(seconds,0,'g',4));
+                return;
+            }
+        }
         if(runtimeStopRequested){
+            player->SyncCell(squaresize,stageoffset);
             executor.reset(nullptr);
             runningBlock=nullptr;
             timer.stop();
+            if(levelTestRunning){
+                finishLevelTest(true);
+                return;
+            }
             resetRunButtons();
             return;
         }
@@ -5004,6 +5266,10 @@ int ui::runApp(int argc,char* argv[]){
         if(!stepped||!executor.running()){
             timer.stop();
             runningBlock=nullptr;
+            if(levelTestRunning){
+                finishLevelTest(!stepped);
+                return;
+            }
             resetRunButtons();
         }
     });

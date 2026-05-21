@@ -4,12 +4,24 @@
 
 namespace core{
 
-bool RuntimeState::createVariable(const std::string& name){
-    return floatVariables.emplace(name,0.0).second;
+bool RuntimeState::createVariable(const std::string& name,bool readOnly){
+    bool created=floatVariables.emplace(name,0.0).second;
+    if(created&&readOnly){
+        readOnlyVariables.insert(name);
+    }
+    return created;
+}
+
+bool RuntimeState::createReadOnlyVariable(const std::string& name){
+    return createVariable(name,true);
 }
 
 bool RuntimeState::hasVariable(const std::string& name) const{
     return floatVariables.find(name)!=floatVariables.end();
+}
+
+bool RuntimeState::variableReadOnly(const std::string& name) const{
+    return readOnlyVariables.find(name)!=readOnlyVariables.end();
 }
 
 bool RuntimeState::getVariable(const std::string& name,double* value) const{
@@ -25,10 +37,21 @@ bool RuntimeState::getVariable(const std::string& name,double* value) const{
 
 bool RuntimeState::setVariable(const std::string& name,double value){
     auto it=floatVariables.find(name);
-    if(it==floatVariables.end()){
+    if(it==floatVariables.end()||variableReadOnly(name)){
         return false;
     }
     it->second=value;
+    return true;
+}
+
+bool RuntimeState::forceSetVariable(const std::string& name,double value,bool readOnly){
+    floatVariables[name]=value;
+    if(readOnly){
+        readOnlyVariables.insert(name);
+    }
+    else{
+        readOnlyVariables.erase(name);
+    }
     return true;
 }
 
@@ -36,12 +59,24 @@ const std::map<std::string,double>& RuntimeState::variables() const{
     return floatVariables;
 }
 
-bool RuntimeState::createList(const std::string& name){
-    return floatLists.emplace(name,std::vector<double>()).second;
+bool RuntimeState::createList(const std::string& name,bool readOnly){
+    bool created=floatLists.emplace(name,std::vector<double>()).second;
+    if(created&&readOnly){
+        readOnlyLists.insert(name);
+    }
+    return created;
+}
+
+bool RuntimeState::createReadOnlyList(const std::string& name){
+    return createList(name,true);
 }
 
 bool RuntimeState::hasList(const std::string& name) const{
     return floatLists.find(name)!=floatLists.end();
+}
+
+bool RuntimeState::listReadOnly(const std::string& name) const{
+    return readOnlyLists.find(name)!=readOnlyLists.end();
 }
 
 bool RuntimeState::getListValue(const std::string& name,int index,double* value) const{
@@ -57,7 +92,7 @@ bool RuntimeState::getListValue(const std::string& name,int index,double* value)
 
 bool RuntimeState::pushList(const std::string& name,double value){
     auto it=floatLists.find(name);
-    if(it==floatLists.end()){
+    if(it==floatLists.end()||listReadOnly(name)){
         return false;
     }
     it->second.push_back(value);
@@ -66,7 +101,8 @@ bool RuntimeState::pushList(const std::string& name,double value){
 
 bool RuntimeState::setListValue(const std::string& name,int index,double value){
     auto it=floatLists.find(name);
-    if(it==floatLists.end()||index<0||index>=static_cast<int>(it->second.size())){
+    if(it==floatLists.end()||listReadOnly(name)||
+       index<0||index>=static_cast<int>(it->second.size())){
         return false;
     }
     it->second[index]=value;
@@ -75,10 +111,21 @@ bool RuntimeState::setListValue(const std::string& name,int index,double value){
 
 bool RuntimeState::clearList(const std::string& name){
     auto it=floatLists.find(name);
-    if(it==floatLists.end()){
+    if(it==floatLists.end()||listReadOnly(name)){
         return false;
     }
     it->second.clear();
+    return true;
+}
+
+bool RuntimeState::forceSetList(const std::string& name,const std::vector<double>& values,bool readOnly){
+    floatLists[name]=values;
+    if(readOnly){
+        readOnlyLists.insert(name);
+    }
+    else{
+        readOnlyLists.erase(name);
+    }
     return true;
 }
 

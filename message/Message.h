@@ -9,6 +9,7 @@ void numericOutOfRange(const char* op);
 void multithreadingNotAllowed();
 void variableNotFound(const char* name);
 void listNotFound(const char* name);
+void readOnlyValue(const char* name);
 void listIndexOutOfRange(const char* name,int index);
 void invalidVariableName();
 void workspaceWidthLimitReached();
