@@ -27,6 +27,7 @@
 #include <QMouseEvent>
 #include <QTextDocument>
 #include <QWheelEvent>
+#include <QFileDialog>
 #include <algorithm>
 #include <cmath>
 #include <functional>
@@ -2320,19 +2321,7 @@ void deleteFloatContext(FloatBlock* block){
         saveUndoCheckpoint();
         return;
     }
-    QPointF oldPos=block->pos();
-    int oldArea=block->scrollArea;
     deleteFloatBlock(block);
-
-    FloatBlock* replacementValue=new FloatBlock(0,false);
-    replacementValue->setData(0);
-    replacementValue->setPos(oldPos);
-    replacementValue->scrollArea=oldArea;
-    if(appScene!=nullptr){
-        appScene->addItem(replacementValue);
-    }
-    floatBlocks.push_back(replacementValue);
-    rememberFloatBlockStagePos(replacementValue,oldArea==scrollWorkspace?scrollWorkspace:scrollNone);
     saveUndoCheckpoint();
 }
 
@@ -2778,8 +2767,31 @@ QJsonObject serializeWorkspace(){
         object["y"]=stage.y();
         freeFloats.append(object);
     }
+    QJsonArray variables;
+    for(std::pair<std::string,double>item:runtimeState.variables())
+    {
+        QJsonObject object;
+        object["name"]=QString::fromStdString(item.first);
+        object["value"]=item.second;
+        variables.append(object);
+    }
+    QJsonArray lists;
+    for(std::pair<std::string,std::vector<double> >item:runtimeState.lists())
+    {
+        QJsonObject object;
+        object["name"]=QString::fromStdString(item.first);
+        QJsonArray values;
+        for(std::vector<double>::iterator it=item.second.begin();it!=item.second.end();it++)
+        {
+            values.append(*it);
+        }
+        object["values"]=values;
+        lists.append(object);
+    }
     root["codeRoots"]=codeRoots;
     root["freeFloats"]=freeFloats;
+    root["variables"]=variables;
+    root["lists"]=lists;
     return root;
 }
 
@@ -5152,6 +5164,27 @@ void drawStage(QGraphicsScene& scene){
         saveUndoCheckpoint();
     };
     scene.addItem(createCustomBlockButton);
+
+    TextButton* saveButton=new TextButton("保存");
+    saveButton->setPos(230,440);
+    saveButton->setBrush(variableColor());
+    saveButton->setZValue(20);
+    saveButton->onClick=[](){
+        QString filePath = QFileDialog::getSaveFileName(nullptr, "保存文件", "", "JSON 文件 (*.json)");
+        if (filePath.isEmpty()) {
+            return;
+        }
+        QFile file(filePath);
+        if (!file.open(QIODevice::WriteOnly | QIODevice::Text))
+        {
+            QMessageBox::critical(nullptr, "错误", "无法创建或写入该文件！");
+            return;
+        }
+        file.write(QJsonDocument(serializeWorkspace()).toJson());
+        file.close();
+        QMessageBox::information(nullptr, "成功", "文件保存成功！");
+    };
+    scene.addItem(saveButton);
 }
 
 void addPanelMasks(QGraphicsScene& scene,QRectF panelRect,bool protectStage=false){
