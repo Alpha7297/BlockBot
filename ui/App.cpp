@@ -1906,13 +1906,13 @@ vector<CodeBlock*> codeBlocks;
 vector<CodeBlock*> baseCodeBlocks;
 vector<FloatBlock*> floatBlocks;
 vector<VariableBlock*> variableBaseBlocks;
-SetVariableBlock* variableSetBaseBlock=nullptr;
 vector<FloatBlock*> listLabelBaseBlocks;
 vector<FloatBlock*> listFloatBaseBlocks;
 vector<CodeBlock*> listCodeBaseBlocks;
 vector<CustomCallBlock*> customCallBaseBlocks;
 std::map<QString,CustomHatBlock*> customHatBlocks;
 std::map<QString,vector<double>> customParameterStacks;
+SetVariableBlock* variableSetBaseBlock=nullptr;
 StartBlock* currentStartBlock=nullptr;
 CodeBlock* runningBlock=nullptr;
 vector<ContextMenuButton*> contextMenuButtons;
@@ -2745,7 +2745,7 @@ void rebuildFloatBlockRegistryFromScene(){
     }
     for(QGraphicsItem* item:appScene->items()){
         FloatBlock* block=dynamic_cast<FloatBlock*>(item);
-        if(block==nullptr||block->parentItem()!=nullptr){
+        if(block==nullptr||block->parentItem()!=nullptr){//floatBlocks存放:floatBase,freeFloat
             continue;
         }
         floatBlocks.push_back(block);
@@ -2768,7 +2768,7 @@ QJsonObject serializeWorkspace(){
         freeFloats.append(object);
     }
     QJsonArray variables;
-    for(std::pair<std::string,double>item:runtimeState.variables())
+    for(const auto&item:runtimeState.variables())
     {
         QJsonObject object;
         object["name"]=QString::fromStdString(item.first);
@@ -2776,14 +2776,14 @@ QJsonObject serializeWorkspace(){
         variables.append(object);
     }
     QJsonArray lists;
-    for(std::pair<std::string,std::vector<double> >item:runtimeState.lists())
+    for(const auto&item:runtimeState.lists())
     {
         QJsonObject object;
         object["name"]=QString::fromStdString(item.first);
         QJsonArray values;
-        for(std::vector<double>::iterator it=item.second.begin();it!=item.second.end();it++)
+        for(const double& it:item.second)
         {
-            values.append(*it);
+            values.append(it);
         }
         object["values"]=values;
         lists.append(object);
@@ -2824,7 +2824,9 @@ void clearWorkspaceForUndo(){
     rebuildFloatBlockRegistryFromScene();
 }
 
-void restoreWorkspace(const QJsonObject& root){
+void refreshVariableToolbox();
+
+void restoreWorkspace(const QJsonObject& root){//load workplace by Json file
     restoringUndo=true;
     clearWorkspaceForUndo();
     QJsonArray codeRoots=root["codeRoots"].toArray();
@@ -2863,8 +2865,33 @@ void restoreWorkspace(const QJsonObject& root){
         resetFloatTreeZValue(block);
         setInsertedOperatorInteractivity(block);
     }
+    runtimeState.clearAllMutable();
+    QJsonArray variables=root["variables"].toArray();
+    for(const QJsonValue& variable:variables){
+        QJsonObject object=variable.toObject();
+        std::string name=object["name"].toString().toStdString();
+        runtimeState.forceSetVariable(name,object["value"].toDouble(),runtimeState.variableReadOnly(name));
+    }
+    QJsonArray lists=root["lists"].toArray();
+    for(const QJsonValue& list:lists){
+        QJsonObject object=list.toObject();
+        std::string name=object["name"].toString().toStdString();
+        QJsonArray values=object["values"].toArray();
+        vector<double>vValues;
+        vValues.clear();
+        for(const QJsonValue& value:values)
+        {
+            vValues.push_back(value.toDouble());
+        }
+        runtimeState.forceSetList(name,vValues,runtimeState.variableReadOnly(name));
+        runtimeState.forceSetVariable(name,object["value"].toDouble(),runtimeState.variableReadOnly(name));
+    }
+    refreshVariableToolbox();
+
     refreshAllControlLayouts();
     restoringUndo=false;
+    QString tempE=QString("floatBlockSize:/%1/;codeBlockSize:/%2/;P3:/%3/").arg(floatBlocks.size()).arg(codeBlocks.size()).arg(0);
+    message::otherError(tempE.toStdString().c_str());
 }
 
 QString writeUndoFile(const QJsonObject& snapshot){
@@ -4916,6 +4943,7 @@ void ui::setDataOutputCases(const std::vector<level::DataTestCase>& cases){
         for(const auto& item:testCase.expectedVariables){
             if(!runtimeState.hasVariable(item.first)){
                 runtimeState.forceSetVariable(item.first,0.0,false);
+
             }
         }
         for(const auto& item:testCase.expectedLists){
@@ -5177,12 +5205,11 @@ void drawStage(QGraphicsScene& scene){
         QFile file(filePath);
         if (!file.open(QIODevice::WriteOnly | QIODevice::Text))
         {
-            QMessageBox::critical(nullptr, "错误", "无法创建或写入该文件！");
+            message::otherError("错误，无法创建或写入该文件！");
             return;
         }
         file.write(QJsonDocument(serializeWorkspace()).toJson());
         file.close();
-        QMessageBox::information(nullptr, "成功", "文件保存成功！");
     };
     scene.addItem(saveButton);
 }

@@ -58,6 +58,10 @@ bool RuntimeState::forceSetVariable(const std::string& name,double value,bool re
 const std::map<std::string,double>& RuntimeState::variables() const{
     return floatVariables;
 }
+const std::set<std::string>& RuntimeState::readOnlyvariables() const
+{
+    return readOnlyVariables;
+}
 
 bool RuntimeState::createList(const std::string& name,bool readOnly){
     bool created=floatLists.emplace(name,std::vector<double>()).second;
@@ -140,6 +144,10 @@ int RuntimeState::listSize(const std::string& name) const{
 const std::map<std::string,std::vector<double>>& RuntimeState::lists() const{
     return floatLists;
 }
+const std::set<std::string>& RuntimeState::readOnlylists() const
+{
+    return readOnlyLists;
+}
 
 void RuntimeState::resetAll(){
     for(auto& item:floatVariables){
@@ -147,6 +155,46 @@ void RuntimeState::resetAll(){
     }
     for(auto& item:floatLists){
         item.second.clear();
+    }
+}
+bool RuntimeState::removeVariable(const std::string name)
+{
+    auto it=floatVariables.find(name);
+    if(it==floatVariables.end()||variableReadOnly(name)){
+        return false;
+    }
+    floatVariables.erase(it);
+    return true;
+}
+bool RuntimeState::removeList(const std::string name)
+{
+    auto it=floatLists.find(name);
+    if(it==floatLists.end()||listReadOnly(name)){
+        return false;
+    }
+    floatLists.erase(it);
+    return true;
+}
+void RuntimeState::clearAll()
+{
+    floatVariables.clear();
+    floatLists.clear();
+    readOnlyVariables.clear();
+    readOnlyLists.clear();
+}
+void RuntimeState::clearAllMutable()
+{
+    for (auto it = floatVariables.begin(); it != floatVariables.end(); ) {
+        if (readOnlyVariables.find(it->first)==readOnlyVariables.end()) {
+            it = floatVariables.erase(it); // erase 会返回指向下一个元素的有效迭代器
+        }
+        else ++it;
+    }
+    for (auto it = floatLists.begin(); it != floatLists.end(); ) {
+        if (readOnlyLists.find(it->first)==readOnlyLists.end()) {
+            it = floatLists.erase(it); // erase 会返回指向下一个元素的有效迭代器
+        }
+        else ++it;
     }
 }
 

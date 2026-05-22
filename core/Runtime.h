@@ -19,6 +19,7 @@ public:
     bool setVariable(const std::string& name,double value);
     bool forceSetVariable(const std::string& name,double value,bool readOnly=false);
     const std::map<std::string,double>& variables() const;
+    const std::set<std::string>& readOnlyvariables() const;
 
     bool createList(const std::string& name,bool readOnly=false);
     bool createReadOnlyList(const std::string& name);
@@ -30,7 +31,12 @@ public:
     bool clearList(const std::string& name);
     bool forceSetList(const std::string& name,const std::vector<double>& values,bool readOnly=false);
     int listSize(const std::string& name) const;
-    const std::map<std::string,std::vector<double>>& lists() const;
+    const std::map<std::string,std::vector<double> >& lists() const;
+    const std::set<std::string>& readOnlylists() const;
+    bool removeVariable(const std::string name);
+    bool removeList(const std::string name);
+    void clearAll();
+    void clearAllMutable();
 
     void resetAll();
 

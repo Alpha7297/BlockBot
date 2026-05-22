@@ -87,5 +87,9 @@ void workspaceWidthLimitReached(){
 void singleDialogOnly(){
     showRuntimeError("Only one runtime error dialog can be shown at a time.");
 }
+void otherError(const char* text)
+{
+    showRuntimeError(text);
+}
 
 }

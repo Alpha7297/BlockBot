@@ -15,6 +15,7 @@ void invalidVariableName();
 void workspaceWidthLimitReached();
 void singleDialogOnly();
 void runtimeError(const char* text);
+void otherError(const char* text);
 
 }
 
