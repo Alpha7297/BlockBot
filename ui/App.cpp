@@ -4532,7 +4532,7 @@ void CodeBlock::mouseMoveEvent(QGraphicsSceneMouseEvent* event){
             if(isTopOnlyCodeBlock(otherBlock)){
                 continue;
             }
-            if(dynamic_cast<ControlCodeBlock*>(this)!=nullptr&&isFirstInsideBlock(otherBlock)){
+            if(isFirstInsideBlock(otherBlock)){
                 continue;
             }
             qreal distance=QLineF(pos()+QPointF(0,totalwid),otherPos).length();
