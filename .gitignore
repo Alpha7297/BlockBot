@@ -1,0 +1,6 @@
+run.bat
+build/
+buildrun/
+build-run/
+.vscode/
+cache/

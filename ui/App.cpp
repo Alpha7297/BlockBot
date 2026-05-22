@@ -234,7 +234,6 @@ class CodeBlock:public QGraphicsPolygonItem{
 public:
     int len;
     int wid;
-    int idx;
     QString s;
     int type;
     QGraphicsTextItem* text;
@@ -248,16 +247,13 @@ public:
     int scrollArea;
     QPointF stagePos;
     QPointF blockOffset;
-    int preidx;
-    int nextidx;
     CodeBlock* preTarget;
     CodeBlock* nextTarget;
     ControlCodeBlock* insideParent;
     ControlCodeBlock* insideTarget;
-    CodeBlock(int _type,QString ss,int _idx,int base=false,
+    CodeBlock(int _type,QString ss,int base=false,
         QGraphicsItem * parent=nullptr):
             QGraphicsPolygonItem(parent){
-        idx=_idx;
         type=_type;
         QPolygonF shape;
         text=new QGraphicsTextItem(ss,this);
@@ -291,15 +287,13 @@ public:
         scrollArea=scrollNone;
         stagePos=QPointF(0,0);
         blockOffset=QPointF(0,0);
-        preidx=-1;
-        nextidx=-1;
         preTarget=nullptr;
         nextTarget=nullptr;
         insideParent=nullptr;
         insideTarget=nullptr;
     };
     virtual CodeBlock* copy(){
-        CodeBlock* newBlock=new CodeBlock(type,s,idx,false);
+        CodeBlock* newBlock=new CodeBlock(type,s,false);
         newBlock->setPos(pos());
         return newBlock;
     }
@@ -321,7 +315,7 @@ public:
 };
 class FloatBlock:public QGraphicsPolygonItem{
 public:
-    int wid,len,idx,type;
+    int wid,len,type;
     QString s;
     double data;
     bool isbase;
@@ -334,11 +328,10 @@ public:
     FloatBlock* absorbTarget;
     QGraphicsPolygonItem* absorbShadow;
     QGraphicsTextItem* text;
-    FloatBlock(int _type,int _idx,int base=false,
+    FloatBlock(int _type,int base=false,
                QGraphicsItem * parent=nullptr):QGraphicsPolygonItem(parent){
         type=_type;
         s="";
-        idx=_idx;
         data=0;
         isbase=base;
         movable=true;
@@ -414,7 +407,7 @@ public:
         setAcceptedMouseButtons(movable?(Qt::LeftButton|Qt::RightButton):Qt::NoButton);
     }
     virtual FloatBlock* copy(){
-        FloatBlock* newBlock=new FloatBlock(type,idx,false);
+        FloatBlock* newBlock=new FloatBlock(type,false);
         newBlock->setData(data);
         newBlock->setPos(pos());
         return newBlock;
@@ -428,8 +421,8 @@ class VariableBlock:public FloatBlock{
 public:
     QString variableName;
 
-    VariableBlock(QString name,int _idx,int base=false,QGraphicsItem* parent=nullptr):
-        FloatBlock(100,_idx,base,parent){
+    VariableBlock(QString name,int base=false,QGraphicsItem* parent=nullptr):
+        FloatBlock(100,base,parent){
         variableName=name;
         text->setPlainText(variableName);
         refreshSize();
@@ -478,7 +471,7 @@ public:
     }
 
     FloatBlock* copy() override{
-        VariableBlock* newBlock=new VariableBlock(variableName,idx,false);
+        VariableBlock* newBlock=new VariableBlock(variableName,false);
         newBlock->setPos(pos());
         return newBlock;
     }
@@ -487,13 +480,13 @@ public:
 class UnaryOpBlock:public FloatBlock{
 public:
     FloatBlock* slab;
-    UnaryOpBlock(int _type,QString ss,int _idx,FloatBlock* _slab=nullptr,
+    UnaryOpBlock(int _type,QString ss,FloatBlock* _slab=nullptr,
                  int base=false,QGraphicsItem * parent=nullptr):
-        FloatBlock(_type,_idx,base,parent){
+        FloatBlock(_type,base,parent){
         s=ss;
         text->setPlainText(s);
         if(_slab==nullptr){
-            slab=new FloatBlock(0,0,false,this);
+            slab=new FloatBlock(0,false,this);
         }
         else{
             slab=_slab->copy();
@@ -567,7 +560,7 @@ public:
         setPen(QPen(Qt::black,1.5));
     }
     FloatBlock* copy() override{
-        UnaryOpBlock* newBlock=new UnaryOpBlock(type,s,idx,slab,false);
+        UnaryOpBlock* newBlock=new UnaryOpBlock(type,s,slab,false);
         newBlock->setPos(pos());
         return newBlock;
     }
@@ -577,21 +570,21 @@ class BinaryOpBlock:public FloatBlock{
 public:
     FloatBlock* left;
     FloatBlock* right;
-    BinaryOpBlock(int _type,QString ss,int _idx,FloatBlock* _left=nullptr,
+    BinaryOpBlock(int _type,QString ss,FloatBlock* _left=nullptr,
                   FloatBlock* _right=nullptr,int base=false,
                   QGraphicsItem * parent=nullptr):
-        FloatBlock(_type,_idx,base,parent){
+        FloatBlock(_type,base,parent){
         s=ss;
         text->setPlainText(s);
         if(_left==nullptr){
-            left=new FloatBlock(0,0,false,this);
+            left=new FloatBlock(0,false,this);
         }
         else{
             left=_left->copy();
             left->setParentItem(this);
         }
         if(_right==nullptr){
-            right=new FloatBlock(0,0,false,this);
+            right=new FloatBlock(0,false,this);
         }
         else{
             right=_right->copy();
@@ -690,7 +683,7 @@ public:
         setPen(QPen(Qt::black,1.5));
     }
     FloatBlock* copy() override{
-        BinaryOpBlock* newBlock=new BinaryOpBlock(type,s,idx,left,right,false);
+        BinaryOpBlock* newBlock=new BinaryOpBlock(type,s,left,right,false);
         newBlock->setPos(pos());
         return newBlock;
     }
@@ -699,11 +692,11 @@ public:
 class FloatCodeBlock:public CodeBlock{
 public:
     FloatBlock* value;
-    FloatCodeBlock(int _type,QString ss,int _idx,FloatBlock* _value=nullptr,
+    FloatCodeBlock(int _type,QString ss,FloatBlock* _value=nullptr,
                    int base=false,QGraphicsItem * parent=nullptr):
-        CodeBlock(_type,ss,_idx,base,parent){
+        CodeBlock(_type,ss,base,parent){
         if(_value==nullptr){
-            value=new FloatBlock(0,0,false,this);
+            value=new FloatBlock(0,false,this);
         }
         else{
             value=_value->copy();
@@ -732,7 +725,7 @@ public:
         shadow->setPolygon(shadowShape);
     }
     CodeBlock* copy() override{
-        FloatCodeBlock* newBlock=new FloatCodeBlock(type,s,idx,value,false);
+        FloatCodeBlock* newBlock=new FloatCodeBlock(type,s,value,false);
         newBlock->setPos(pos());
         return newBlock;
     }
@@ -745,9 +738,9 @@ public:
     QGraphicsRectItem* variableFrame;
     FloatBlock* value;
 
-    SetVariableBlock(int _idx,QString name="x",FloatBlock* _value=nullptr,
+    SetVariableBlock(QString name="x",FloatBlock* _value=nullptr,
                      int base=false,QGraphicsItem* parent=nullptr):
-        CodeBlock(7,"set",_idx,base,parent){
+        CodeBlock(7,"set",base,parent){
         variableName=name;
         variableFrame=new QGraphicsRectItem(this);
         variableFrame->setBrush(QColor(220,220,220));
@@ -772,7 +765,7 @@ public:
             variableText->setAcceptedMouseButtons(Qt::NoButton);
         }
         if(_value==nullptr){
-            value=new FloatBlock(0,0,false,this);
+            value=new FloatBlock(0,false,this);
         }
         else{
             value=_value->copy();
@@ -813,7 +806,7 @@ public:
     }
 
     CodeBlock* copy() override{
-        SetVariableBlock* newBlock=new SetVariableBlock(idx,variableName,value,false);
+        SetVariableBlock* newBlock=new SetVariableBlock(variableName,value,false);
         newBlock->setPos(pos());
         return newBlock;
     }
@@ -826,9 +819,9 @@ public:
     QGraphicsRectItem* listFrame;
     FloatBlock* index;
 
-    ListGetBlock(QString name,int _idx,FloatBlock* _index=nullptr,
+    ListGetBlock(QString name,FloatBlock* _index=nullptr,
                  int base=false,QGraphicsItem* parent=nullptr):
-        FloatBlock(101,_idx,base,parent){
+        FloatBlock(101,base,parent){
         listName=name;
         s="get";
         text->setPlainText(s);
@@ -855,7 +848,7 @@ public:
             listText->setAcceptedMouseButtons(Qt::NoButton);
         }
         if(_index==nullptr){
-            index=new FloatBlock(0,0,false,this);
+            index=new FloatBlock(0,false,this);
         }
         else{
             index=_index->copy();
@@ -913,7 +906,7 @@ public:
     }
 
     FloatBlock* copy() override{
-        ListGetBlock* newBlock=new ListGetBlock(listName,idx,index,false);
+        ListGetBlock* newBlock=new ListGetBlock(listName,index,false);
         newBlock->setPos(pos());
         return newBlock;
     }
@@ -925,8 +918,8 @@ public:
     ClickTextItem* listText;
     QGraphicsRectItem* listFrame;
 
-    ListSizeBlock(QString name,int _idx,int base=false,QGraphicsItem* parent=nullptr):
-        FloatBlock(104,_idx,base,parent){
+    ListSizeBlock(QString name,int base=false,QGraphicsItem* parent=nullptr):
+        FloatBlock(104,base,parent){
         listName=name;
         s="len";
         text->setPlainText(s);
@@ -994,7 +987,7 @@ public:
     }
 
     FloatBlock* copy() override{
-        ListSizeBlock* newBlock=new ListSizeBlock(listName,idx,false);
+        ListSizeBlock* newBlock=new ListSizeBlock(listName,false);
         newBlock->setPos(pos());
         return newBlock;
     }
@@ -1007,9 +1000,9 @@ public:
     QGraphicsRectItem* listFrame;
     FloatBlock* value;
 
-    PushListBlock(int _idx,QString name="x",FloatBlock* _value=nullptr,
+    PushListBlock(QString name="x",FloatBlock* _value=nullptr,
                   int base=false,QGraphicsItem* parent=nullptr):
-        CodeBlock(8,"push",_idx,base,parent){
+        CodeBlock(8,"push",base,parent){
         listName=name;
         listFrame=new QGraphicsRectItem(this);
         listFrame->setBrush(QColor(220,220,220));
@@ -1033,7 +1026,7 @@ public:
         else{
             listText->setAcceptedMouseButtons(Qt::NoButton);
         }
-        value=_value==nullptr?new FloatBlock(0,0,false,this):_value->copy();
+        value=_value==nullptr?new FloatBlock(0,false,this):_value->copy();
         value->setParentItem(this);
         value->setMovable(!base);
         setBrush(listColor());
@@ -1069,7 +1062,7 @@ public:
     }
 
     CodeBlock* copy() override{
-        PushListBlock* newBlock=new PushListBlock(idx,listName,value,false);
+        PushListBlock* newBlock=new PushListBlock(listName,value,false);
         newBlock->setPos(pos());
         return newBlock;
     }
@@ -1083,9 +1076,9 @@ public:
     FloatBlock* index;
     FloatBlock* value;
 
-    SetListBlock(int _idx,QString name="x",FloatBlock* _index=nullptr,
+    SetListBlock(QString name="x",FloatBlock* _index=nullptr,
                  FloatBlock* _value=nullptr,int base=false,QGraphicsItem* parent=nullptr):
-        CodeBlock(9,"set",_idx,base,parent){
+        CodeBlock(9,"set",base,parent){
         listName=name;
         listFrame=new QGraphicsRectItem(this);
         listFrame->setBrush(QColor(220,220,220));
@@ -1109,8 +1102,8 @@ public:
         else{
             listText->setAcceptedMouseButtons(Qt::NoButton);
         }
-        index=_index==nullptr?new FloatBlock(0,0,false,this):_index->copy();
-        value=_value==nullptr?new FloatBlock(0,0,false,this):_value->copy();
+        index=_index==nullptr?new FloatBlock(0,false,this):_index->copy();
+        value=_value==nullptr?new FloatBlock(0,false,this):_value->copy();
         index->setParentItem(this);
         value->setParentItem(this);
         index->setMovable(!base);
@@ -1149,7 +1142,7 @@ public:
     }
 
     CodeBlock* copy() override{
-        SetListBlock* newBlock=new SetListBlock(idx,listName,index,value,false);
+        SetListBlock* newBlock=new SetListBlock(listName,index,value,false);
         newBlock->setPos(pos());
         return newBlock;
     }
@@ -1161,8 +1154,8 @@ public:
     ClickTextItem* listText;
     QGraphicsRectItem* listFrame;
 
-    ClearListBlock(int _idx,QString name="x",int base=false,QGraphicsItem* parent=nullptr):
-        CodeBlock(10,"clear",_idx,base,parent){
+    ClearListBlock(QString name="x",int base=false,QGraphicsItem* parent=nullptr):
+        CodeBlock(10,"clear",base,parent){
         listName=name;
         listFrame=new QGraphicsRectItem(this);
         listFrame->setBrush(QColor(220,220,220));
@@ -1218,7 +1211,7 @@ public:
     }
 
     CodeBlock* copy() override{
-        ClearListBlock* newBlock=new ClearListBlock(idx,listName,false);
+        ClearListBlock* newBlock=new ClearListBlock(listName,false);
         newBlock->setPos(pos());
         return newBlock;
     }
@@ -1233,16 +1226,16 @@ public:
     FloatBlock* condition;
     CodeBlock* inside;
 
-    ControlCodeBlock(int _type,QString ss,int _idx,FloatBlock* _condition=nullptr,
+    ControlCodeBlock(int _type,QString ss,FloatBlock* _condition=nullptr,
                      int base=false,QGraphicsItem* parent=nullptr):
-        CodeBlock(_type,ss,_idx,base,parent){
+        CodeBlock(_type,ss,base,parent){
         topHeight=30;
         innerHeight=30;
         bottomHeight=20;
         leftWidth=10;
         inside=nullptr;
         if(_condition==nullptr){
-            condition=new FloatBlock(0,0,false,this);
+            condition=new FloatBlock(0,false,this);
         }
         else{
             condition=_condition->copy();
@@ -1284,7 +1277,7 @@ public:
     }
 
     CodeBlock* copy() override{
-        ControlCodeBlock* newBlock=new ControlCodeBlock(type,s,idx,condition,false);
+        ControlCodeBlock* newBlock=new ControlCodeBlock(type,s,condition,false);
         newBlock->innerHeight=innerHeight;
         newBlock->refreshSize();
         newBlock->setPos(pos());
@@ -1294,12 +1287,12 @@ public:
 
 class StartBlock:public CodeBlock{
 public:
-    StartBlock(int _idx,int base=false,QGraphicsItem * parent=nullptr):
-        CodeBlock(-1,"start",_idx,base,parent){
+    StartBlock(int base=false,QGraphicsItem * parent=nullptr):
+        CodeBlock(-1,"start",base,parent){
         setBrush(QColor(156,118,42));
     }
     CodeBlock* copy() override{
-        StartBlock* newBlock=new StartBlock(idx,false);
+        StartBlock* newBlock=new StartBlock(false);
         newBlock->setPos(pos());
         return newBlock;
     }
@@ -1316,9 +1309,9 @@ public:
     QString customName;
     QString parameterName;
 
-    CustomParamBlock(QString _customName,QString _parameterName,int _idx,
+    CustomParamBlock(QString _customName,QString _parameterName,
                      int base=false,QGraphicsItem* parent=nullptr):
-        FloatBlock(105,_idx,base,parent){
+        FloatBlock(105,base,parent){
         customName=_customName;
         parameterName=_parameterName;
         text->setPlainText(parameterName);
@@ -1349,7 +1342,7 @@ public:
     }
 
     FloatBlock* copy() override{
-        CustomParamBlock* newBlock=new CustomParamBlock(customName,parameterName,idx,false);
+        CustomParamBlock* newBlock=new CustomParamBlock(customName,parameterName,false);
         newBlock->setPos(pos());
         return newBlock;
     }
@@ -1365,8 +1358,8 @@ public:
     QGraphicsRectItem* parameterFrame;
     CustomParamBlock* parameterBlock;
 
-    CustomHatBlock(QString name,int _idx,QString paramName="x",int base=false,QGraphicsItem* parent=nullptr):
-        CodeBlock(-3,name,_idx,base,parent){
+    CustomHatBlock(QString name,QString paramName="x",int base=false,QGraphicsItem* parent=nullptr):
+        CodeBlock(-3,name,base,parent){
         customName=name;
         parameterName=paramName.trimmed();
         parameterFrame=new QGraphicsRectItem(this);
@@ -1381,7 +1374,7 @@ public:
         parameterText->setZValue(2);
         parameterText->setAcceptedMouseButtons(Qt::NoButton);
         parameterBlock=parameterName.isEmpty()?nullptr:
-            new CustomParamBlock(customName,parameterName,0,true,this);
+            new CustomParamBlock(customName,parameterName,true,this);
         setBrush(customBlockColor());
         refreshSize();
     }
@@ -1445,7 +1438,7 @@ public:
     }
 
     CodeBlock* copy() override{
-        CustomHatBlock* newBlock=new CustomHatBlock(customName,idx,parameterName,false);
+        CustomHatBlock* newBlock=new CustomHatBlock(customName,parameterName,false);
         newBlock->setPos(pos());
         return newBlock;
     }
@@ -1457,9 +1450,9 @@ public:
     QString parameterName;
     FloatBlock* value;
 
-    CustomCallBlock(QString name,int _idx,QString paramName="",FloatBlock* _value=nullptr,
+    CustomCallBlock(QString name,QString paramName="",FloatBlock* _value=nullptr,
                     int base=false,QGraphicsItem* parent=nullptr):
-        CodeBlock(11,name,_idx,base,parent){
+        CodeBlock(11,name,base,parent){
         customName=name;
         parameterName=paramName.trimmed();
         value=nullptr;
@@ -1467,7 +1460,7 @@ public:
             value=nullptr;
         }
         else if(_value==nullptr){
-            value=new FloatBlock(0,0,false,this);
+            value=new FloatBlock(0,false,this);
         }
         else{
             value=_value->copy();
@@ -1519,7 +1512,7 @@ public:
     }
 
     CodeBlock* copy() override{
-        CustomCallBlock* newBlock=new CustomCallBlock(customName,idx,parameterName,value,false);
+        CustomCallBlock* newBlock=new CustomCallBlock(customName,parameterName,value,false);
         newBlock->setPos(pos());
         return newBlock;
     }
@@ -1636,8 +1629,8 @@ class RobotCoordBlock:public FloatBlock{
 public:
     int coordType;
 
-    RobotCoordBlock(int _coordType,int _idx,int base=false,QGraphicsItem* parent=nullptr):
-        FloatBlock(102,_idx,base,parent){
+    RobotCoordBlock(int _coordType,int base=false,QGraphicsItem* parent=nullptr):
+        FloatBlock(102,base,parent){
         coordType=_coordType;
         text->setPlainText(coordType==0?"robotx":"roboty");
         refreshSize();
@@ -1660,7 +1653,7 @@ public:
     }
 
     FloatBlock* copy() override{
-        RobotCoordBlock* newBlock=new RobotCoordBlock(coordType,idx,false);
+        RobotCoordBlock* newBlock=new RobotCoordBlock(coordType,false);
         newBlock->setPos(pos());
         return newBlock;
     }
@@ -1668,8 +1661,8 @@ public:
 
 class RobotFrontMapBlock:public FloatBlock{
 public:
-    RobotFrontMapBlock(int _idx,int base=false,QGraphicsItem* parent=nullptr):
-        FloatBlock(103,_idx,base,parent){
+    RobotFrontMapBlock(int base=false,QGraphicsItem* parent=nullptr):
+        FloatBlock(103,base,parent){
         text->setPlainText("frontmap");
         refreshSize();
         setBrush(robotCoordColor());
@@ -1688,20 +1681,11 @@ public:
     }
 
     FloatBlock* copy() override{
-        RobotFrontMapBlock* newBlock=new RobotFrontMapBlock(idx,false);
+        RobotFrontMapBlock* newBlock=new RobotFrontMapBlock(false);
         newBlock->setPos(pos());
         return newBlock;
     }
 };
-
-bool canAbsorbIntoFloatSlot(FloatBlock* block){
-    return block!=nullptr&&(block->isOperator()||
-        dynamic_cast<VariableBlock*>(block)!=nullptr||
-        dynamic_cast<RobotCoordBlock*>(block)!=nullptr||
-        dynamic_cast<RobotFrontMapBlock*>(block)!=nullptr||
-        dynamic_cast<ListSizeBlock*>(block)!=nullptr||
-        dynamic_cast<CustomParamBlock*>(block)!=nullptr);
-}
 
 extern std::map<QString,vector<double>> customParameterStacks;
 
@@ -1932,7 +1916,6 @@ protected:
 void clearAbsorbShadow(FloatBlock* block);
 void deleteCodeBlock(CodeBlock* block);
 void deleteFloatBlock(FloatBlock* block);
-void deleteFloatTreeItems(FloatBlock* block);
 void clearContextMenu();
 void showCodeContextMenu(CodeBlock* block,QPointF scenePos);
 void showFloatContextMenu(FloatBlock* block,QPointF scenePos);
@@ -2114,7 +2097,6 @@ void deleteCodeChain(CodeBlock* head){
 void addCodeTreeToScene(CodeBlock* head){
     CodeBlock* curr=head;
     while(curr!=nullptr){
-        curr->idx=static_cast<int>(codeBlocks.size());
         codeBlocks.push_back(curr);
         if(appScene!=nullptr&&curr->scene()==nullptr){
             appScene->addItem(curr);
@@ -2219,7 +2201,6 @@ void copyFloatContext(FloatBlock* block){
     }
     FloatBlock* copy=block->copy();
     copy->setParentItem(nullptr);
-    copy->idx=static_cast<int>(floatBlocks.size());
     floatBlocks.push_back(copy);
     appScene->addItem(copy);
     copy->setPos(block->scenePos()+QPointF(block->len+30,0));
@@ -2228,6 +2209,10 @@ void copyFloatContext(FloatBlock* block){
     setInsertedOperatorInteractivity(copy);
     rememberFloatBlockStagePos(copy,scrollWorkspace);
     saveUndoCheckpoint();
+}
+
+bool isPlainNumberBlock(FloatBlock* block){
+    return block!=nullptr&&block->type==0&&!block->isOperator();
 }
 
 void deleteFloatContext(FloatBlock* block){
@@ -2240,18 +2225,24 @@ void deleteFloatContext(FloatBlock* block){
         saveUndoCheckpoint();
         return;
     }
+    if(isPlainNumberBlock(block)){
+        block->setData(0);
+        saveUndoCheckpoint();
+        return;
+    }
     QPointF oldPos=block->pos();
     int oldArea=block->scrollArea;
-    FloatBlock* placeholder=new FloatBlock(0,0,false);
-    placeholder->idx=static_cast<int>(floatBlocks.size());
-    placeholder->setPos(oldPos);
-    placeholder->scrollArea=oldArea;
-    if(appScene!=nullptr){
-        appScene->addItem(placeholder);
-    }
-    floatBlocks.push_back(placeholder);
-    rememberFloatBlockStagePos(placeholder,oldArea==scrollWorkspace?scrollWorkspace:scrollNone);
     deleteFloatBlock(block);
+
+    FloatBlock* replacementValue=new FloatBlock(0,false);
+    replacementValue->setData(0);
+    replacementValue->setPos(oldPos);
+    replacementValue->scrollArea=oldArea;
+    if(appScene!=nullptr){
+        appScene->addItem(replacementValue);
+    }
+    floatBlocks.push_back(replacementValue);
+    rememberFloatBlockStagePos(replacementValue,oldArea==scrollWorkspace?scrollWorkspace:scrollNone);
     saveUndoCheckpoint();
 }
 
@@ -2411,20 +2402,20 @@ QJsonObject serializeFloatBlock(FloatBlock* block){
 FloatBlock* deserializeFloatBlock(const QJsonObject& object,QGraphicsItem* parent){
     QString kind=object["kind"].toString("number");
     if(kind=="variable"){
-        return new VariableBlock(object["name"].toString("x"),0,false,parent);
+        return new VariableBlock(object["name"].toString("x"),false,parent);
     }
     if(kind=="customParam"){
-        return new CustomParamBlock(object["customName"].toString(),object["name"].toString("x"),0,false,parent);
+        return new CustomParamBlock(object["customName"].toString(),object["name"].toString("x"),false,parent);
     }
     if(kind=="robotCoord"){
-        return new RobotCoordBlock(object["coordType"].toInt(),0,false,parent);
+        return new RobotCoordBlock(object["coordType"].toInt(),false,parent);
     }
     if(kind=="robotFrontMap"){
-        return new RobotFrontMapBlock(0,false,parent);
+        return new RobotFrontMapBlock(false,parent);
     }
     if(kind=="unary"){
         FloatBlock* slab=deserializeFloatBlock(object["slab"].toObject(),nullptr);
-        UnaryOpBlock* block=new UnaryOpBlock(object["type"].toInt(),object["text"].toString(),0,slab,false,parent);
+        UnaryOpBlock* block=new UnaryOpBlock(object["type"].toInt(),object["text"].toString(),slab,false,parent);
         deleteFloatBlock(slab);
         block->slab->setMovable(true);
         block->refreshSize();
@@ -2433,7 +2424,7 @@ FloatBlock* deserializeFloatBlock(const QJsonObject& object,QGraphicsItem* paren
     if(kind=="binary"){
         FloatBlock* left=deserializeFloatBlock(object["left"].toObject(),nullptr);
         FloatBlock* right=deserializeFloatBlock(object["right"].toObject(),nullptr);
-        BinaryOpBlock* block=new BinaryOpBlock(object["type"].toInt(),object["text"].toString(),0,left,right,false,parent);
+        BinaryOpBlock* block=new BinaryOpBlock(object["type"].toInt(),object["text"].toString(),left,right,false,parent);
         deleteFloatBlock(left);
         deleteFloatBlock(right);
         block->left->setMovable(true);
@@ -2443,16 +2434,16 @@ FloatBlock* deserializeFloatBlock(const QJsonObject& object,QGraphicsItem* paren
     }
     if(kind=="listGet"){
         FloatBlock* index=deserializeFloatBlock(object["index"].toObject(),nullptr);
-        ListGetBlock* block=new ListGetBlock(object["name"].toString("x"),0,index,false,parent);
+        ListGetBlock* block=new ListGetBlock(object["name"].toString("x"),index,false,parent);
         deleteFloatBlock(index);
         block->index->setMovable(true);
         block->refreshSize();
         return block;
     }
     if(kind=="listSize"){
-        return new ListSizeBlock(object["name"].toString("x"),0,false,parent);
+        return new ListSizeBlock(object["name"].toString("x"),false,parent);
     }
-    FloatBlock* block=new FloatBlock(object["type"].toInt(),0,false,parent);
+    FloatBlock* block=new FloatBlock(object["type"].toInt(),false,parent);
     block->setData(object["data"].toDouble(0.0));
     return block;
 }
@@ -2526,50 +2517,47 @@ CodeBlock* deserializeCodeBlock(const QJsonObject& object){
     QString kind=object["kind"].toString("code");
     CodeBlock* block=nullptr;
     if(kind=="start"){
-        block=new StartBlock(-1,false);
+        block=new StartBlock(false);
     }
     else if(kind=="customHat"){
-        block=new CustomHatBlock(object["name"].toString("custom"),0,
+        block=new CustomHatBlock(object["name"].toString("custom"),
             object["parameter"].toString("x"),false);
     }
     else if(kind=="customCall"){
         FloatBlock* value=deserializeFloatBlock(object["value"].toObject(),nullptr);
-        block=new CustomCallBlock(object["name"].toString("custom"),0,
+        block=new CustomCallBlock(object["name"].toString("custom"),
             object["parameter"].toString(),value,false);
         deleteFloatBlock(value);
     }
     else if(kind=="floatCode"){
         FloatBlock* value=deserializeFloatBlock(object["value"].toObject(),nullptr);
-        block=new FloatCodeBlock(object["type"].toInt(),object["text"].toString(),0,
+        block=new FloatCodeBlock(object["type"].toInt(),object["text"].toString(),
             value,false);
         deleteFloatBlock(value);
     }
     else if(kind=="setVariable"){
         FloatBlock* value=deserializeFloatBlock(object["value"].toObject(),nullptr);
-        block=new SetVariableBlock(0,object["name"].toString("x"),
-            value,false);
+        block=new SetVariableBlock(object["name"].toString("x"),value,false);
         deleteFloatBlock(value);
     }
     else if(kind=="pushList"){
         FloatBlock* value=deserializeFloatBlock(object["value"].toObject(),nullptr);
-        block=new PushListBlock(0,object["name"].toString("x"),
-            value,false);
+        block=new PushListBlock(object["name"].toString("x"),value,false);
         deleteFloatBlock(value);
     }
     else if(kind=="setList"){
         FloatBlock* index=deserializeFloatBlock(object["index"].toObject(),nullptr);
         FloatBlock* value=deserializeFloatBlock(object["value"].toObject(),nullptr);
-        block=new SetListBlock(0,object["name"].toString("x"),
-            index,value,false);
+        block=new SetListBlock(object["name"].toString("x"),index,value,false);
         deleteFloatBlock(index);
         deleteFloatBlock(value);
     }
     else if(kind=="clearList"){
-        block=new ClearListBlock(0,object["name"].toString("x"),false);
+        block=new ClearListBlock(object["name"].toString("x"),false);
     }
     else if(kind=="control"){
         FloatBlock* condition=deserializeFloatBlock(object["condition"].toObject(),nullptr);
-        ControlCodeBlock* control=new ControlCodeBlock(object["type"].toInt(),object["text"].toString(),0,
+        ControlCodeBlock* control=new ControlCodeBlock(object["type"].toInt(),object["text"].toString(),
             condition,false);
         deleteFloatBlock(condition);
         control->inside=deserializeCodeBlock(object["inside"].toObject());
@@ -2582,7 +2570,7 @@ CodeBlock* deserializeCodeBlock(const QJsonObject& object){
         block=control;
     }
     else{
-        block=new CodeBlock(object["type"].toInt(),object["text"].toString(),0,false);
+        block=new CodeBlock(object["type"].toInt(),object["text"].toString(),false);
     }
     CodeBlock* next=deserializeCodeBlock(object["next"].toObject());
     block->next=next;
@@ -2659,7 +2647,6 @@ void rebuildCodeRegistryFromScene(){
         if(block==nullptr||block->isbase||block->scrollArea!=scrollWorkspace){
             continue;
         }
-        block->idx=static_cast<int>(codeBlocks.size());
         codeBlocks.push_back(block);
         StartBlock* start=dynamic_cast<StartBlock*>(block);
         if(start!=nullptr){
@@ -2682,7 +2669,6 @@ void rebuildFloatBlockRegistryFromScene(){
         if(block==nullptr||block->parentItem()!=nullptr){
             continue;
         }
-        block->idx=static_cast<int>(floatBlocks.size());
         floatBlocks.push_back(block);
     }
 }
@@ -2766,7 +2752,6 @@ void restoreWorkspace(const QJsonObject& root){
     for(const QJsonValue& value:freeFloats){
         QJsonObject object=value.toObject();
         FloatBlock* block=deserializeFloatBlock(object["value"].toObject(),nullptr);
-        block->idx=static_cast<int>(floatBlocks.size());
         block->scrollArea=scrollWorkspace;
         floatBlocks.push_back(block);
         if(appScene!=nullptr){
@@ -2953,54 +2938,64 @@ void replaceFloatExpressionWithValue(FloatBlock* root){
         deleteFloatBlock(root);
         return;
     }
+    if(isPlainNumberBlock(root)){
+        root->setData(0);
+        root->setMovable(true);
+        return;
+    }
 
     QPointF localPos=root->pos();
     FloatBlock* parentBlock=dynamic_cast<FloatBlock*>(parent);
     FloatCodeBlock* codeParent=dynamic_cast<FloatCodeBlock*>(parent);
     SetVariableBlock* setParent=dynamic_cast<SetVariableBlock*>(parent);
     ControlCodeBlock* controlParent=dynamic_cast<ControlCodeBlock*>(parent);
-    FloatBlock* placeholder=new FloatBlock(0,0,false,parent);
-    placeholder->setMovable(true);
-    placeholder->setPos(localPos);
+    CustomCallBlock* customCallParent=dynamic_cast<CustomCallBlock*>(parent);
+    FloatBlock* replacementValue=new FloatBlock(0,false,parent);
+    replacementValue->setData(0);
+    replacementValue->setMovable(true);
+    replacementValue->setPos(localPos);
 
     UnaryOpBlock* unaryParent=dynamic_cast<UnaryOpBlock*>(parentBlock);
     if(unaryParent!=nullptr&&unaryParent->slab==root){
-        unaryParent->slab=placeholder;
+        unaryParent->slab=replacementValue;
     }
     BinaryOpBlock* binaryParent=dynamic_cast<BinaryOpBlock*>(parentBlock);
     if(binaryParent!=nullptr){
         if(binaryParent->left==root){
-            binaryParent->left=placeholder;
+            binaryParent->left=replacementValue;
         }
         if(binaryParent->right==root){
-            binaryParent->right=placeholder;
+            binaryParent->right=replacementValue;
         }
     }
     if(codeParent!=nullptr&&codeParent->value==root){
-        codeParent->value=placeholder;
+        codeParent->value=replacementValue;
     }
     if(setParent!=nullptr&&setParent->value==root){
-        setParent->value=placeholder;
+        setParent->value=replacementValue;
     }
     PushListBlock* pushParent=dynamic_cast<PushListBlock*>(parent);
     SetListBlock* setListParent=dynamic_cast<SetListBlock*>(parent);
     ListGetBlock* getParent=dynamic_cast<ListGetBlock*>(parent);
     if(pushParent!=nullptr&&pushParent->value==root){
-        pushParent->value=placeholder;
+        pushParent->value=replacementValue;
     }
     if(setListParent!=nullptr){
         if(setListParent->index==root){
-            setListParent->index=placeholder;
+            setListParent->index=replacementValue;
         }
         if(setListParent->value==root){
-            setListParent->value=placeholder;
+            setListParent->value=replacementValue;
         }
     }
     if(getParent!=nullptr&&getParent->index==root){
-        getParent->index=placeholder;
+        getParent->index=replacementValue;
     }
     if(controlParent!=nullptr&&controlParent->condition==root){
-        controlParent->condition=placeholder;
+        controlParent->condition=replacementValue;
+    }
+    if(customCallParent!=nullptr&&customCallParent->value==root){
+        customCallParent->value=replacementValue;
     }
 
     deleteFloatBlock(root);
@@ -3030,6 +3025,10 @@ void replaceFloatExpressionWithValue(FloatBlock* root){
     }
     if(controlParent!=nullptr){
         controlParent->refreshSize();
+        refreshAllControlLayouts();
+    }
+    if(customCallParent!=nullptr){
+        customCallParent->refreshSize();
         refreshAllControlLayouts();
     }
 }
@@ -3441,9 +3440,8 @@ void refreshVariableToolbox(){
         return;
     }
     int y=variableToolboxStartY;
-    int idx=static_cast<int>(floatBlocks.size());
     for(const auto& item:runtimeState.variables()){
-        VariableBlock* block=new VariableBlock(QString::fromStdString(item.first),idx++,true);
+        VariableBlock* block=new VariableBlock(QString::fromStdString(item.first),true);
         setFloatBlockStagePos(block,scrollToolbox,QPointF(20,y));
         block->setZValue(10);
         appScene->addItem(block);
@@ -3456,7 +3454,7 @@ void refreshVariableToolbox(){
         y+=variableSetBaseBlock->wid+20;
     }
     for(const auto& item:runtimeState.lists()){
-        CodeBlock* labelBlock=new CodeBlock(-2,QString::fromStdString(item.first),-1,true);
+        CodeBlock* labelBlock=new CodeBlock(-2,QString::fromStdString(item.first),true);
         labelBlock->setBrush(listColor());
         labelBlock->setAcceptedMouseButtons(Qt::NoButton);
         setCodeBlockStagePos(labelBlock,scrollToolbox,QPointF(20,y));
@@ -3560,10 +3558,6 @@ void deleteCodeBlock(CodeBlock* block){
 }
 
 void deleteFloatBlock(FloatBlock* block){
-    deleteFloatTreeItems(block);
-}
-
-void deleteFloatTreeItems(FloatBlock* block){
     if(block==nullptr){
         return;
     }
@@ -3571,19 +3565,19 @@ void deleteFloatTreeItems(FloatBlock* block){
     eraseFloatTreeRecords(block);
     UnaryOpBlock* unary=dynamic_cast<UnaryOpBlock*>(block);
     if(unary!=nullptr){
-        deleteFloatTreeItems(unary->slab);
+        deleteFloatBlock(unary->slab);
         unary->slab=nullptr;
     }
     BinaryOpBlock* binary=dynamic_cast<BinaryOpBlock*>(block);
     if(binary!=nullptr){
-        deleteFloatTreeItems(binary->left);
-        deleteFloatTreeItems(binary->right);
+        deleteFloatBlock(binary->left);
+        deleteFloatBlock(binary->right);
         binary->left=nullptr;
         binary->right=nullptr;
     }
     ListGetBlock* listGet=dynamic_cast<ListGetBlock*>(block);
     if(listGet!=nullptr){
-        deleteFloatTreeItems(listGet->index);
+        deleteFloatBlock(listGet->index);
         listGet->index=nullptr;
     }
     if(block->parentItem()!=nullptr){
@@ -3685,7 +3679,6 @@ void CustomParamBlock::mousePressEvent(QGraphicsSceneMouseEvent* event){
     }
     qreal dragZ=nextDragZ();
     FloatBlock* tempBlock=copy();
-    tempBlock->idx=static_cast<int>(floatBlocks.size());
     floatBlocks.push_back(tempBlock);
     scene()->addItem(tempBlock);
     tempBlock->setPos(scenePos());
@@ -3801,7 +3794,7 @@ void setCodeTreeZValue(CodeBlock* block,qreal z){
 }
 
 FloatBlock* detachOperatorFromParent(FloatBlock* moving){
-    if(moving==nullptr||(!moving->isOperator()&&!canAbsorbIntoFloatSlot(moving))){
+    if(moving==nullptr){
         return nullptr;
     }
     FloatBlock* parentBlock=dynamic_cast<FloatBlock*>(moving->parentItem());
@@ -3840,48 +3833,49 @@ FloatBlock* detachOperatorFromParent(FloatBlock* moving){
     else{
         parentItem=controlParent;
     }
-    FloatBlock* placeholder=new FloatBlock(0,0,false,parentItem);
-    placeholder->setMovable(true);
+    FloatBlock* replacementValue=new FloatBlock(0,false,parentItem);
+    replacementValue->setData(0);
+    replacementValue->setMovable(true);
 
     UnaryOpBlock* unaryParent=dynamic_cast<UnaryOpBlock*>(parentBlock);
     if(unaryParent!=nullptr&&unaryParent->slab==moving){
-        unaryParent->slab=placeholder;
+        unaryParent->slab=replacementValue;
     }
     BinaryOpBlock* binaryParent=dynamic_cast<BinaryOpBlock*>(parentBlock);
     if(binaryParent!=nullptr){
         if(binaryParent->left==moving){
-            binaryParent->left=placeholder;
+            binaryParent->left=replacementValue;
         }
         if(binaryParent->right==moving){
-            binaryParent->right=placeholder;
+            binaryParent->right=replacementValue;
         }
     }
     ListGetBlock* getParent=dynamic_cast<ListGetBlock*>(parentBlock);
     if(getParent!=nullptr&&getParent->index==moving){
-        getParent->index=placeholder;
+        getParent->index=replacementValue;
     }
     if(codeParent!=nullptr&&codeParent->value==moving){
-        codeParent->value=placeholder;
+        codeParent->value=replacementValue;
     }
     if(setParent!=nullptr&&setParent->value==moving){
-        setParent->value=placeholder;
+        setParent->value=replacementValue;
     }
     if(pushParent!=nullptr&&pushParent->value==moving){
-        pushParent->value=placeholder;
+        pushParent->value=replacementValue;
     }
     if(setListParent!=nullptr){
         if(setListParent->index==moving){
-            setListParent->index=placeholder;
+            setListParent->index=replacementValue;
         }
         if(setListParent->value==moving){
-            setListParent->value=placeholder;
+            setListParent->value=replacementValue;
         }
     }
     if(controlParent!=nullptr&&controlParent->condition==moving){
-        controlParent->condition=placeholder;
+        controlParent->condition=replacementValue;
     }
     if(customCallParent!=nullptr&&customCallParent->value==moving){
-        customCallParent->value=placeholder;
+        customCallParent->value=replacementValue;
     }
 
     moving->setParentItem(nullptr);
@@ -3916,9 +3910,9 @@ FloatBlock* detachOperatorFromParent(FloatBlock* moving){
         customCallParent->refreshSize();
         refreshAllControlLayouts();
     }
-    showAbsorbShadow(moving,placeholder);
-    moving->absorbTarget=placeholder;
-    return placeholder;
+    showAbsorbShadow(moving,replacementValue);
+    moving->absorbTarget=replacementValue;
+    return replacementValue;
 }
 
 void collectFloatValueTargets(FloatBlock* root,FloatBlock* moving,vector<FloatBlock*>& targets){
@@ -3950,7 +3944,7 @@ void collectFloatValueTargets(FloatBlock* root,FloatBlock* moving,vector<FloatBl
 }
 
 FloatBlock* findAbsorbTarget(FloatBlock* moving){
-    if(!canAbsorbIntoFloatSlot(moving)){
+    if(moving==nullptr){
         return nullptr;
     }
     vector<FloatBlock*> targets;
@@ -4034,8 +4028,7 @@ void clearAbsorbShadow(FloatBlock* block){
 }
 
 void attachOperatorToTarget(FloatBlock* moving,FloatBlock* target){
-    if(moving==nullptr||target==nullptr||
-       !canAbsorbIntoFloatSlot(moving)){
+    if(moving==nullptr||target==nullptr){
         return;
     }
     clearAbsorbShadow(moving);
@@ -4210,7 +4203,7 @@ void FloatBlock::mousePressEvent(QGraphicsSceneMouseEvent* event){
         return;
     }
     if(parentItem()!=nullptr){
-        if(isOperator()||canAbsorbIntoFloatSlot(this)){
+        if(!isPlainNumberBlock(this)){
             qreal dragZ=nextDragZ();
             detachOperatorFromParent(this);
             setZValue(dragZ);
@@ -4229,7 +4222,6 @@ void FloatBlock::mousePressEvent(QGraphicsSceneMouseEvent* event){
     if(isbase){
         qreal dragZ=nextDragZ();
         FloatBlock* tempBlock=copy();
-        tempBlock->idx=static_cast<int>(floatBlocks.size());
         floatBlocks.push_back(tempBlock);
         scene()->addItem(tempBlock);
         tempBlock->setZValue(dragZ);
@@ -4299,7 +4291,7 @@ void FloatBlock::mouseReleaseEvent(QGraphicsSceneMouseEvent* event){
             saveUndoCheckpoint();
             return;
         }
-        if(absorbTarget!=nullptr&&canAbsorbIntoFloatSlot(this)){
+        if(absorbTarget!=nullptr){
             FloatBlock* target=absorbTarget;
             attachOperatorToTarget(this,target);
             saveUndoCheckpoint();
@@ -4345,11 +4337,7 @@ void CodeBlock::mousePressEvent(QGraphicsSceneMouseEvent* event){
         qreal dragZ=nextDragZ();
         CodeBlock* tempBlock=copy();
         if(!isTopOnlyCodeBlock(tempBlock)){
-            tempBlock->idx=codeBlocks.size();
             codeBlocks.push_back(tempBlock);
-        }
-        else{
-            tempBlock->idx=-1;
         }
         scene()->addItem(tempBlock);
 
@@ -4410,8 +4398,6 @@ void CodeBlock::mouseMoveEvent(QGraphicsSceneMouseEvent* event){
         syncCodeChainFrom(preTarget->next,preTarget->next->calculatePos());
     }
     CodeBlock* curr=this;
-    preidx=-1;
-    nextidx=-1;
     preTarget=nullptr;
     nextTarget=nullptr;
     insideTarget=nullptr;
@@ -4427,7 +4413,6 @@ void CodeBlock::mouseMoveEvent(QGraphicsSceneMouseEvent* event){
         if(!isTopOnlyCodeBlock(this)&&currentStartBlock!=nullptr&&!currentStartBlock->ismoving){
             QPointF startBottom=currentStartBlock->pos()+QPointF(0,currentStartBlock->wid);
             if(QLineF(pos(),startBottom).length()<20){
-                preidx=currentStartBlock->idx;
                 preTarget=currentStartBlock;
                 shadow->setPos(startBottom);
             }
@@ -4445,7 +4430,6 @@ void CodeBlock::mouseMoveEvent(QGraphicsSceneMouseEvent* event){
             qreal distance=QLineF(pos(),otherPos+QPointF(0,otherBlock->wid)).length();
             if(!isTopOnlyCodeBlock(this)&&nextTarget==nullptr&&distance<bestPreDistance){
                 bestPreDistance=distance;
-                preidx=otherBlock->idx;
                 preTarget=otherBlock;
                 shadow->setPos(otherBlock->pos()+QPointF(0,otherBlock->wid));
             }
@@ -4468,7 +4452,6 @@ void CodeBlock::mouseMoveEvent(QGraphicsSceneMouseEvent* event){
                     continue;
                 }
                 bestNextDistance=distance;
-                nextidx=otherBlock->idx;
                 nextTarget=otherBlock;
                 shadow->setPos(otherBlock->pos()-QPointF(0,totalwid));
             }
@@ -5060,18 +5043,16 @@ void drawStage(QGraphicsScene& scene){
         if(customHatBlocks.find(name)!=customHatBlocks.end()){
             return;
         }
-        CustomHatBlock* hat=new CustomHatBlock(name,-1,parameterName,false);
+        CustomHatBlock* hat=new CustomHatBlock(name,parameterName,false);
         setCodeBlockStagePos(hat,scrollWorkspace,QPointF(40,40));
         hat->setZValue(10);
         if(appScene!=nullptr){
             appScene->addItem(hat);
         }
-        hat->idx=static_cast<int>(codeBlocks.size());
         codeBlocks.push_back(hat);
         customHatBlocks[name]=hat;
 
-        CustomCallBlock* callBlock=new CustomCallBlock(name,static_cast<int>(baseCodeBlocks.size()),
-            parameterName,nullptr,true);
+        CustomCallBlock* callBlock=new CustomCallBlock(name,parameterName,nullptr,true);
         callBlock->setZValue(10);
         if(appScene!=nullptr){
             appScene->addItem(callBlock);
@@ -5129,49 +5110,49 @@ void drawToolbox(QGraphicsScene& scene){
         y+=60;
     };
 
-    addCode(new StartBlock(0,true));
-    addCode(new CodeBlock(0,"turn left",0,true));
-    addCode(new CodeBlock(1,"turn right",1,true));
-    addCode(new FloatCodeBlock(3,"move",3,nullptr,true));
-    addCode(new FloatCodeBlock(4,"wait",4,nullptr,true));
-    addCode(new ControlCodeBlock(5,"if",5,nullptr,true));
-    addCode(new ControlCodeBlock(6,"while",6,nullptr,true));
+    addCode(new StartBlock(true));
+    addCode(new CodeBlock(0,"turn left",true));
+    addCode(new CodeBlock(1,"turn right",true));
+    addCode(new FloatCodeBlock(3,"move",nullptr,true));
+    addCode(new FloatCodeBlock(4,"wait",nullptr,true));
+    addCode(new ControlCodeBlock(5,"if",nullptr,true));
+    addCode(new ControlCodeBlock(6,"while",nullptr,true));
 
     const QString unaryNames[]={"sin","cos","tan","asin","acos","atan","ln","log10","floor","abs","not"};
     for(int i=0;i<11;i++){
-        addFloat(new UnaryOpBlock(i,unaryNames[i],i,nullptr,true));
+        addFloat(new UnaryOpBlock(i,unaryNames[i],nullptr,true));
     }
 
     const QString binaryNames[]={"+","-","*","/","pow","arg","max","min","==","!=","<",">","and","or"};
     for(int i=0;i<14;i++){
-        addFloat(new BinaryOpBlock(i,binaryNames[i],i,nullptr,nullptr,true));
+        addFloat(new BinaryOpBlock(i,binaryNames[i],nullptr,nullptr,true));
     }
-    addFloat(new RobotCoordBlock(0,static_cast<int>(floatBlocks.size()),true));
-    addFloat(new RobotCoordBlock(1,static_cast<int>(floatBlocks.size()),true));
-    addFloat(new RobotFrontMapBlock(static_cast<int>(floatBlocks.size()),true));
+    addFloat(new RobotCoordBlock(0,true));
+    addFloat(new RobotCoordBlock(1,true));
+    addFloat(new RobotFrontMapBlock(true));
 
     variableToolboxStartY=y;
-    variableSetBaseBlock=new SetVariableBlock(7,"x",nullptr,true);
+    variableSetBaseBlock=new SetVariableBlock("x",nullptr,true);
     variableSetBaseBlock->setZValue(10);
     scene.addItem(variableSetBaseBlock);
     baseCodeBlocks.push_back(variableSetBaseBlock);
-    listGetBaseBlock=new ListGetBlock("x",static_cast<int>(floatBlocks.size()),nullptr,true);
+    listGetBaseBlock=new ListGetBlock("x",nullptr,true);
     listGetBaseBlock->setZValue(10);
     scene.addItem(listGetBaseBlock);
     floatBlocks.push_back(listGetBaseBlock);
-    listSizeBaseBlock=new ListSizeBlock("x",static_cast<int>(floatBlocks.size()),true);
+    listSizeBaseBlock=new ListSizeBlock("x",true);
     listSizeBaseBlock->setZValue(10);
     scene.addItem(listSizeBaseBlock);
     floatBlocks.push_back(listSizeBaseBlock);
-    pushListBaseBlock=new PushListBlock(8,"x",nullptr,true);
+    pushListBaseBlock=new PushListBlock("x",nullptr,true);
     pushListBaseBlock->setZValue(10);
     scene.addItem(pushListBaseBlock);
     baseCodeBlocks.push_back(pushListBaseBlock);
-    setListBaseBlock=new SetListBlock(9,"x",nullptr,nullptr,true);
+    setListBaseBlock=new SetListBlock("x",nullptr,nullptr,true);
     setListBaseBlock->setZValue(10);
     scene.addItem(setListBaseBlock);
     baseCodeBlocks.push_back(setListBaseBlock);
-    clearListBaseBlock=new ClearListBlock(10,"x",true);
+    clearListBaseBlock=new ClearListBlock("x",true);
     clearListBaseBlock->setZValue(10);
     scene.addItem(clearListBaseBlock);
     baseCodeBlocks.push_back(clearListBaseBlock);
