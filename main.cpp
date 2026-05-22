@@ -1,5 +1,6 @@
 #include "ui/App.h"
 #include "level/Level.h"
+#include "tale.h"
 #include <vector>
 using std::vector;
 
@@ -42,5 +43,6 @@ int main(int argc,char* argv[]){
     cases.push_back(c2);
     cases.push_back(c3);
     ui::setDataOutputCases(cases);
+    //return tale::runEditor(argc,argv);
     return ui::runApp(argc,argv);
 }

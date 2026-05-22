@@ -212,7 +212,7 @@ public:
 
 void editNameText(QString& name,QGraphicsTextItem* textItem,const QString& title,function<void()> onChanged){
     bool ok=false;
-    QString newName=QInputDialog::getText(nullptr,title,"name",
+    QString newName=QInputDialog::getText(nullptr,title,"输入名称",
         QLineEdit::Normal,name,&ok).trimmed();
     if(!ok){
         return;
@@ -359,7 +359,7 @@ public:
     }
     virtual void editValue(){
         bool ok=false;
-        double value=QInputDialog::getDouble(nullptr,"Edit data","data",data,-1000000,1000000,6,&ok);
+        double value=QInputDialog::getDouble(nullptr,"请输入一个数","数值",data,-1000000,1000000,6,&ok);
         if(ok){
             setData(value);
         }
@@ -465,7 +465,7 @@ public:
     }
 
     void editValue() override{
-        editNameText(variableName,text,"Edit variable",[this](){
+        editNameText(variableName,text,"请输入变量名",[this](){
             setVariableName(variableName);
         });
     }
@@ -692,9 +692,20 @@ public:
 class FloatCodeBlock:public CodeBlock{
 public:
     FloatBlock* value;
+    QGraphicsTextItem* suffixText;
     FloatCodeBlock(int _type,QString ss,FloatBlock* _value=nullptr,
                    int base=false,QGraphicsItem * parent=nullptr):
         CodeBlock(_type,ss,base,parent){
+        suffixText=new QGraphicsTextItem(this);
+        suffixText->document()->setDocumentMargin(0);
+        suffixText->setDefaultTextColor(Qt::white);
+        suffixText->setAcceptedMouseButtons(Qt::NoButton);
+        if(type==3){
+            suffixText->setPlainText("步");
+        }
+        else if(type==4){
+            suffixText->setPlainText("帧");
+        }
         if(_value==nullptr){
             value=new FloatBlock(0,false,this);
         }
@@ -708,14 +719,17 @@ public:
     void refreshSize(){
         qreal textWidth=text->boundingRect().width();
         qreal textHeight=text->boundingRect().height();
+        qreal suffixWidth=suffixText->boundingRect().width();
+        qreal suffixHeight=suffixText->boundingRect().height();
         wid=std::max(40,value->wid+10);
-        len=static_cast<int>(std::ceil(20+textWidth+10+value->len+10));
+        len=static_cast<int>(std::ceil(20+textWidth+10+value->len+10+suffixWidth+10));
         QPolygonF shape;
         shape<<QPointF(0,0)<<QPointF(len,0)
              <<QPointF(len,wid)<<QPointF(0,wid);
         setPolygon(shape);
         text->setPos(10,(wid-textHeight)/2);
         value->setPos(20+textWidth,(wid-value->wid)/2);
+        suffixText->setPos(20+textWidth+value->len+10,(wid-suffixHeight)/2);
 
         QPolygonF shadowShape;
         shadowShape<<QPointF(-shadowPadding,-shadowPadding)
@@ -736,11 +750,12 @@ public:
     QString variableName;
     ClickTextItem* variableText;
     QGraphicsRectItem* variableFrame;
+    QGraphicsTextItem* suffixText;
     FloatBlock* value;
 
     SetVariableBlock(QString name="x",FloatBlock* _value=nullptr,
                      int base=false,QGraphicsItem* parent=nullptr):
-        CodeBlock(7,"set",base,parent){
+        CodeBlock(7,"将变量",base,parent){
         variableName=name;
         variableFrame=new QGraphicsRectItem(this);
         variableFrame->setBrush(QColor(220,220,220));
@@ -752,9 +767,13 @@ public:
         variableText->document()->setDocumentMargin(0);
         variableText->setPlainText(variableName);
         variableText->setZValue(2);
+        suffixText=new QGraphicsTextItem("设置为",this);
+        suffixText->document()->setDocumentMargin(0);
+        suffixText->setDefaultTextColor(Qt::white);
+        suffixText->setAcceptedMouseButtons(Qt::NoButton);
         if(!base){
             variableText->onClick=[this](){
-                editNameText(variableName,variableText,"Edit variable",[this](){
+                editNameText(variableName,variableText,"请输入变量名称",[this](){
                     refreshSize();
                     refreshAllControlLayouts();
                     checkEditedCodeWorkspaceWidth(this);
@@ -781,10 +800,13 @@ public:
         qreal textHeight=text->boundingRect().height();
         qreal variableWidth=variableText->boundingRect().width();
         qreal variableHeight=variableText->boundingRect().height();
+        qreal suffixWidth=suffixText->boundingRect().width();
+        qreal suffixHeight=suffixText->boundingRect().height();
         qreal variableBoxWidth=variableWidth+variableHorizontalPadding*2;
         qreal variableBoxHeight=std::max<qreal>(floatBlockWidth,variableHeight+6);
         wid=std::max(40,value->wid+10);
-        len=static_cast<int>(std::ceil(20+textWidth+10+variableBoxWidth+10+value->len+10));
+        len=static_cast<int>(std::ceil(20+textWidth+10+variableBoxWidth+10+
+            suffixWidth+10+value->len+10));
         QPolygonF shape;
         shape<<QPointF(0,0)<<QPointF(len,0)
              <<QPointF(len,wid)<<QPointF(0,wid);
@@ -795,7 +817,8 @@ public:
         variableFrame->setRect(0,0,variableBoxWidth,variableBoxHeight);
         variableFrame->setPos(variableBoxX,variableBoxY);
         variableText->setPos(variableBoxX+variableHorizontalPadding,(wid-variableHeight)/2);
-        value->setPos(variableBoxX+variableBoxWidth+10,(wid-value->wid)/2);
+        suffixText->setPos(variableBoxX+variableBoxWidth+10,(wid-suffixHeight)/2);
+        value->setPos(variableBoxX+variableBoxWidth+10+suffixWidth+10,(wid-value->wid)/2);
 
         QPolygonF shadowShape;
         shadowShape<<QPointF(-shadowPadding,-shadowPadding)
@@ -817,13 +840,15 @@ public:
     QString listName;
     ClickTextItem* listText;
     QGraphicsRectItem* listFrame;
+    QGraphicsTextItem* infixText;
+    QGraphicsTextItem* suffixText;
     FloatBlock* index;
 
     ListGetBlock(QString name,FloatBlock* _index=nullptr,
                  int base=false,QGraphicsItem* parent=nullptr):
         FloatBlock(101,base,parent){
         listName=name;
-        s="get";
+        s="列表";
         text->setPlainText(s);
         listFrame=new QGraphicsRectItem(this);
         listFrame->setBrush(QColor(220,220,220));
@@ -835,9 +860,17 @@ public:
         listText->document()->setDocumentMargin(0);
         listText->setPlainText(listName);
         listText->setZValue(2);
+        infixText=new QGraphicsTextItem("的第",this);
+        infixText->document()->setDocumentMargin(0);
+        infixText->setDefaultTextColor(Qt::white);
+        infixText->setAcceptedMouseButtons(Qt::NoButton);
+        suffixText=new QGraphicsTextItem("项",this);
+        suffixText->document()->setDocumentMargin(0);
+        suffixText->setDefaultTextColor(Qt::white);
+        suffixText->setAcceptedMouseButtons(Qt::NoButton);
         if(!base){
             listText->onClick=[this](){
-                editNameText(listName,listText,"Edit list",[this](){
+                editNameText(listName,listText,"请输入列表名称",[this](){
                     refreshSize();
                     refreshFloatAncestors(this);
                     checkEditedFloatWorkspaceWidth(this);
@@ -888,10 +921,15 @@ public:
         qreal textHeight=text->boundingRect().height();
         qreal nameWidth=listText->boundingRect().width();
         qreal nameHeight=listText->boundingRect().height();
+        qreal infixWidth=infixText->boundingRect().width();
+        qreal infixHeight=infixText->boundingRect().height();
+        qreal suffixWidth=suffixText->boundingRect().width();
+        qreal suffixHeight=suffixText->boundingRect().height();
         qreal nameBoxWidth=nameWidth+variableHorizontalPadding*2;
         qreal nameBoxHeight=std::max<qreal>(floatBlockWidth,nameHeight+6);
         qreal wanted=opHorizontalPadding+textWidth+opHorizontalPadding+
-                     nameBoxWidth+opHorizontalPadding+index->len+opHorizontalPadding;
+                     nameBoxWidth+opHorizontalPadding+infixWidth+opHorizontalPadding+
+                     index->len+opHorizontalPadding+suffixWidth+opHorizontalPadding;
         updateShape(wanted);
         wid=std::max(std::max(index->wid,floatBlockWidth),static_cast<int>(nameBoxHeight))+opVerticalPadding*2;
         updatePolygon();
@@ -901,7 +939,11 @@ public:
         listFrame->setRect(0,0,nameBoxWidth,nameBoxHeight);
         listFrame->setPos(boxX,boxY);
         listText->setPos(boxX+variableHorizontalPadding,(wid-nameHeight)/2);
-        index->setPos(boxX+nameBoxWidth+opHorizontalPadding,(wid-index->wid)/2);
+        qreal infixX=boxX+nameBoxWidth+opHorizontalPadding;
+        infixText->setPos(infixX,(wid-infixHeight)/2);
+        qreal indexX=infixX+infixWidth+opHorizontalPadding;
+        index->setPos(indexX,(wid-index->wid)/2);
+        suffixText->setPos(indexX+index->len+opHorizontalPadding,(wid-suffixHeight)/2);
         setPen(QPen(Qt::black,1.5));
     }
 
@@ -917,11 +959,12 @@ public:
     QString listName;
     ClickTextItem* listText;
     QGraphicsRectItem* listFrame;
+    QGraphicsTextItem* suffixText;
 
     ListSizeBlock(QString name,int base=false,QGraphicsItem* parent=nullptr):
         FloatBlock(104,base,parent){
         listName=name;
-        s="len";
+        s="列表";
         text->setPlainText(s);
         listFrame=new QGraphicsRectItem(this);
         listFrame->setBrush(QColor(220,220,220));
@@ -933,9 +976,13 @@ public:
         listText->document()->setDocumentMargin(0);
         listText->setPlainText(listName);
         listText->setZValue(2);
+        suffixText=new QGraphicsTextItem("的长度",this);
+        suffixText->document()->setDocumentMargin(0);
+        suffixText->setDefaultTextColor(Qt::white);
+        suffixText->setAcceptedMouseButtons(Qt::NoButton);
         if(!base){
             listText->onClick=[this](){
-                editNameText(listName,listText,"Edit list",[this](){
+                editNameText(listName,listText,"请输入列表名称",[this](){
                     refreshSize();
                     refreshFloatAncestors(this);
                     checkEditedFloatWorkspaceWidth(this);
@@ -967,10 +1014,12 @@ public:
         qreal textHeight=text->boundingRect().height();
         qreal nameWidth=listText->boundingRect().width();
         qreal nameHeight=listText->boundingRect().height();
+        qreal suffixWidth=suffixText->boundingRect().width();
+        qreal suffixHeight=suffixText->boundingRect().height();
         qreal nameBoxWidth=nameWidth+variableHorizontalPadding*2;
         qreal nameBoxHeight=std::max<qreal>(floatBlockWidth,nameHeight+6);
         qreal wanted=opHorizontalPadding+textWidth+opHorizontalPadding+
-                     nameBoxWidth+opHorizontalPadding;
+                     nameBoxWidth+opHorizontalPadding+suffixWidth+opHorizontalPadding;
         updateShape(wanted);
         wid=std::max(floatBlockWidth,static_cast<int>(nameBoxHeight))+opVerticalPadding*2;
         updatePolygon();
@@ -980,6 +1029,7 @@ public:
         listFrame->setRect(0,0,nameBoxWidth,nameBoxHeight);
         listFrame->setPos(boxX,boxY);
         listText->setPos(boxX+variableHorizontalPadding,(wid-nameHeight)/2);
+        suffixText->setPos(boxX+nameBoxWidth+opHorizontalPadding,(wid-suffixHeight)/2);
         setPen(QPen(Qt::black,1.5));
     }
 
@@ -998,11 +1048,12 @@ public:
     QString listName;
     ClickTextItem* listText;
     QGraphicsRectItem* listFrame;
+    QGraphicsTextItem* suffixText;
     FloatBlock* value;
 
     PushListBlock(QString name="x",FloatBlock* _value=nullptr,
                   int base=false,QGraphicsItem* parent=nullptr):
-        CodeBlock(8,"push",base,parent){
+        CodeBlock(8,"在列表",base,parent){
         listName=name;
         listFrame=new QGraphicsRectItem(this);
         listFrame->setBrush(QColor(220,220,220));
@@ -1014,9 +1065,13 @@ public:
         listText->document()->setDocumentMargin(0);
         listText->setPlainText(listName);
         listText->setZValue(2);
+        suffixText=new QGraphicsTextItem("末尾添加",this);
+        suffixText->document()->setDocumentMargin(0);
+        suffixText->setDefaultTextColor(Qt::white);
+        suffixText->setAcceptedMouseButtons(Qt::NoButton);
         if(!base){
             listText->onClick=[this](){
-                editNameText(listName,listText,"Edit list",[this](){
+                editNameText(listName,listText,"请输入列表名称",[this](){
                     refreshSize();
                     refreshAllControlLayouts();
                     checkEditedCodeWorkspaceWidth(this);
@@ -1038,10 +1093,13 @@ public:
         qreal textHeight=text->boundingRect().height();
         qreal nameWidth=listText->boundingRect().width();
         qreal nameHeight=listText->boundingRect().height();
+        qreal suffixWidth=suffixText->boundingRect().width();
+        qreal suffixHeight=suffixText->boundingRect().height();
         qreal nameBoxWidth=nameWidth+variableHorizontalPadding*2;
         qreal nameBoxHeight=std::max<qreal>(floatBlockWidth,nameHeight+6);
         wid=std::max(40,value->wid+10);
-        len=static_cast<int>(std::ceil(20+textWidth+10+nameBoxWidth+10+value->len+10));
+        len=static_cast<int>(std::ceil(20+textWidth+10+nameBoxWidth+10+
+            suffixWidth+10+value->len+10));
         QPolygonF shape;
         shape<<QPointF(0,0)<<QPointF(len,0)<<QPointF(len,wid)<<QPointF(0,wid);
         setPolygon(shape);
@@ -1051,7 +1109,8 @@ public:
         listFrame->setRect(0,0,nameBoxWidth,nameBoxHeight);
         listFrame->setPos(boxX,boxY);
         listText->setPos(boxX+variableHorizontalPadding,(wid-nameHeight)/2);
-        value->setPos(boxX+nameBoxWidth+10,(wid-value->wid)/2);
+        suffixText->setPos(boxX+nameBoxWidth+10,(wid-suffixHeight)/2);
+        value->setPos(boxX+nameBoxWidth+10+suffixWidth+10,(wid-value->wid)/2);
 
         QPolygonF shadowShape;
         shadowShape<<QPointF(-shadowPadding,-shadowPadding)
@@ -1073,12 +1132,14 @@ public:
     QString listName;
     ClickTextItem* listText;
     QGraphicsRectItem* listFrame;
+    QGraphicsTextItem* infixText;
+    QGraphicsTextItem* suffixText;
     FloatBlock* index;
     FloatBlock* value;
 
     SetListBlock(QString name="x",FloatBlock* _index=nullptr,
                  FloatBlock* _value=nullptr,int base=false,QGraphicsItem* parent=nullptr):
-        CodeBlock(9,"set",base,parent){
+        CodeBlock(9,"将列表",base,parent){
         listName=name;
         listFrame=new QGraphicsRectItem(this);
         listFrame->setBrush(QColor(220,220,220));
@@ -1090,9 +1151,17 @@ public:
         listText->document()->setDocumentMargin(0);
         listText->setPlainText(listName);
         listText->setZValue(2);
+        infixText=new QGraphicsTextItem("的第",this);
+        infixText->document()->setDocumentMargin(0);
+        infixText->setDefaultTextColor(Qt::white);
+        infixText->setAcceptedMouseButtons(Qt::NoButton);
+        suffixText=new QGraphicsTextItem("项设置为",this);
+        suffixText->document()->setDocumentMargin(0);
+        suffixText->setDefaultTextColor(Qt::white);
+        suffixText->setAcceptedMouseButtons(Qt::NoButton);
         if(!base){
             listText->onClick=[this](){
-                editNameText(listName,listText,"Edit list",[this](){
+                editNameText(listName,listText,"请输入列表名称",[this](){
                     refreshSize();
                     refreshAllControlLayouts();
                     checkEditedCodeWorkspaceWidth(this);
@@ -1117,10 +1186,15 @@ public:
         qreal textHeight=text->boundingRect().height();
         qreal nameWidth=listText->boundingRect().width();
         qreal nameHeight=listText->boundingRect().height();
+        qreal infixWidth=infixText->boundingRect().width();
+        qreal infixHeight=infixText->boundingRect().height();
+        qreal suffixWidth=suffixText->boundingRect().width();
+        qreal suffixHeight=suffixText->boundingRect().height();
         qreal nameBoxWidth=nameWidth+variableHorizontalPadding*2;
         qreal nameBoxHeight=std::max<qreal>(floatBlockWidth,nameHeight+6);
         wid=std::max(40,std::max(index->wid,value->wid)+10);
-        len=static_cast<int>(std::ceil(20+textWidth+10+nameBoxWidth+10+index->len+10+value->len+10));
+        len=static_cast<int>(std::ceil(20+textWidth+10+nameBoxWidth+10+
+            infixWidth+10+index->len+10+suffixWidth+10+value->len+10));
         QPolygonF shape;
         shape<<QPointF(0,0)<<QPointF(len,0)<<QPointF(len,wid)<<QPointF(0,wid);
         setPolygon(shape);
@@ -1130,8 +1204,13 @@ public:
         listFrame->setRect(0,0,nameBoxWidth,nameBoxHeight);
         listFrame->setPos(boxX,boxY);
         listText->setPos(boxX+variableHorizontalPadding,(wid-nameHeight)/2);
-        index->setPos(boxX+nameBoxWidth+10,(wid-index->wid)/2);
-        value->setPos(boxX+nameBoxWidth+10+index->len+10,(wid-value->wid)/2);
+        qreal infixX=boxX+nameBoxWidth+10;
+        infixText->setPos(infixX,(wid-infixHeight)/2);
+        qreal indexX=infixX+infixWidth+10;
+        index->setPos(indexX,(wid-index->wid)/2);
+        qreal suffixX=indexX+index->len+10;
+        suffixText->setPos(suffixX,(wid-suffixHeight)/2);
+        value->setPos(suffixX+suffixWidth+10,(wid-value->wid)/2);
 
         QPolygonF shadowShape;
         shadowShape<<QPointF(-shadowPadding,-shadowPadding)
@@ -1155,7 +1234,7 @@ public:
     QGraphicsRectItem* listFrame;
 
     ClearListBlock(QString name="x",int base=false,QGraphicsItem* parent=nullptr):
-        CodeBlock(10,"clear",base,parent){
+        CodeBlock(10,"清空列表",base,parent){
         listName=name;
         listFrame=new QGraphicsRectItem(this);
         listFrame->setBrush(QColor(220,220,220));
@@ -1169,7 +1248,7 @@ public:
         listText->setZValue(2);
         if(!base){
             listText->onClick=[this](){
-                editNameText(listName,listText,"Edit list",[this](){
+                editNameText(listName,listText,"请输入列表名称",[this](){
                     refreshSize();
                     refreshAllControlLayouts();
                     checkEditedCodeWorkspaceWidth(this);
@@ -1224,6 +1303,7 @@ public:
     int bottomHeight;
     int leftWidth;
     FloatBlock* condition;
+    QGraphicsTextItem* suffixText;
     CodeBlock* inside;
 
     ControlCodeBlock(int _type,QString ss,FloatBlock* _condition=nullptr,
@@ -1241,6 +1321,16 @@ public:
             condition=_condition->copy();
             condition->setParentItem(this);
         }
+        suffixText=new QGraphicsTextItem(this);
+        suffixText->document()->setDocumentMargin(0);
+        suffixText->setDefaultTextColor(Qt::white);
+        suffixText->setAcceptedMouseButtons(Qt::NoButton);
+        if(type==5){
+            suffixText->setPlainText("执行");
+        }
+        else if(type==6){
+            suffixText->setPlainText("时重复执行");
+        }
         condition->setMovable(!base);
         setBrush(QColor(54,92,122));
         refreshSize();
@@ -1249,9 +1339,11 @@ public:
     void refreshSize() override{
         qreal textWidth=text->boundingRect().width();
         qreal textHeight=text->boundingRect().height();
+        qreal suffixWidth=suffixText->boundingRect().width();
+        qreal suffixHeight=suffixText->boundingRect().height();
         topHeight=std::max(30,condition->wid+10);
         len=static_cast<int>(std::ceil(std::max<qreal>(
-            90,20+textWidth+10+condition->len+10
+            90,20+textWidth+10+condition->len+10+suffixWidth+10
         )));
         wid=topHeight+innerHeight+bottomHeight;
 
@@ -1267,6 +1359,7 @@ public:
         setPolygon(shape);
         text->setPos(10,(topHeight-textHeight)/2);
         condition->setPos(20+textWidth,(topHeight-condition->wid)/2);
+        suffixText->setPos(20+textWidth+condition->len+10,(topHeight-suffixHeight)/2);
 
         QPolygonF shadowShape;
         shadowShape<<QPointF(-shadowPadding,-shadowPadding)
@@ -1288,7 +1381,7 @@ public:
 class StartBlock:public CodeBlock{
 public:
     StartBlock(int base=false,QGraphicsItem * parent=nullptr):
-        CodeBlock(-1,"start",base,parent){
+        CodeBlock(-1,"开始运行",base,parent){
         setBrush(QColor(156,118,42));
     }
     CodeBlock* copy() override{
@@ -1632,7 +1725,7 @@ public:
     RobotCoordBlock(int _coordType,int base=false,QGraphicsItem* parent=nullptr):
         FloatBlock(102,base,parent){
         coordType=_coordType;
-        text->setPlainText(coordType==0?"robotx":"roboty");
+        text->setPlainText(coordType==0?"当前x坐标":"当前y坐标");
         refreshSize();
         setBrush(robotCoordColor());
     }
@@ -1663,7 +1756,7 @@ class RobotFrontMapBlock:public FloatBlock{
 public:
     RobotFrontMapBlock(int base=false,QGraphicsItem* parent=nullptr):
         FloatBlock(103,base,parent){
-        text->setPlainText("frontmap");
+        text->setPlainText("前方块类型");
         refreshSize();
         setBrush(robotCoordColor());
     }
@@ -1813,12 +1906,9 @@ vector<CodeBlock*> baseCodeBlocks;
 vector<FloatBlock*> floatBlocks;
 vector<VariableBlock*> variableBaseBlocks;
 SetVariableBlock* variableSetBaseBlock=nullptr;
-vector<CodeBlock*> listLabelBaseBlocks;
-ListGetBlock* listGetBaseBlock=nullptr;
-ListSizeBlock* listSizeBaseBlock=nullptr;
-PushListBlock* pushListBaseBlock=nullptr;
-SetListBlock* setListBaseBlock=nullptr;
-ClearListBlock* clearListBaseBlock=nullptr;
+vector<FloatBlock*> listLabelBaseBlocks;
+vector<FloatBlock*> listFloatBaseBlocks;
+vector<CodeBlock*> listCodeBaseBlocks;
 vector<CustomCallBlock*> customCallBaseBlocks;
 std::map<QString,CustomHatBlock*> customHatBlocks;
 std::map<QString,vector<double>> customParameterStacks;
@@ -2888,7 +2978,7 @@ void addContextMenuButton(QString label,QPointF pos,function<void()> action){
 
 void showUndoContextMenu(QPointF scenePos){
     clearContextMenu();
-    addContextMenuButton("undo",scenePos,[](){
+    addContextMenuButton("撤销",scenePos,[](){
         undoLastCheckpoint();
     });
 }
@@ -2898,10 +2988,10 @@ void showCodeContextMenu(CodeBlock* block,QPointF scenePos){
     if(block==nullptr||block->isbase){
         return;
     }
-    addContextMenuButton("copy",scenePos,[block](){
+    addContextMenuButton("复制",scenePos,[block](){
         copyCodeContext(block);
     });
-    addContextMenuButton("delete",scenePos+QPointF(0,28),[block](){
+    addContextMenuButton("删除",scenePos+QPointF(0,28),[block](){
         deleteCodeContext(block);
     });
 }
@@ -2911,10 +3001,10 @@ void showFloatContextMenu(FloatBlock* block,QPointF scenePos){
     if(block==nullptr||block->isbase){
         return;
     }
-    addContextMenuButton("copy",scenePos,[block](){
+    addContextMenuButton("复制",scenePos,[block](){
         copyFloatContext(block);
     });
-    addContextMenuButton("delete",scenePos+QPointF(0,28),[block](){
+    addContextMenuButton("删除",scenePos+QPointF(0,28),[block](){
         deleteFloatContext(block);
     });
 }
@@ -3386,6 +3476,13 @@ ControlCodeBlock* findInsideAbsorbTarget(CodeBlock* moving){
     return bestTarget;
 }
 
+bool isFirstInsideBlock(CodeBlock* block){
+    if(block==nullptr||block->insideParent==nullptr){
+        return false;
+    }
+    return block->insideParent->inside==block;
+}
+
 void rememberCodeTreeStagePos(CodeBlock* head,int area){
     CodeBlock* curr=head;
     while(curr!=nullptr){
@@ -3425,15 +3522,8 @@ void refreshVariableToolbox(){
         deleteFloatBlock(block);
     }
     variableBaseBlocks.clear();
-    for(CodeBlock* block:listLabelBaseBlocks){
-        baseCodeBlocks.erase(
-            std::remove(baseCodeBlocks.begin(),baseCodeBlocks.end(),block),
-            baseCodeBlocks.end()
-        );
-        if(block->scene()!=nullptr){
-            block->scene()->removeItem(block);
-        }
-        delete block;
+    for(FloatBlock* block:listLabelBaseBlocks){
+        deleteFloatBlock(block);
     }
     listLabelBaseBlocks.clear();
     if(appScene==nullptr){
@@ -3447,49 +3537,45 @@ void refreshVariableToolbox(){
         appScene->addItem(block);
         floatBlocks.push_back(block);
         variableBaseBlocks.push_back(block);
-        y+=60;
+        y+=block->wid+toolboxFloatBlockGap;
     }
     if(variableSetBaseBlock!=nullptr){
         setCodeBlockStagePos(variableSetBaseBlock,scrollToolbox,QPointF(20,y));
-        y+=variableSetBaseBlock->wid+20;
+        y+=variableSetBaseBlock->wid+toolboxCodeBlockGap;
     }
     for(const auto& item:runtimeState.lists()){
-        CodeBlock* labelBlock=new CodeBlock(-2,QString::fromStdString(item.first),true);
+        FloatBlock* labelBlock=new FloatBlock(-2,true);
+        labelBlock->text->setPlainText(QString::fromStdString(item.first));
+        labelBlock->refreshSize();
         labelBlock->setBrush(listColor());
-        labelBlock->setAcceptedMouseButtons(Qt::NoButton);
-        setCodeBlockStagePos(labelBlock,scrollToolbox,QPointF(20,y));
+        labelBlock->setMovable(false);
+        setFloatBlockStagePos(labelBlock,scrollToolbox,QPointF(20,y));
         labelBlock->setZValue(10);
         appScene->addItem(labelBlock);
-        baseCodeBlocks.push_back(labelBlock);
+        floatBlocks.push_back(labelBlock);
         listLabelBaseBlocks.push_back(labelBlock);
-        y+=labelBlock->wid+20;
+        y+=labelBlock->wid+toolboxFloatBlockGap;
     }
-    if(listGetBaseBlock!=nullptr){
-        setFloatBlockStagePos(listGetBaseBlock,scrollToolbox,QPointF(20,y));
-        y+=listGetBaseBlock->wid+20;
+    for(FloatBlock* block:listFloatBaseBlocks){
+        if(block==nullptr){
+            continue;
+        }
+        setFloatBlockStagePos(block,scrollToolbox,QPointF(20,y));
+        y+=block->wid+toolboxFloatBlockGap;
     }
-    if(listSizeBaseBlock!=nullptr){
-        setFloatBlockStagePos(listSizeBaseBlock,scrollToolbox,QPointF(20,y));
-        y+=listSizeBaseBlock->wid+20;
-    }
-    if(pushListBaseBlock!=nullptr){
-        setCodeBlockStagePos(pushListBaseBlock,scrollToolbox,QPointF(20,y));
-        y+=pushListBaseBlock->wid+20;
-    }
-    if(setListBaseBlock!=nullptr){
-        setCodeBlockStagePos(setListBaseBlock,scrollToolbox,QPointF(20,y));
-        y+=setListBaseBlock->wid+20;
-    }
-    if(clearListBaseBlock!=nullptr){
-        setCodeBlockStagePos(clearListBaseBlock,scrollToolbox,QPointF(20,y));
-        y+=clearListBaseBlock->wid+20;
+    for(CodeBlock* block:listCodeBaseBlocks){
+        if(block==nullptr){
+            continue;
+        }
+        setCodeBlockStagePos(block,scrollToolbox,QPointF(20,y));
+        y+=block->wid+toolboxCodeBlockGap;
     }
     for(CustomCallBlock* block:customCallBaseBlocks){
         if(block==nullptr){
             continue;
         }
         setCodeBlockStagePos(block,scrollToolbox,QPointF(20,y));
-        y+=block->wid+20;
+        y+=block->wid+toolboxCodeBlockGap;
     }
     updateToolboxScrollRange();
     syncScrollArea(scrollToolbox);
@@ -4446,6 +4532,9 @@ void CodeBlock::mouseMoveEvent(QGraphicsSceneMouseEvent* event){
             if(isTopOnlyCodeBlock(otherBlock)){
                 continue;
             }
+            if(dynamic_cast<ControlCodeBlock*>(this)!=nullptr&&isFirstInsideBlock(otherBlock)){
+                continue;
+            }
             qreal distance=QLineF(pos()+QPointF(0,totalwid),otherPos).length();
             if(preTarget==nullptr&&distance<bestNextDistance){
                 if(otherBlock->pre!=nullptr&&findInsideOwner(otherBlock)==nullptr){
@@ -4688,10 +4777,10 @@ void finishLevelTest(bool forcedFail,const QString& message){
         resetRunButtons();
         updateTestStatusText();
         QString text=message.isEmpty()?
-            QString("Test case %1 failed: robot entered a trap or execution was stopped.")
+            QString("测试样例 %1 失败: 机器人陷入循环或被陷阱困住")
                 .arg(levelTestCaseIndex+1):
             message;
-        QMessageBox::warning(nullptr,"Test Result",text);
+        QMessageBox::warning(nullptr,"测试结果",text);
         return;
     }
     level::TestResult result=level::testActiveLevelCase(levelTestCaseIndex,
@@ -4700,7 +4789,7 @@ void finishLevelTest(bool forcedFail,const QString& message){
         levelTestRunning=false;
         resetRunButtons();
         updateTestStatusText();
-        QMessageBox::warning(nullptr,"Test Result",
+        QMessageBox::warning(nullptr,"测试结果",
             QString::fromStdString(result.message));
         return;
     }
@@ -4709,8 +4798,8 @@ void finishLevelTest(bool forcedFail,const QString& message){
         levelTestRunning=false;
         resetRunButtons();
         updateTestStatusText();
-        QMessageBox::information(nullptr,"Test Result",
-            QString("All %1 test case(s) passed.").arg(levelTestCaseTotal));
+        QMessageBox::information(nullptr,"测试结果",
+            QString("所有 %1 个测试样例都已通过").arg(levelTestCaseTotal));
         return;
     }
     beginLevelTestCase(levelTestCaseIndex);
@@ -4726,7 +4815,7 @@ void beginLevelTestCase(int index){
     levelTestStepCount=0;
     updateTestStatusText();
     if(currentStartBlock==nullptr||currentStartBlock->next==nullptr){
-        finishLevelTest(true,"Test failed: no runnable start chain exists.");
+        finishLevelTest(true,"测试失败，缺少开始积木块");
         return;
     }
     runningBlock=currentStartBlock->next;
@@ -4951,7 +5040,7 @@ void drawStage(QGraphicsScene& scene){
     };
     scene.addItem(fastRunButton);
 
-    testButton=new TextButton("test");
+    testButton=new TextButton("测试");
     testButton->setPos(260,360);
     testButton->setBrush(QColor(70,80,96));
     testButton->setZValue(20);
@@ -4967,13 +5056,13 @@ void drawStage(QGraphicsScene& scene){
     testStatusText->setAcceptedMouseButtons(Qt::NoButton);
     scene.addItem(testStatusText);
 
-    createVariableButton=new TextButton("create new variable");
+    createVariableButton=new TextButton("创建新变量");
     createVariableButton->setPos(20,360);
     createVariableButton->setBrush(variableColor());
     createVariableButton->setZValue(20);
     createVariableButton->onClick=[](){
         bool ok=false;
-        QString name=QInputDialog::getText(nullptr,"Create new variable","name",
+        QString name=QInputDialog::getText(nullptr,"创建新变量","请输入变量名",
             QLineEdit::Normal,"",&ok).trimmed();
         if(!ok){
             return;
@@ -4989,13 +5078,13 @@ void drawStage(QGraphicsScene& scene){
     };
     scene.addItem(createVariableButton);
 
-    createListButton=new TextButton("create new list");
+    createListButton=new TextButton("创建新列表");
     createListButton->setPos(20,405);
     createListButton->setBrush(listColor());
     createListButton->setZValue(20);
     createListButton->onClick=[](){
         bool ok=false;
-        QString name=QInputDialog::getText(nullptr,"Create new list","name",
+        QString name=QInputDialog::getText(nullptr,"创建新列表","请输入列表名",
             QLineEdit::Normal,"",&ok).trimmed();
         if(!ok){
             return;
@@ -5011,18 +5100,18 @@ void drawStage(QGraphicsScene& scene){
     };
     scene.addItem(createListButton);
 
-    createCustomBlockButton=new TextButton("create custom block");
+    createCustomBlockButton=new TextButton("创建自定义积木");
     createCustomBlockButton->setPos(20,450);
     createCustomBlockButton->setBrush(customBlockColor());
     createCustomBlockButton->setZValue(20);
     createCustomBlockButton->onClick=[](){
         QDialog dialog;
-        dialog.setWindowTitle("Create custom block");
+        dialog.setWindowTitle("创建自定义积木");
         QFormLayout layout(&dialog);
         QLineEdit nameEdit;
         QLineEdit parameterEdit;
-        layout.addRow("block name",&nameEdit);
-        layout.addRow("parameter name",&parameterEdit);
+        layout.addRow("自定义积木名",&nameEdit);
+        layout.addRow("参数名(默认无参数)",&parameterEdit);
         QDialogButtonBox buttons(QDialogButtonBox::Ok|QDialogButtonBox::Cancel);
         layout.addWidget(&buttons);
         QObject::connect(&buttons,&QDialogButtonBox::accepted,&dialog,&QDialog::accept);
@@ -5100,23 +5189,23 @@ void drawToolbox(QGraphicsScene& scene){
         block->setZValue(10);
         scene.addItem(block);
         baseCodeBlocks.push_back(block);
-        y+=block->wid+20;
+        y+=block->wid+toolboxCodeBlockGap;
     };
     auto addFloat=[&](FloatBlock* block){
         setFloatBlockStagePos(block,scrollToolbox,QPointF(20,y));
         block->setZValue(10);
         scene.addItem(block);
         floatBlocks.push_back(block);
-        y+=60;
+        y+=block->wid+toolboxFloatBlockGap;
     };
 
     addCode(new StartBlock(true));
-    addCode(new CodeBlock(0,"turn left",true));
-    addCode(new CodeBlock(1,"turn right",true));
-    addCode(new FloatCodeBlock(3,"move",nullptr,true));
-    addCode(new FloatCodeBlock(4,"wait",nullptr,true));
-    addCode(new ControlCodeBlock(5,"if",nullptr,true));
-    addCode(new ControlCodeBlock(6,"while",nullptr,true));
+    addCode(new CodeBlock(0,"左转",true));
+    addCode(new CodeBlock(1,"右转",true));
+    addCode(new FloatCodeBlock(3,"向前移动",nullptr,true));
+    addCode(new FloatCodeBlock(4,"等待",nullptr,true));
+    addCode(new ControlCodeBlock(5,"如果",nullptr,true));
+    addCode(new ControlCodeBlock(6,"当",nullptr,true));
 
     const QString unaryNames[]={"sin","cos","tan","asin","acos","atan","ln","log10","floor","abs","not"};
     for(int i=0;i<11;i++){
@@ -5136,26 +5225,25 @@ void drawToolbox(QGraphicsScene& scene){
     variableSetBaseBlock->setZValue(10);
     scene.addItem(variableSetBaseBlock);
     baseCodeBlocks.push_back(variableSetBaseBlock);
-    listGetBaseBlock=new ListGetBlock("x",nullptr,true);
-    listGetBaseBlock->setZValue(10);
-    scene.addItem(listGetBaseBlock);
-    floatBlocks.push_back(listGetBaseBlock);
-    listSizeBaseBlock=new ListSizeBlock("x",true);
-    listSizeBaseBlock->setZValue(10);
-    scene.addItem(listSizeBaseBlock);
-    floatBlocks.push_back(listSizeBaseBlock);
-    pushListBaseBlock=new PushListBlock("x",nullptr,true);
-    pushListBaseBlock->setZValue(10);
-    scene.addItem(pushListBaseBlock);
-    baseCodeBlocks.push_back(pushListBaseBlock);
-    setListBaseBlock=new SetListBlock("x",nullptr,nullptr,true);
-    setListBaseBlock->setZValue(10);
-    scene.addItem(setListBaseBlock);
-    baseCodeBlocks.push_back(setListBaseBlock);
-    clearListBaseBlock=new ClearListBlock("x",true);
-    clearListBaseBlock->setZValue(10);
-    scene.addItem(clearListBaseBlock);
-    baseCodeBlocks.push_back(clearListBaseBlock);
+
+    auto addListFloat=[&](FloatBlock* block){
+        block->setZValue(10);
+        scene.addItem(block);
+        floatBlocks.push_back(block);
+        listFloatBaseBlocks.push_back(block);
+    };
+    auto addListCode=[&](CodeBlock* block){
+        block->setZValue(10);
+        scene.addItem(block);
+        baseCodeBlocks.push_back(block);
+        listCodeBaseBlocks.push_back(block);
+    };
+    addListFloat(new ListGetBlock("x",nullptr,true));
+    addListFloat(new ListSizeBlock("x",true));
+    addListCode(new PushListBlock("x",nullptr,true));
+    addListCode(new SetListBlock("x",nullptr,nullptr,true));
+    addListCode(new ClearListBlock("x",true));
+
     refreshVariableToolbox();
     updateToolboxScrollRange();
     toolboxSlider=new ScrollSlider(panelRect.right()-16,panelRect.top()+10,panelRect.height()-30);
@@ -5222,7 +5310,7 @@ int ui::runApp(int argc,char* argv[]){
                 player->SyncCell(squaresize,stageoffset);
                 double seconds=levelTestStepLimit*level::activeTestIntervalMs()/1000.0;
                 finishLevelTest(true,
-                    QString("Test failed: execution timed out after %1 steps, about %2 seconds.")
+                    QString("测试失败，运行 %1 步 %2 秒，已超时")
                         .arg(levelTestStepLimit)
                         .arg(seconds,0,'g',4));
                 return;

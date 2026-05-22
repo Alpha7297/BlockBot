@@ -10,6 +10,7 @@ qt_standard_project_setup()
 
 qt_add_executable(helloQt
     main.cpp
+    tale.cpp
     ui/App.cpp
     message/Message.cpp
     level/Level.cpp

@@ -4,3 +4,4 @@ buildrun/
 build-run/
 .vscode/
 cache/
+__pycache__/

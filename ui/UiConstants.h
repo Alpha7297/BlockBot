@@ -4,18 +4,20 @@
 #include <QtGlobal>
 
 inline constexpr int shadowPadding=0;
-inline constexpr int appWidth=1440;
-inline constexpr int appHeight=720;
+inline constexpr int appWidth=1200;
+inline constexpr int appHeight=800;
 inline constexpr int stageX=20;
 inline constexpr int stageY=20;
 inline constexpr int stagePixelSize=320;
-inline constexpr int toolboxX=360;
+inline constexpr int toolboxX=350;
 inline constexpr int toolboxY=0;
-inline constexpr int toolboxWidth=180;
+inline constexpr int toolboxWidth=280;
 inline constexpr int toolboxHeight=appHeight;
-inline constexpr int workspaceX=560;
+inline constexpr int toolboxCodeBlockGap=20;
+inline constexpr int toolboxFloatBlockGap=12;
+inline constexpr int workspaceX=640;
 inline constexpr int workspaceY=0;
-inline constexpr int workspaceWidth=appWidth-workspaceX;
+inline constexpr int workspaceWidth=appWidth-workspaceX-10;
 inline constexpr int workspaceHeight=appHeight;
 inline constexpr int floatBlockWidth=25;
 inline constexpr int opHorizontalPadding=5;
