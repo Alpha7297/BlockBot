@@ -2,6 +2,7 @@
 
 #include <QMessageBox>
 #include <QString>
+#include <string>
 
 namespace message{
 
@@ -90,6 +91,10 @@ void singleDialogOnly(){
 void otherError(const char* text)
 {
     showRuntimeError(text);
+}
+void otherError(const std::string text)
+{
+    showRuntimeError(text.c_str());
 }
 
 }

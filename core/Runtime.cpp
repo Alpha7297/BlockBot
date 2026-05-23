@@ -58,7 +58,7 @@ bool RuntimeState::forceSetVariable(const std::string& name,double value,bool re
 const std::map<std::string,double>& RuntimeState::variables() const{
     return floatVariables;
 }
-const std::set<std::string>& RuntimeState::readOnlyvariables() const
+const std::set<std::string>& RuntimeState::constVariables() const
 {
     return readOnlyVariables;
 }
@@ -144,7 +144,7 @@ int RuntimeState::listSize(const std::string& name) const{
 const std::map<std::string,std::vector<double>>& RuntimeState::lists() const{
     return floatLists;
 }
-const std::set<std::string>& RuntimeState::readOnlylists() const
+const std::set<std::string>& RuntimeState::constLists() const
 {
     return readOnlyLists;
 }
@@ -197,7 +197,11 @@ void RuntimeState::clearAllMutable()
         else ++it;
     }
 }
-
+void RuntimeState::forceSetReadOnly(const std::set<std::string>& constVariables,const std::set<std::string>& constLists)
+{
+    readOnlyVariables=constVariables;
+    readOnlyLists=constLists;
+}
 void RobotActions::setVariable(const std::string&,double){
 }
 

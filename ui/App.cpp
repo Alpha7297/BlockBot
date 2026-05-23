@@ -2788,10 +2788,22 @@ QJsonObject serializeWorkspace(){
         object["values"]=values;
         lists.append(object);
     }
+    QJsonArray readOnlyVariables;
+    for(const auto&item:runtimeState.constVariables())
+    {
+        readOnlyVariables.append(QString::fromStdString(item));
+    }
+    QJsonArray readOnlyLists;
+    for(const auto&item:runtimeState.constLists())
+    {
+        readOnlyLists.append(QString::fromStdString(item));
+    }
     root["codeRoots"]=codeRoots;
     root["freeFloats"]=freeFloats;
     root["variables"]=variables;
     root["lists"]=lists;
+    root["readOnlyVariables"]=readOnlyVariables;
+    root["readOnlyLists"]=readOnlyLists;
     return root;
 }
 
@@ -2865,7 +2877,7 @@ void restoreWorkspace(const QJsonObject& root){//load workplace by Json file
         resetFloatTreeZValue(block);
         setInsertedOperatorInteractivity(block);
     }
-    runtimeState.clearAllMutable();
+    runtimeState.clearAll();
     QJsonArray variables=root["variables"].toArray();
     for(const QJsonValue& variable:variables){
         QJsonObject object=variable.toObject();
@@ -2884,14 +2896,24 @@ void restoreWorkspace(const QJsonObject& root){//load workplace by Json file
             vValues.push_back(value.toDouble());
         }
         runtimeState.forceSetList(name,vValues,runtimeState.variableReadOnly(name));
-        runtimeState.forceSetVariable(name,object["value"].toDouble(),runtimeState.variableReadOnly(name));
     }
+    std::set<std::string>constVariables;
+    QJsonArray readOnlyVariables=root["readOnlyVariables"].toArray();
+    for(const QJsonValue& readOnlyVariable:readOnlyVariables){
+        constVariables.insert(readOnlyVariable.toString().toStdString());
+    }
+    std::set<std::string>constLists;
+    QJsonArray readOnlyLists=root["readOnlyLists"].toArray();
+    for(const QJsonValue& readOnlyList:readOnlyLists){
+        constLists.insert(readOnlyList.toString().toStdString());
+    }
+    runtimeState.forceSetReadOnly(constVariables,constLists);
     refreshVariableToolbox();
 
     refreshAllControlLayouts();
     restoringUndo=false;
-    QString tempE=QString("floatBlockSize:/%1/;codeBlockSize:/%2/;P3:/%3/").arg(floatBlocks.size()).arg(codeBlocks.size()).arg(0);
-    message::otherError(tempE.toStdString().c_str());
+    //QString tempE=QString("floatBlockSize:/%1/;codeBlockSize:/%2/;P3:/%3/").arg(floatBlocks.size()).arg(codeBlocks.size()).arg(0);
+    //message::otherError(tempE.toStdString().c_str());
 }
 
 QString writeUndoFile(const QJsonObject& snapshot){
@@ -5200,6 +5222,7 @@ void drawStage(QGraphicsScene& scene){
     saveButton->onClick=[](){
         QString filePath = QFileDialog::getSaveFileName(nullptr, "保存文件", "", "JSON 文件 (*.json)");
         if (filePath.isEmpty()) {
+            message::otherError("错误，文件路径为空！");
             return;
         }
         QFile file(filePath);
@@ -5212,6 +5235,40 @@ void drawStage(QGraphicsScene& scene){
         file.close();
     };
     scene.addItem(saveButton);
+
+    TextButton* openButton=new TextButton("打开");
+    openButton->setPos(230,540);
+    openButton->setBrush(variableColor());
+    openButton->setZValue(20);
+    openButton->onClick=[](){
+        QString filePath = QFileDialog::getOpenFileName(nullptr,"打开文件或","D:/","JSON 文件 (*.json)");
+        if (filePath.isEmpty()) {
+            message::otherError("错误，文件路径为空！");
+            return;
+        }
+        QFile file(filePath);
+        if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            message::otherError("错误，打开文件失败！");
+            return;
+        }
+
+        QByteArray jsonData = file.readAll();
+        file.close();
+        QJsonParseError parseError;
+        QJsonDocument jsonDoc = QJsonDocument::fromJson(jsonData, &parseError);
+        if (parseError.error != QJsonParseError::NoError) {
+            message::otherError(std::string("JSON 解析失败:")+parseError.errorString().toStdString());
+            return;
+        }
+
+        if (jsonDoc.isObject()) {
+            restoreWorkspace(jsonDoc.object());
+        }
+        else if (jsonDoc.isArray()) {
+            message::otherError("错误：该 JSON 文件的最外层是一个数组(Array)，而不是对象(Object)！");
+        }
+    };
+    scene.addItem(openButton);
 }
 
 void addPanelMasks(QGraphicsScene& scene,QRectF panelRect,bool protectStage=false){

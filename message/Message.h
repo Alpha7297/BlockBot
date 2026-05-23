@@ -1,5 +1,6 @@
 #ifndef MESSAGE_MESSAGE_H
 #define MESSAGE_MESSAGE_H
+#include <string>
 
 namespace message{
 
@@ -16,6 +17,7 @@ void workspaceWidthLimitReached();
 void singleDialogOnly();
 void runtimeError(const char* text);
 void otherError(const char* text);
+void otherError(const std::string text);
 
 }
 
