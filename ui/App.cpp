@@ -113,6 +113,17 @@ QColor robotCoordColor(){
     return QColor(42,86,150);
 }
 
+QColor fileButtonColor(){
+    return QColor(126,70,180);
+}
+
+QString archiveDirectoryPath(){
+    QString appData=qEnvironmentVariable("APPDATA");
+    QDir dir(appData.isEmpty()?QDir::currentPath():appData);
+    dir.mkpath("BlockBot");
+    return dir.filePath("BlockBot");
+}
+
 bool validVariableName(const QString& name){
     if(name.isEmpty()||name.size()>10){
         return false;
@@ -2250,7 +2261,7 @@ void copyCodeContext(CodeBlock* block){
     if(block==nullptr||block->isbase){
         return;
     }
-    CodeBlock* source=dynamic_cast<StartBlock*>(block)!=nullptr?block->next:block;
+    CodeBlock* source=isTopOnlyCodeBlock(block)?block->next:block;
     if(source==nullptr){
         return;
     }
@@ -2413,6 +2424,43 @@ void removeCustomBlockReferences(const QString& customName,CodeBlock* excludedTr
     }
     refreshVariableToolbox();
     refreshAllControlLayouts();
+}
+
+void rebuildCustomCallToolbox(){
+    for(CustomCallBlock* block:customCallBaseBlocks){
+        if(block==nullptr){
+            continue;
+        }
+        baseCodeBlocks.erase(
+            std::remove(baseCodeBlocks.begin(),baseCodeBlocks.end(),block),
+            baseCodeBlocks.end()
+        );
+        if(block->scene()!=nullptr){
+            block->scene()->removeItem(block);
+        }
+        delete block;
+    }
+    customCallBaseBlocks.clear();
+
+    if(appScene==nullptr){
+        return;
+    }
+    for(const auto& item:customHatBlocks){
+        CustomHatBlock* hat=item.second;
+        if(hat==nullptr){
+            continue;
+        }
+        CustomCallBlock* callBlock=new CustomCallBlock(
+            hat->customName,
+            hat->parameterName,
+            nullptr,
+            true
+        );
+        callBlock->setZValue(10);
+        appScene->addItem(callBlock);
+        baseCodeBlocks.push_back(callBlock);
+        customCallBaseBlocks.push_back(callBlock);
+    }
 }
 
 QJsonObject serializeFloatBlock(FloatBlock* block){
@@ -2908,12 +2956,11 @@ void restoreWorkspace(const QJsonObject& root){//load workplace by Json file
         constLists.insert(readOnlyList.toString().toStdString());
     }
     runtimeState.forceSetReadOnly(constVariables,constLists);
+    rebuildCustomCallToolbox();
     refreshVariableToolbox();
 
     refreshAllControlLayouts();
     restoringUndo=false;
-    //QString tempE=QString("floatBlockSize:/%1/;codeBlockSize:/%2/;P3:/%3/").arg(floatBlocks.size()).arg(codeBlocks.size()).arg(0);
-    //message::otherError(tempE.toStdString().c_str());
 }
 
 QString writeUndoFile(const QJsonObject& snapshot){
@@ -3542,6 +3589,13 @@ bool isFirstInsideBlock(CodeBlock* block){
         return false;
     }
     return block->insideParent->inside==block;
+}
+
+bool canTopOnlyBlockAttachBefore(CodeBlock* block){
+    if(block==nullptr){
+        return false;
+    }
+    return block->pre==nullptr&&block->insideParent==nullptr;
 }
 
 void rememberCodeTreeStagePos(CodeBlock* head,int area){
@@ -4593,6 +4647,9 @@ void CodeBlock::mouseMoveEvent(QGraphicsSceneMouseEvent* event){
             if(isTopOnlyCodeBlock(otherBlock)){
                 continue;
             }
+            if(isTopOnlyCodeBlock(this)&&!canTopOnlyBlockAttachBefore(otherBlock)){
+                continue;
+            }
             if(isFirstInsideBlock(otherBlock)){
                 continue;
             }
@@ -4606,7 +4663,7 @@ void CodeBlock::mouseMoveEvent(QGraphicsSceneMouseEvent* event){
                 shadow->setPos(otherBlock->pos()-QPointF(0,totalwid));
             }
         }
-        if(preTarget==nullptr){
+        if(preTarget==nullptr&&!isTopOnlyCodeBlock(this)){
             insideTarget=findInsideAbsorbTarget(this);
             if(insideTarget!=nullptr){
                 nextTarget=nullptr;
@@ -5216,13 +5273,17 @@ void drawStage(QGraphicsScene& scene){
     scene.addItem(createCustomBlockButton);
 
     TextButton* saveButton=new TextButton("保存");
-    saveButton->setPos(230,440);
-    saveButton->setBrush(variableColor());
+    saveButton->setPos(260,420);
+    saveButton->setBrush(fileButtonColor());
     saveButton->setZValue(20);
     saveButton->onClick=[](){
-        QString filePath = QFileDialog::getSaveFileName(nullptr, "保存文件", "", "JSON 文件 (*.json)");
+        QString filePath=QFileDialog::getSaveFileName(
+            nullptr,
+            "保存文件",
+            QDir(archiveDirectoryPath()).filePath("BlockBot.json"),
+            "JSON 文件 (*.json)"
+        );
         if (filePath.isEmpty()) {
-            message::otherError("错误，文件路径为空！");
             return;
         }
         QFile file(filePath);
@@ -5237,13 +5298,17 @@ void drawStage(QGraphicsScene& scene){
     scene.addItem(saveButton);
 
     TextButton* openButton=new TextButton("打开");
-    openButton->setPos(230,540);
-    openButton->setBrush(variableColor());
+    openButton->setPos(260,465);
+    openButton->setBrush(fileButtonColor());
     openButton->setZValue(20);
     openButton->onClick=[](){
-        QString filePath = QFileDialog::getOpenFileName(nullptr,"打开文件或","D:/","JSON 文件 (*.json)");
+        QString filePath=QFileDialog::getOpenFileName(
+            nullptr,
+            "打开文件",
+            archiveDirectoryPath(),
+            "JSON 文件 (*.json)"
+        );
         if (filePath.isEmpty()) {
-            message::otherError("错误，文件路径为空！");
             return;
         }
         QFile file(filePath);
@@ -5262,7 +5327,9 @@ void drawStage(QGraphicsScene& scene){
         }
 
         if (jsonDoc.isObject()) {
+            clearUndoCache();
             restoreWorkspace(jsonDoc.object());
+            saveUndoCheckpoint();
         }
         else if (jsonDoc.isArray()) {
             message::otherError("错误：该 JSON 文件的最外层是一个数组(Array)，而不是对象(Object)！");
