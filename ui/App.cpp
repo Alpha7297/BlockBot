@@ -28,6 +28,9 @@
 #include <QTextDocument>
 #include <QWheelEvent>
 #include <QFileDialog>
+#include <QCloseEvent>
+#include <QMainWindow>
+#include <QPushButton>
 #include <algorithm>
 #include <cmath>
 #include <functional>
@@ -41,6 +44,7 @@
 #include "../core/Runtime.h"
 #include "../level/Level.h"
 #include "../message/Message.h"
+#include "MainWindow.h"
 using std::vector;
 using std::function;
 
@@ -1911,6 +1915,7 @@ QGraphicsTextItem* testStatusText=nullptr;
 TextButton* createVariableButton=nullptr;
 TextButton* createListButton=nullptr;
 TextButton* createCustomBlockButton=nullptr;
+TextButton* exitButton=nullptr;
 ScrollSlider* toolboxSlider=nullptr;
 ScrollSlider* workspaceSlider=nullptr;
 vector<CodeBlock*> codeBlocks;
@@ -1944,77 +1949,152 @@ double customParameterValue(const QString& customName){
     }
     return it->second.back();
 }
+void drawStage(QGraphicsScene& scene);
+void drawToolbox(QGraphicsScene& scene);
+void drawWorkspace(QGraphicsScene& scene);
+void finishLevelTest(bool forcedFail,const QString& message=QString());
+void resetRunButtons();
+core::BlockExecutor::BlockSnapshot readRuntimeBlock(core::BlockExecutor::Node node);
+AppGraphicsView::AppGraphicsView(QGraphicsScene* scene):QGraphicsView(scene)
+{
+    appScene=scene;
+    QGraphicsRectItem* background=scene->addRect(-10000,-10000,20000,20000);
+    background->setBrush(Qt::white);
+    background->setPen(Qt::NoPen);
+    background->setZValue(-100000);
+    drawStage(*scene);
+    drawToolbox(*scene);
+    drawWorkspace(*scene);
+    clearUndoCache();
+    saveUndoCheckpoint();
 
-class AppGraphicsView:public QGraphicsView{
-public:
-    AppGraphicsView(QGraphicsScene* scene):QGraphicsView(scene){}
+    QTimer timer;
+    timerPtr=&timer;
+    QPoint stageoffset(stageX,stageY);
+    core::BlockExecutor executor;
+    executorPtr=&executor;
+    RobotActionAdapter robotActions(player);
+    QObject::connect(&timer,&QTimer::timeout,[&](){
+        if(!executor.running()){
+            timer.stop();
+            if(levelTestRunning){
+                finishLevelTest(false);
+                return;
+            }
+            resetRunButtons();
+            return;
+        }
 
-protected:
-    void mousePressEvent(QMouseEvent* event) override{
-        QPointF scenePoint=mapToScene(event->pos());
-        bool onContextMenu=false;
-        bool onWorkspaceContent=false;
-        for(QGraphicsItem* candidate:scene()->items(scenePoint)){
-            if(isContextMenuItem(candidate)){
-                onContextMenu=true;
-            }
-            if(isWorkspaceContentItem(candidate)){
-                onWorkspaceContent=true;
-            }
-        }
-        if(event->button()==Qt::RightButton&&workspaceRect().contains(scenePoint)){
-            if(onContextMenu){
-                QGraphicsView::mousePressEvent(event);
-                return;
-            }
-            if(FloatBlock* floatBlock=floatBlockAtScenePoint(scene(),scenePoint)){
-                showFloatContextMenu(floatBlock,scenePoint);
-                event->accept();
-                return;
-            }
-            if(CodeBlock* codeBlock=codeBlockAtScenePoint(scene(),scenePoint)){
-                showCodeContextMenu(codeBlock,scenePoint);
-                event->accept();
-                return;
-            }
-            if(!onWorkspaceContent){
-                showUndoContextMenu(scenePoint);
-                event->accept();
+        bool stepped=executor.step(readRuntimeBlock,robotActions);
+        if(levelTestRunning){
+            levelTestStepCount++;
+            if(levelTestStepCount>levelTestStepLimit){
+                player->SyncCell(squaresize,stageoffset);
+                double seconds=levelTestStepLimit*level::activeTestIntervalMs()/1000.0;
+                finishLevelTest(true,
+                                QString("测试失败，运行 %1 步 %2 秒，已超时")
+                                    .arg(levelTestStepLimit)
+                                    .arg(seconds,0,'g',4));
                 return;
             }
         }
-        if(!onContextMenu){
-            clearContextMenu();
+        if(runtimeStopRequested){
+            player->SyncCell(squaresize,stageoffset);
+            executor.reset(nullptr);
+            runningBlock=nullptr;
+            timer.stop();
+            if(levelTestRunning){
+                finishLevelTest(true);
+                return;
+            }
+            resetRunButtons();
+            return;
         }
-        QGraphicsView::mousePressEvent(event);
+
+        player->SyncCell(squaresize,stageoffset);
+        runningBlock=static_cast<CodeBlock*>(executor.currentNode());
+
+        if(!stepped||!executor.running()){
+            timer.stop();
+            runningBlock=nullptr;
+            if(levelTestRunning){
+                finishLevelTest(!stepped);
+                return;
+            }
+            resetRunButtons();
+        }
+    });
+    exitButton->onClick=[this](){
+        this->close();
+    };
+    scene->setSceneRect(0,0,appWidth,appHeight);
+    setAlignment(Qt::AlignLeft|Qt::AlignTop);
+    setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    setFixedSize(appWidth,appHeight);
+    setWindowFlags(windowFlags()&~Qt::WindowMaximizeButtonHint);
+}
+void AppGraphicsView::mousePressEvent(QMouseEvent* event){
+    QPointF scenePoint=mapToScene(event->pos());
+    bool onContextMenu=false;
+    bool onWorkspaceContent=false;
+    for(QGraphicsItem* candidate:scene()->items(scenePoint)){
+        if(isContextMenuItem(candidate)){
+            onContextMenu=true;
+        }
+        if(isWorkspaceContentItem(candidate)){
+            onWorkspaceContent=true;
+        }
     }
-
-    void keyPressEvent(QKeyEvent* event) override{
-        if(event->key()==Qt::Key_Z&&(event->modifiers()&Qt::ControlModifier)){
-            undoLastCheckpoint();
+    if(event->button()==Qt::RightButton&&workspaceRect().contains(scenePoint)){
+        if(onContextMenu){
+            QGraphicsView::mousePressEvent(event);
+            return;
+        }
+        if(FloatBlock* floatBlock=floatBlockAtScenePoint(scene(),scenePoint)){
+            showFloatContextMenu(floatBlock,scenePoint);
             event->accept();
             return;
         }
-        QGraphicsView::keyPressEvent(event);
-    }
-
-    void wheelEvent(QWheelEvent* event) override{
-        QPointF scenePoint=mapToScene(event->position().toPoint());
-        qreal delta=-event->angleDelta().y()/1200.0;
-        if(QRectF(toolboxX,toolboxY,toolboxWidth,toolboxHeight).contains(scenePoint)&&toolboxSlider!=nullptr){
-            toolboxSlider->setValue(toolboxSlider->value()+delta);
+        if(CodeBlock* codeBlock=codeBlockAtScenePoint(scene(),scenePoint)){
+            showCodeContextMenu(codeBlock,scenePoint);
             event->accept();
             return;
         }
-        if(workspaceRect().contains(scenePoint)&&workspaceSlider!=nullptr){
-            workspaceSlider->setValue(workspaceSlider->value()+delta);
+        if(!onWorkspaceContent){
+            showUndoContextMenu(scenePoint);
             event->accept();
             return;
         }
-        QGraphicsView::wheelEvent(event);
     }
-};
-
+    if(!onContextMenu){
+        clearContextMenu();
+    }
+    QGraphicsView::mousePressEvent(event);
+}
+void AppGraphicsView::keyPressEvent(QKeyEvent* event){
+    if(event->key()==Qt::Key_Z&&(event->modifiers()&Qt::ControlModifier)){
+        undoLastCheckpoint();
+        event->accept();
+        return;
+    }
+    QGraphicsView::keyPressEvent(event);
+}
+void AppGraphicsView::wheelEvent(QWheelEvent* event){
+    QPointF scenePoint=mapToScene(event->position().toPoint());
+    qreal delta=-event->angleDelta().y()/1200.0;
+    if(QRectF(toolboxX,toolboxY,toolboxWidth,toolboxHeight).contains(scenePoint)&&toolboxSlider!=nullptr){
+        toolboxSlider->setValue(toolboxSlider->value()+delta);
+        event->accept();
+        return;
+    }
+    if(workspaceRect().contains(scenePoint)&&workspaceSlider!=nullptr){
+        workspaceSlider->setValue(workspaceSlider->value()+delta);
+        event->accept();
+        return;
+    }
+    QGraphicsView::wheelEvent(event);
+}
 void clearAbsorbShadow(FloatBlock* block);
 void deleteCodeBlock(CodeBlock* block);
 void deleteFloatBlock(FloatBlock* block);
@@ -2039,7 +2119,6 @@ void resetRobot();
 void resetRunButtons();
 void updateTestStatusText();
 void beginLevelTestCase(int index);
-void finishLevelTest(bool forcedFail,const QString& message=QString());
 void startLevelTestRun();
 void setCodeBlockStagePos(CodeBlock* block,int area,QPointF pos);
 void setFloatBlockStagePos(FloatBlock* block,int area,QPointF pos);
@@ -5336,6 +5415,11 @@ void drawStage(QGraphicsScene& scene){
         }
     };
     scene.addItem(openButton);
+    exitButton=new TextButton("退出");
+    exitButton->setPos(260,515);
+    exitButton->setBrush(fileButtonColor());
+    exitButton->setZValue(20);
+    scene.addItem(exitButton);
 }
 
 void addPanelMasks(QGraphicsScene& scene,QRectF panelRect,bool protectStage=false){
@@ -5451,90 +5535,33 @@ void drawWorkspace(QGraphicsScene& scene){
     scene.addItem(workspaceSlider);
     addPanelMasks(scene,panelRect);
 }
+void MainWindow::onStartButtonClicked()
+{
+    this->hide();
+    view->show();
+}
+MainWindow:: MainWindow(QWidget *parent) : QMainWindow(parent) {
+    startBtn = new QPushButton("开始", this);
+    QVBoxLayout *layout = new QVBoxLayout(this);
+    layout->addWidget(startBtn);
 
+    scene = new QGraphicsScene(this);
+    view = new AppGraphicsView(scene);
+    connect(startBtn, &QPushButton::clicked, this, &MainWindow::onStartButtonClicked);
+    view->onClosed=[this]()
+    {
+        this->show();
+    };
+}
 int ui::runApp(int argc,char* argv[]){
     init();
     QApplication app(argc,argv);
-
     player=new Robot();
-
-    QGraphicsScene scene;
-    appScene=&scene;
-    QGraphicsRectItem* background=scene.addRect(-10000,-10000,20000,20000);
-    background->setBrush(Qt::white);
-    background->setPen(Qt::NoPen);
-    background->setZValue(-100000);
-    drawStage(scene);
-    drawToolbox(scene);
-    drawWorkspace(scene);
-    clearUndoCache();
-    saveUndoCheckpoint();
-
-    QTimer timer;
-    timerPtr=&timer;
-    QPoint stageoffset(stageX,stageY);
-    core::BlockExecutor executor;
-    executorPtr=&executor;
-    RobotActionAdapter robotActions(player);
-    QObject::connect(&timer,&QTimer::timeout,[&](){
-        if(!executor.running()){
-            timer.stop();
-            if(levelTestRunning){
-                finishLevelTest(false);
-                return;
-            }
-            resetRunButtons();
-            return;
-        }
-
-        bool stepped=executor.step(readRuntimeBlock,robotActions);
-        if(levelTestRunning){
-            levelTestStepCount++;
-            if(levelTestStepCount>levelTestStepLimit){
-                player->SyncCell(squaresize,stageoffset);
-                double seconds=levelTestStepLimit*level::activeTestIntervalMs()/1000.0;
-                finishLevelTest(true,
-                    QString("测试失败，运行 %1 步 %2 秒，已超时")
-                        .arg(levelTestStepLimit)
-                        .arg(seconds,0,'g',4));
-                return;
-            }
-        }
-        if(runtimeStopRequested){
-            player->SyncCell(squaresize,stageoffset);
-            executor.reset(nullptr);
-            runningBlock=nullptr;
-            timer.stop();
-            if(levelTestRunning){
-                finishLevelTest(true);
-                return;
-            }
-            resetRunButtons();
-            return;
-        }
-
-        player->SyncCell(squaresize,stageoffset);
-        runningBlock=static_cast<CodeBlock*>(executor.currentNode());
-
-        if(!stepped||!executor.running()){
-            timer.stop();
-            runningBlock=nullptr;
-            if(levelTestRunning){
-                finishLevelTest(!stepped);
-                return;
-            }
-            resetRunButtons();
-        }
-    });
-
-    AppGraphicsView view(&scene);
-    scene.setSceneRect(0,0,appWidth,appHeight);
-    view.setAlignment(Qt::AlignLeft|Qt::AlignTop);
-    view.setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    view.setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    view.setFixedSize(appWidth,appHeight);
-    view.setWindowFlags(view.windowFlags()&~Qt::WindowMaximizeButtonHint);
-    view.show();
+    MainWindow* mainWindow=new MainWindow();
+    mainWindow->show();
+    //QGraphicsScene scene;
+    //AppGraphicsView* view=new AppGraphicsView(&scene);
+   // view->show();
 
     return app.exec();
 }

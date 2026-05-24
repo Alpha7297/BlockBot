@@ -22,6 +22,8 @@ HEADERS += \
     level/Level.h \
     message/Message.h \
     ui/App.h \
+    ui/AppGraphicsView.h \
+    ui/MainWindow.h \
     ui/UiConstants.h \
     ui/Widgets.h\
     tale.h
