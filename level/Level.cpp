@@ -1,4 +1,5 @@
 #include "Level.h"
+#include "LevelConstants.h"
 
 #include <algorithm>
 #include <cmath>
@@ -9,10 +10,54 @@ namespace level{
 namespace{
 
 LevelConfig currentLevel;
+int currentLevelNumber=MinLevelNumber;
+LevelType currentLevelType=LevelType::Map;
 
 
 int normalizedDirection(int direction){
     return ((direction%4)+4)%4;
+}
+
+void fillBorderWalls(LevelConfig& level,int size){
+    for(int x=0;x<size;x++){
+        level.setMapCell(x,0,CellWall);
+        level.setMapCell(x,size-1,CellWall);
+    }
+    for(int y=0;y<size;y++){
+        level.setMapCell(0,y,CellWall);
+        level.setMapCell(size-1,y,CellWall);
+    }
+}
+
+void configureMapLevel(int levelNumber){
+    constexpr int size=40;
+    resetActiveLevel(size,size);
+    fillBorderWalls(currentLevel,size);
+    currentLevel.setReachPositionGoal(10,10);
+}
+
+void configureDataOutputLevel(int levelNumber){
+    constexpr int size=40;
+    resetActiveLevel(size,size);
+    fillBorderWalls(currentLevel,size);
+    currentLevel.setRobotStart(5,5,0);
+
+    DataTestCase c1;
+    c1.inputVariables["a"]=1;
+    c1.inputVariables["b"]=1;
+    c1.expectedVariables["ans"]=2;
+
+    DataTestCase c2;
+    c2.inputVariables["a"]=116;
+    c2.inputVariables["b"]=132;
+    c2.expectedVariables["ans"]=248;
+
+    DataTestCase c3;
+    c3.inputVariables["a"]=1145;
+    c3.inputVariables["b"]=1919;
+    c3.expectedVariables["ans"]=3064;
+
+    currentLevel.setDataOutputCases({c1,c2,c3});
 }
 
 }
@@ -22,7 +67,7 @@ int LevelTest::caseCount() const{
 }
 
 int LevelTest::testIntervalMs() const{
-    return 40;
+    return MapTestIntervalMs;
 }
 
 void LevelTest::prepareCase(int,core::RuntimeState&) const{
@@ -51,7 +96,7 @@ int DataOutputTest::caseCount() const{
 }
 
 int DataOutputTest::testIntervalMs() const{
-    return 1;
+    return DataOutputTestIntervalMs;
 }
 
 void DataOutputTest::prepareCase(int index,core::RuntimeState& runtime) const{
@@ -280,6 +325,30 @@ void prepareActiveTestCase(int index,core::RuntimeState& runtime){
 
 TestResult testActiveLevelCase(int index,const TestContext& context){
     return currentLevel.runTestCase(index,context);
+}
+
+int activeLevelNumber(){
+    return currentLevelNumber;
+}
+
+LevelType activeLevelType(){
+    return currentLevelType;
+}
+
+LevelType defaultLevelTypeForNumber(int levelNumber){
+    levelNumber=std::max(MinLevelNumber,std::min(levelNumber,TotalLevelCount));
+    return levelNumber<=10?LevelType::Map:LevelType::DataOutput;
+}
+
+void configureActiveLevel(int levelNumber,LevelType type){
+    levelNumber=std::max(MinLevelNumber,std::min(levelNumber,TotalLevelCount));
+    currentLevelNumber=levelNumber;
+    currentLevelType=type;
+    if(type==LevelType::DataOutput){
+        configureDataOutputLevel(levelNumber);
+        return;
+    }
+    configureMapLevel(levelNumber);
 }
 
 }

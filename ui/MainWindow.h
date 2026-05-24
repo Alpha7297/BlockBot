@@ -18,7 +18,7 @@ private slots:
     void onStartButtonClicked();
 private:
     QPushButton *startBtn;
-    AppGraphicsView *view;
-    QGraphicsScene *scene;
+    AppGraphicsView *view=nullptr;
+    QGraphicsScene *scene=nullptr;
 };
 #endif // MAINWINDOW_H

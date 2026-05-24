@@ -18,6 +18,8 @@ void singleDialogOnly();
 void runtimeError(const char* text);
 void otherError(const char* text);
 void otherError(const std::string text);
+void output(const char* text);
+void output(const std::string text);
 
 }
 

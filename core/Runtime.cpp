@@ -220,6 +220,9 @@ void RobotActions::enterCustomBlock(const std::string&,double){
 void RobotActions::leaveCustomBlock(const std::string&){
 }
 
+void RobotActions::showMessage(const std::string&,double){
+}
+
 void BlockExecutor::reset(Node firstBlock){
     current=firstBlock;
     frames.clear();
@@ -323,6 +326,11 @@ bool BlockExecutor::step(const BlockReader& readBlock,RobotActions& actions){
         else{
             current=block.next;
         }
+        return true;
+    }
+    if(block.type==12){
+        actions.showMessage(block.messageText,block.value);
+        current=block.next;
         return true;
     }
 

@@ -20,6 +20,7 @@ HEADERS += \
     core/Runtime.h \
     core/Value.h \
     level/Level.h \
+    level/LevelConstants.h \
     message/Message.h \
     ui/App.h \
     ui/AppGraphicsView.h \

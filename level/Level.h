@@ -15,6 +15,11 @@ inline constexpr int CellEmpty = 0;
 inline constexpr int CellWall = 1;
 inline constexpr int CellTrap = 2;
 
+enum class LevelType{
+    Map,
+    DataOutput
+};
+
 struct RobotState{
     int x = 5;
     int y = 5;
@@ -115,6 +120,10 @@ int activeTestCaseCount();
 int activeTestIntervalMs();
 void prepareActiveTestCase(int index,core::RuntimeState& runtime);
 TestResult testActiveLevelCase(int index,const TestContext& context);
+int activeLevelNumber();
+LevelType activeLevelType();
+LevelType defaultLevelTypeForNumber(int levelNumber);
+void configureActiveLevel(int levelNumber,LevelType type);
 
 }
 

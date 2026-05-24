@@ -6,10 +6,7 @@ public:
     std::function<void()> onClosed;
     AppGraphicsView(QGraphicsScene* scene);
 protected:
-    void closeEvent(QCloseEvent *event) override {
-        if(onClosed)onClosed();
-        QGraphicsView::closeEvent(event);
-    }
+    void closeEvent(QCloseEvent *event) override;
     void mousePressEvent(QMouseEvent* event) override;
 
     void keyPressEvent(QKeyEvent* event) override;

@@ -61,6 +61,7 @@ public:
     virtual void clearList(const std::string& name);
     virtual void enterCustomBlock(const std::string& name,double value);
     virtual void leaveCustomBlock(const std::string& name);
+    virtual void showMessage(const std::string& text,double value);
 };
 
 class BlockExecutor{
@@ -74,6 +75,7 @@ public:
         std::string variableName;
         std::string listName;
         std::string customName;
+        std::string messageText;
         Node next = nullptr;
         Node inside = nullptr;
         Node callTarget = nullptr;

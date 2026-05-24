@@ -19,6 +19,15 @@ void showRuntimeError(const QString& text){
     dialogActive=false;
 }
 
+void showOutput(const QString& text){
+    if(dialogActive){
+        return;
+    }
+    dialogActive=true;
+    QMessageBox::information(nullptr,"输出",text);
+    dialogActive=false;
+}
+
 }
 
 void runtimeError(const char* text){
@@ -78,7 +87,7 @@ void listIndexOutOfRange(const char* name,int index){
 }
 
 void invalidVariableName(){
-    showRuntimeError("Names must use English letters only, contain no spaces, and be at most 10 characters long.");
+    showRuntimeError("名称可以使用中文、英文、数字和下划线，不能有空格，最多 10 个字符。");
 }
 
 void workspaceWidthLimitReached(){
@@ -95,6 +104,16 @@ void otherError(const char* text)
 void otherError(const std::string text)
 {
     showRuntimeError(text.c_str());
+}
+
+void output(const char* text)
+{
+    showOutput(QString::fromUtf8(text));
+}
+
+void output(const std::string text)
+{
+    showOutput(QString::fromUtf8(text.c_str()));
 }
 
 }

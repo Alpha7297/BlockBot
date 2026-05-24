@@ -43,6 +43,7 @@
 #include "Widgets.h"
 #include "../core/Runtime.h"
 #include "../level/Level.h"
+#include "../level/LevelConstants.h"
 #include "../message/Message.h"
 #include "MainWindow.h"
 using std::vector;
@@ -78,6 +79,7 @@ class VariableBlock;
 class RobotCoordBlock;
 class RobotFrontMapBlock;
 class SetVariableBlock;
+class OutputBlock;
 class ListGetBlock;
 class ListSizeBlock;
 class PushListBlock;
@@ -102,6 +104,7 @@ void clearUndoCache();
 void saveUndoCheckpoint();
 void undoLastCheckpoint();
 void rebuildFloatBlockRegistryFromScene();
+void clearWorkspaceAndCacheOnExit();
 
 constexpr qreal variableHorizontalPadding=6;
 
@@ -128,12 +131,21 @@ QString archiveDirectoryPath(){
     return dir.filePath("BlockBot");
 }
 
+QString archiveDefaultFilePath(){
+    QDir dir(archiveDirectoryPath());
+    return dir.filePath(QString("BlockBot_%1.json").arg(level::activeLevelNumber()));
+}
+
 bool validVariableName(const QString& name){
-    if(name.isEmpty()||name.size()>10){
+    QString trimmed=name.trimmed();
+    if(trimmed.isEmpty()||trimmed.size()>10||trimmed!=name){
         return false;
     }
-    for(QChar ch:name){
-        if(!((ch>='A'&&ch<='Z')||(ch>='a'&&ch<='z'))){
+    for(QChar ch:trimmed){
+        if(ch.isSpace()||ch.unicode()<32||ch.unicode()==127){
+            return false;
+        }
+        if(!(ch.isLetterOrNumber()||ch=='_')){
             return false;
         }
     }
@@ -495,21 +507,21 @@ public:
 
 class UnaryOpBlock:public FloatBlock{
 public:
-    FloatBlock* slab;
-    UnaryOpBlock(int _type,QString ss,FloatBlock* _slab=nullptr,
+    FloatBlock* slot;
+    UnaryOpBlock(int _type,QString ss,FloatBlock* _slot=nullptr,
                  int base=false,QGraphicsItem * parent=nullptr):
         FloatBlock(_type,base,parent){
         s=ss;
         text->setPlainText(s);
-        if(_slab==nullptr){
-            slab=new FloatBlock(0,false,this);
+        if(_slot==nullptr){
+            slot=new FloatBlock(0,false,this);
         }
         else{
-            slab=_slab->copy();
-            slab->setParentItem(this);
+            slot=_slot->copy();
+            slot->setParentItem(this);
         }
-        slab->setMovable(!base);
-        slab->setPos(0,0);
+        slot->setMovable(!base);
+        slot->setPos(0,0);
         refreshSize();
         setBrush(QColor(42,105,86));
     }
@@ -517,7 +529,7 @@ public:
         return true;
     }
     double getValue() const override{
-        double val=slab->getValue();
+        double val=slot->getValue();
         if(type==0){
             return checkedDoubleResult(std::sin(val),"sin");
         }
@@ -567,16 +579,16 @@ public:
         text->setDefaultTextColor(Qt::white);
         qreal textWidth=text->boundingRect().width();
         qreal textHeight=text->boundingRect().height();
-        qreal wanted=opHorizontalPadding+textWidth+opHorizontalPadding+slab->len+opHorizontalPadding;
+        qreal wanted=opHorizontalPadding+textWidth+opHorizontalPadding+slot->len+opHorizontalPadding;
         updateShape(wanted);
-        wid=std::max(slab->wid,floatBlockWidth)+opVerticalPadding*2;
+        wid=std::max(slot->wid,floatBlockWidth)+opVerticalPadding*2;
         updatePolygon();
         text->setPos(opHorizontalPadding,(wid-textHeight)/2);
-        slab->setPos(opHorizontalPadding+textWidth+opHorizontalPadding,(wid-slab->wid)/2);
+        slot->setPos(opHorizontalPadding+textWidth+opHorizontalPadding,(wid-slot->wid)/2);
         setPen(QPen(Qt::black,1.5));
     }
     FloatBlock* copy() override{
-        UnaryOpBlock* newBlock=new UnaryOpBlock(type,s,slab,false);
+        UnaryOpBlock* newBlock=new UnaryOpBlock(type,s,slot,false);
         newBlock->setPos(pos());
         return newBlock;
     }
@@ -756,6 +768,93 @@ public:
     }
     CodeBlock* copy() override{
         FloatCodeBlock* newBlock=new FloatCodeBlock(type,s,value,false);
+        newBlock->setPos(pos());
+        return newBlock;
+    }
+};
+
+class OutputBlock:public CodeBlock{
+public:
+    QString messageText;
+    ClickTextItem* messageItem;
+    QGraphicsRectItem* messageFrame;
+    FloatBlock* value;
+
+    OutputBlock(QString textValue="x",FloatBlock* _value=nullptr,
+                int base=false,QGraphicsItem* parent=nullptr):
+        CodeBlock(12,"输出",base,parent){
+        messageText=textValue;
+        messageFrame=new QGraphicsRectItem(this);
+        messageFrame->setBrush(QColor(220,220,220));
+        messageFrame->setPen(QPen(Qt::black,1.5));
+        messageFrame->setAcceptedMouseButtons(Qt::NoButton);
+        messageFrame->setZValue(1);
+        messageItem=new ClickTextItem(this);
+        messageItem->setDefaultTextColor(Qt::black);
+        messageItem->document()->setDocumentMargin(0);
+        messageItem->setPlainText(messageText);
+        messageItem->setZValue(2);
+        if(!base){
+            messageItem->onClick=[this](){
+                bool ok=false;
+                QString newText=QInputDialog::getText(nullptr,"输入输出文字","输入文字",
+                    QLineEdit::Normal,messageText,&ok);
+                if(!ok){
+                    return;
+                }
+                messageText=newText;
+                messageItem->setPlainText(messageText);
+                refreshSize();
+                refreshAllControlLayouts();
+                checkEditedCodeWorkspaceWidth(this);
+            };
+        }
+        else{
+            messageItem->setAcceptedMouseButtons(Qt::NoButton);
+        }
+        if(_value==nullptr){
+            value=new FloatBlock(0,false,this);
+        }
+        else{
+            value=_value->copy();
+            value->setParentItem(this);
+        }
+        value->setMovable(!base);
+        setBrush(QColor(130,76,180));
+        refreshSize();
+    }
+
+    void refreshSize() override{
+        qreal textWidth=text->boundingRect().width();
+        qreal textHeight=text->boundingRect().height();
+        qreal messageWidth=messageItem->boundingRect().width();
+        qreal messageHeight=messageItem->boundingRect().height();
+        qreal messageBoxWidth=messageWidth+variableHorizontalPadding*2;
+        qreal messageBoxHeight=std::max<qreal>(floatBlockWidth,messageHeight+6);
+        wid=std::max(40,value->wid+10);
+        len=static_cast<int>(std::ceil(20+textWidth+10+messageBoxWidth+10+value->len+10));
+        QPolygonF shape;
+        shape<<QPointF(0,0)<<QPointF(len,0)
+             <<QPointF(len,wid)<<QPointF(0,wid);
+        setPolygon(shape);
+        text->setPos(10,(wid-textHeight)/2);
+        qreal messageBoxX=20+textWidth;
+        qreal messageBoxY=(wid-messageBoxHeight)/2;
+        messageFrame->setRect(0,0,messageBoxWidth,messageBoxHeight);
+        messageFrame->setPos(messageBoxX,messageBoxY);
+        messageItem->setPos(messageBoxX+variableHorizontalPadding,(wid-messageHeight)/2);
+        value->setPos(messageBoxX+messageBoxWidth+10,(wid-value->wid)/2);
+
+        QPolygonF shadowShape;
+        shadowShape<<QPointF(-shadowPadding,-shadowPadding)
+                   <<QPointF(len+shadowPadding,-shadowPadding)
+                   <<QPointF(len+shadowPadding,wid+shadowPadding)
+                   <<QPointF(-shadowPadding,wid+shadowPadding);
+        shadow->setPolygon(shadowShape);
+    }
+
+    CodeBlock* copy() override{
+        OutputBlock* newBlock=new OutputBlock(messageText,value,false);
         newBlock->setPos(pos());
         return newBlock;
     }
@@ -1898,6 +1997,13 @@ public:
             it->second.pop_back();
         }
     }
+
+    void showMessage(const std::string& text,double value) override{
+        QString output=QString("%1 %2")
+            .arg(QString::fromStdString(text))
+            .arg(QString::number(value,'g',6));
+        message::output(output.toStdString());
+    }
 };
 
 int maxZ=10;
@@ -1945,6 +2051,9 @@ qreal nextDragZ(){
 double customParameterValue(const QString& customName){
     auto it=customParameterStacks.find(customName);
     if(it==customParameterStacks.end()||it->second.empty()){
+        message::otherError("无法调用自定义积木局部变量");
+        runtimeSkipCurrentBlock=true;
+        runtimeStopRequested=true;
         return 0.0;
     }
     return it->second.back();
@@ -1968,15 +2077,22 @@ AppGraphicsView::AppGraphicsView(QGraphicsScene* scene):QGraphicsView(scene)
     clearUndoCache();
     saveUndoCheckpoint();
 
-    QTimer timer;
-    timerPtr=&timer;
+    timerPtr=new QTimer(this);
     QPoint stageoffset(stageX,stageY);
-    core::BlockExecutor executor;
-    executorPtr=&executor;
-    RobotActionAdapter robotActions(player);
-    QObject::connect(&timer,&QTimer::timeout,[&](){
-        if(!executor.running()){
-            timer.stop();
+    executorPtr=new core::BlockExecutor();
+    RobotActionAdapter* robotActions=new RobotActionAdapter(player);
+    QObject::connect(this,&QObject::destroyed,this,[robotActions](){
+        delete robotActions;
+        delete executorPtr;
+        executorPtr=nullptr;
+        timerPtr=nullptr;
+    });
+    QObject::connect(timerPtr,&QTimer::timeout,this,[robotActions,stageoffset](){
+        if(executorPtr==nullptr||timerPtr==nullptr){
+            return;
+        }
+        if(!executorPtr->running()){
+            timerPtr->stop();
             if(levelTestRunning){
                 finishLevelTest(false);
                 return;
@@ -1985,7 +2101,7 @@ AppGraphicsView::AppGraphicsView(QGraphicsScene* scene):QGraphicsView(scene)
             return;
         }
 
-        bool stepped=executor.step(readRuntimeBlock,robotActions);
+        bool stepped=executorPtr->step(readRuntimeBlock,*robotActions);
         if(levelTestRunning){
             levelTestStepCount++;
             if(levelTestStepCount>levelTestStepLimit){
@@ -2000,9 +2116,9 @@ AppGraphicsView::AppGraphicsView(QGraphicsScene* scene):QGraphicsView(scene)
         }
         if(runtimeStopRequested){
             player->SyncCell(squaresize,stageoffset);
-            executor.reset(nullptr);
+            executorPtr->reset(nullptr);
             runningBlock=nullptr;
-            timer.stop();
+            timerPtr->stop();
             if(levelTestRunning){
                 finishLevelTest(true);
                 return;
@@ -2012,10 +2128,10 @@ AppGraphicsView::AppGraphicsView(QGraphicsScene* scene):QGraphicsView(scene)
         }
 
         player->SyncCell(squaresize,stageoffset);
-        runningBlock=static_cast<CodeBlock*>(executor.currentNode());
+        runningBlock=static_cast<CodeBlock*>(executorPtr->currentNode());
 
-        if(!stepped||!executor.running()){
-            timer.stop();
+        if(!stepped||!executorPtr->running()){
+            timerPtr->stop();
             runningBlock=nullptr;
             if(levelTestRunning){
                 finishLevelTest(!stepped);
@@ -2034,6 +2150,15 @@ AppGraphicsView::AppGraphicsView(QGraphicsScene* scene):QGraphicsView(scene)
     setFixedSize(appWidth,appHeight);
     setWindowFlags(windowFlags()&~Qt::WindowMaximizeButtonHint);
 }
+
+void AppGraphicsView::closeEvent(QCloseEvent* event){
+    clearWorkspaceAndCacheOnExit();
+    if(onClosed){
+        onClosed();
+    }
+    QGraphicsView::closeEvent(event);
+}
+
 void AppGraphicsView::mousePressEvent(QMouseEvent* event){
     QPointF scenePoint=mapToScene(event->pos());
     bool onContextMenu=false;
@@ -2577,7 +2702,7 @@ QJsonObject serializeFloatBlock(FloatBlock* block){
     if(unary!=nullptr){
         object["kind"]="unary";
         object["text"]=unary->s;
-        object["slab"]=serializeFloatBlock(unary->slab);
+        object["slot"]=serializeFloatBlock(unary->slot);
         return object;
     }
     BinaryOpBlock* binary=dynamic_cast<BinaryOpBlock*>(block);
@@ -2620,10 +2745,11 @@ FloatBlock* deserializeFloatBlock(const QJsonObject& object,QGraphicsItem* paren
         return new RobotFrontMapBlock(false,parent);
     }
     if(kind=="unary"){
-        FloatBlock* slab=deserializeFloatBlock(object["slab"].toObject(),nullptr);
-        UnaryOpBlock* block=new UnaryOpBlock(object["type"].toInt(),object["text"].toString(),slab,false,parent);
-        deleteFloatBlock(slab);
-        block->slab->setMovable(true);
+        QJsonObject slotObject=object["slot"].toObject();
+        FloatBlock* slot=deserializeFloatBlock(slotObject,nullptr);
+        UnaryOpBlock* block=new UnaryOpBlock(object["type"].toInt(),object["text"].toString(),slot,false,parent);
+        deleteFloatBlock(slot);
+        block->slot->setMovable(true);
         block->refreshSize();
         return block;
     }
@@ -2684,6 +2810,11 @@ QJsonObject serializeCodeBlock(CodeBlock* block){
         object["kind"]="floatCode";
         object["value"]=serializeFloatBlock(floatCode->value);
     }
+    else if(OutputBlock* output=dynamic_cast<OutputBlock*>(block)){
+        object["kind"]="output";
+        object["message"]=output->messageText;
+        object["value"]=serializeFloatBlock(output->value);
+    }
     else if(SetVariableBlock* setVariable=dynamic_cast<SetVariableBlock*>(block)){
         object["kind"]="setVariable";
         object["name"]=setVariable->variableName;
@@ -2739,6 +2870,11 @@ CodeBlock* deserializeCodeBlock(const QJsonObject& object){
         FloatBlock* value=deserializeFloatBlock(object["value"].toObject(),nullptr);
         block=new FloatCodeBlock(object["type"].toInt(),object["text"].toString(),
             value,false);
+        deleteFloatBlock(value);
+    }
+    else if(kind=="output"){
+        FloatBlock* value=deserializeFloatBlock(object["value"].toObject(),nullptr);
+        block=new OutputBlock(object["message"].toString("x"),value,false);
         deleteFloatBlock(value);
     }
     else if(kind=="setVariable"){
@@ -2881,6 +3017,7 @@ void rebuildFloatBlockRegistryFromScene(){
 
 QJsonObject serializeWorkspace(){
     QJsonObject root;
+    root["levelNumber"]=level::activeLevelNumber();
     QJsonArray codeRoots;
     for(CodeBlock* block:workspaceCodeRootsFromScene()){
         codeRoots.append(serializeCodeBlock(block));
@@ -2961,6 +3098,15 @@ void clearWorkspaceForUndo(){
     }
     rebuildCodeRegistryFromScene();
     rebuildFloatBlockRegistryFromScene();
+}
+
+void clearWorkspaceAndCacheOnExit(){
+    stopProgram();
+    clearWorkspaceForUndo();
+    rebuildCustomCallToolbox();
+    refreshVariableToolbox();
+    refreshAllControlLayouts();
+    clearUndoCache();
 }
 
 void refreshVariableToolbox();
@@ -3224,6 +3370,7 @@ void replaceFloatExpressionWithValue(FloatBlock* root){
     QPointF localPos=root->pos();
     FloatBlock* parentBlock=dynamic_cast<FloatBlock*>(parent);
     FloatCodeBlock* codeParent=dynamic_cast<FloatCodeBlock*>(parent);
+    OutputBlock* outputParent=dynamic_cast<OutputBlock*>(parent);
     SetVariableBlock* setParent=dynamic_cast<SetVariableBlock*>(parent);
     ControlCodeBlock* controlParent=dynamic_cast<ControlCodeBlock*>(parent);
     CustomCallBlock* customCallParent=dynamic_cast<CustomCallBlock*>(parent);
@@ -3233,8 +3380,8 @@ void replaceFloatExpressionWithValue(FloatBlock* root){
     replacementValue->setPos(localPos);
 
     UnaryOpBlock* unaryParent=dynamic_cast<UnaryOpBlock*>(parentBlock);
-    if(unaryParent!=nullptr&&unaryParent->slab==root){
-        unaryParent->slab=replacementValue;
+    if(unaryParent!=nullptr&&unaryParent->slot==root){
+        unaryParent->slot=replacementValue;
     }
     BinaryOpBlock* binaryParent=dynamic_cast<BinaryOpBlock*>(parentBlock);
     if(binaryParent!=nullptr){
@@ -3247,6 +3394,9 @@ void replaceFloatExpressionWithValue(FloatBlock* root){
     }
     if(codeParent!=nullptr&&codeParent->value==root){
         codeParent->value=replacementValue;
+    }
+    if(outputParent!=nullptr&&outputParent->value==root){
+        outputParent->value=replacementValue;
     }
     if(setParent!=nullptr&&setParent->value==root){
         setParent->value=replacementValue;
@@ -3282,6 +3432,10 @@ void replaceFloatExpressionWithValue(FloatBlock* root){
     }
     if(codeParent!=nullptr){
         codeParent->refreshSize();
+        refreshAllControlLayouts();
+    }
+    if(outputParent!=nullptr){
+        outputParent->refreshSize();
         refreshAllControlLayouts();
     }
     if(setParent!=nullptr){
@@ -3358,6 +3512,10 @@ double codeBlockFloatValue(CodeBlock* block){
     if(floatBlock!=nullptr&&floatBlock->value!=nullptr){
         return floatBlock->value->getValue();
     }
+    OutputBlock* outputBlock=dynamic_cast<OutputBlock*>(block);
+    if(outputBlock!=nullptr&&outputBlock->value!=nullptr){
+        return outputBlock->value->getValue();
+    }
     SetVariableBlock* setBlock=dynamic_cast<SetVariableBlock*>(block);
     if(setBlock!=nullptr&&setBlock->value!=nullptr){
         return setBlock->value->getValue();
@@ -3424,6 +3582,10 @@ core::BlockExecutor::BlockSnapshot readRuntimeBlock(core::BlockExecutor::Node no
         if(it!=customHatBlocks.end()&&it->second!=nullptr){
             snapshot.callTarget=it->second->next;
         }
+    }
+    OutputBlock* outputBlock=dynamic_cast<OutputBlock*>(block);
+    if(outputBlock!=nullptr){
+        snapshot.messageText=outputBlock->messageText.toStdString();
     }
     return snapshot;
 }
@@ -3845,8 +4007,8 @@ void deleteFloatBlock(FloatBlock* block){
     eraseFloatTreeRecords(block);
     UnaryOpBlock* unary=dynamic_cast<UnaryOpBlock*>(block);
     if(unary!=nullptr){
-        deleteFloatBlock(unary->slab);
-        unary->slab=nullptr;
+        deleteFloatBlock(unary->slot);
+        unary->slot=nullptr;
     }
     BinaryOpBlock* binary=dynamic_cast<BinaryOpBlock*>(block);
     if(binary!=nullptr){
@@ -3882,7 +4044,7 @@ void eraseFloatTreeRecords(FloatBlock* block){
     }
     UnaryOpBlock* unary=dynamic_cast<UnaryOpBlock*>(block);
     if(unary!=nullptr){
-        eraseFloatTreeRecords(unary->slab);
+        eraseFloatTreeRecords(unary->slot);
     }
     BinaryOpBlock* binary=dynamic_cast<BinaryOpBlock*>(block);
     if(binary!=nullptr){
@@ -3903,6 +4065,10 @@ void eraseCodeEmbeddedFloatRecords(CodeBlock* block){
     FloatCodeBlock* floatCode=dynamic_cast<FloatCodeBlock*>(block);
     if(floatCode!=nullptr){
         eraseFloatTreeRecords(floatCode->value);
+    }
+    OutputBlock* outputBlock=dynamic_cast<OutputBlock*>(block);
+    if(outputBlock!=nullptr){
+        eraseFloatTreeRecords(outputBlock->value);
     }
     SetVariableBlock* setCode=dynamic_cast<SetVariableBlock*>(block);
     if(setCode!=nullptr){
@@ -3994,7 +4160,7 @@ void setInsertedOperatorInteractivity(FloatBlock* block){
     block->setMovable(true);
     UnaryOpBlock* unary=dynamic_cast<UnaryOpBlock*>(block);
     if(unary!=nullptr){
-        setInsertedOperatorInteractivity(unary->slab);
+        setInsertedOperatorInteractivity(unary->slot);
         return;
     }
     BinaryOpBlock* binary=dynamic_cast<BinaryOpBlock*>(block);
@@ -4016,7 +4182,7 @@ void setFloatTreeZValue(FloatBlock* block,qreal z){
     block->setZValue(z);
     UnaryOpBlock* unary=dynamic_cast<UnaryOpBlock*>(block);
     if(unary!=nullptr){
-        setFloatTreeZValue(unary->slab,z+1);
+        setFloatTreeZValue(unary->slot,z+1);
         return;
     }
     BinaryOpBlock* binary=dynamic_cast<BinaryOpBlock*>(block);
@@ -4042,6 +4208,10 @@ void setCodeTreeZValue(CodeBlock* block,qreal z){
         FloatCodeBlock* floatCode=dynamic_cast<FloatCodeBlock*>(curr);
         if(floatCode!=nullptr){
             setFloatTreeZValue(floatCode->value,z+1);
+        }
+        OutputBlock* outputBlock=dynamic_cast<OutputBlock*>(curr);
+        if(outputBlock!=nullptr){
+            setFloatTreeZValue(outputBlock->value,z+1);
         }
         SetVariableBlock* setCode=dynamic_cast<SetVariableBlock*>(curr);
         if(setCode!=nullptr){
@@ -4079,12 +4249,13 @@ FloatBlock* detachOperatorFromParent(FloatBlock* moving){
     }
     FloatBlock* parentBlock=dynamic_cast<FloatBlock*>(moving->parentItem());
     FloatCodeBlock* codeParent=dynamic_cast<FloatCodeBlock*>(moving->parentItem());
+    OutputBlock* outputParent=dynamic_cast<OutputBlock*>(moving->parentItem());
     SetVariableBlock* setParent=dynamic_cast<SetVariableBlock*>(moving->parentItem());
     PushListBlock* pushParent=dynamic_cast<PushListBlock*>(moving->parentItem());
     SetListBlock* setListParent=dynamic_cast<SetListBlock*>(moving->parentItem());
     ControlCodeBlock* controlParent=dynamic_cast<ControlCodeBlock*>(moving->parentItem());
     CustomCallBlock* customCallParent=dynamic_cast<CustomCallBlock*>(moving->parentItem());
-    if(parentBlock==nullptr&&codeParent==nullptr&&setParent==nullptr&&
+    if(parentBlock==nullptr&&codeParent==nullptr&&outputParent==nullptr&&setParent==nullptr&&
        pushParent==nullptr&&setListParent==nullptr&&controlParent==nullptr&&
        customCallParent==nullptr){
         return nullptr;
@@ -4097,6 +4268,9 @@ FloatBlock* detachOperatorFromParent(FloatBlock* moving){
     }
     else if(codeParent!=nullptr){
         parentItem=codeParent;
+    }
+    else if(outputParent!=nullptr){
+        parentItem=outputParent;
     }
     else if(setParent!=nullptr){
         parentItem=setParent;
@@ -4118,8 +4292,8 @@ FloatBlock* detachOperatorFromParent(FloatBlock* moving){
     replacementValue->setMovable(true);
 
     UnaryOpBlock* unaryParent=dynamic_cast<UnaryOpBlock*>(parentBlock);
-    if(unaryParent!=nullptr&&unaryParent->slab==moving){
-        unaryParent->slab=replacementValue;
+    if(unaryParent!=nullptr&&unaryParent->slot==moving){
+        unaryParent->slot=replacementValue;
     }
     BinaryOpBlock* binaryParent=dynamic_cast<BinaryOpBlock*>(parentBlock);
     if(binaryParent!=nullptr){
@@ -4136,6 +4310,9 @@ FloatBlock* detachOperatorFromParent(FloatBlock* moving){
     }
     if(codeParent!=nullptr&&codeParent->value==moving){
         codeParent->value=replacementValue;
+    }
+    if(outputParent!=nullptr&&outputParent->value==moving){
+        outputParent->value=replacementValue;
     }
     if(setParent!=nullptr&&setParent->value==moving){
         setParent->value=replacementValue;
@@ -4168,6 +4345,10 @@ FloatBlock* detachOperatorFromParent(FloatBlock* moving){
     }
     if(codeParent!=nullptr){
         codeParent->refreshSize();
+        refreshAllControlLayouts();
+    }
+    if(outputParent!=nullptr){
+        outputParent->refreshSize();
         refreshAllControlLayouts();
     }
     if(setParent!=nullptr){
@@ -4208,7 +4389,7 @@ void collectFloatValueTargets(FloatBlock* root,FloatBlock* moving,vector<FloatBl
     }
     UnaryOpBlock* unary=dynamic_cast<UnaryOpBlock*>(root);
     if(unary!=nullptr){
-        collectFloatValueTargets(unary->slab,moving,targets);
+        collectFloatValueTargets(unary->slot,moving,targets);
         return;
     }
     BinaryOpBlock* binary=dynamic_cast<BinaryOpBlock*>(root);
@@ -4235,6 +4416,10 @@ FloatBlock* findAbsorbTarget(FloatBlock* moving){
         FloatCodeBlock* floatCode=dynamic_cast<FloatCodeBlock*>(block);
         if(floatCode!=nullptr){
             collectFloatValueTargets(floatCode->value,moving,targets);
+        }
+        OutputBlock* outputBlock=dynamic_cast<OutputBlock*>(block);
+        if(outputBlock!=nullptr){
+            collectFloatValueTargets(outputBlock->value,moving,targets);
         }
         SetVariableBlock* setCode=dynamic_cast<SetVariableBlock*>(block);
         if(setCode!=nullptr){
@@ -4314,6 +4499,7 @@ void attachOperatorToTarget(FloatBlock* moving,FloatBlock* target){
     clearAbsorbShadow(moving);
     FloatBlock* parentBlock=dynamic_cast<FloatBlock*>(target->parentItem());
     FloatCodeBlock* codeParent=dynamic_cast<FloatCodeBlock*>(target->parentItem());
+    OutputBlock* outputParent=dynamic_cast<OutputBlock*>(target->parentItem());
     SetVariableBlock* setParent=dynamic_cast<SetVariableBlock*>(target->parentItem());
     PushListBlock* pushParent=dynamic_cast<PushListBlock*>(target->parentItem());
     SetListBlock* setListParent=dynamic_cast<SetListBlock*>(target->parentItem());
@@ -4383,6 +4569,22 @@ void attachOperatorToTarget(FloatBlock* moving,FloatBlock* target){
         checkEditedFloatWorkspaceWidth(moving);
         return;
     }
+    if(outputParent!=nullptr&&outputParent->value==target){
+        QPointF targetLocalPos=target->pos();
+        outputParent->value=moving;
+        eraseFloatTreeRecords(moving);
+        moving->setParentItem(outputParent);
+        moving->setPos(targetLocalPos);
+        moving->dragging=false;
+        moving->moved=false;
+        resetFloatTreeZValue(moving);
+        setInsertedOperatorInteractivity(moving);
+        deleteFloatBlock(target);
+        outputParent->refreshSize();
+        refreshAllControlLayouts();
+        checkEditedFloatWorkspaceWidth(moving);
+        return;
+    }
     if(pushParent!=nullptr&&pushParent->value==target){
         QPointF targetLocalPos=target->pos();
         pushParent->value=moving;
@@ -4432,8 +4634,8 @@ void attachOperatorToTarget(FloatBlock* moving,FloatBlock* target){
 
     QPointF targetLocalPos=target->pos();
     UnaryOpBlock* unaryParent=dynamic_cast<UnaryOpBlock*>(parentBlock);
-    if(unaryParent!=nullptr&&unaryParent->slab==target){
-        unaryParent->slab=moving;
+    if(unaryParent!=nullptr&&unaryParent->slot==target){
+        unaryParent->slot=moving;
     }
     BinaryOpBlock* binaryParent=dynamic_cast<BinaryOpBlock*>(parentBlock);
     if(binaryParent!=nullptr){
@@ -5168,6 +5370,7 @@ void startProgram(Button* button,int intervalMs){
     }
     resetRobot();
     runtimeState.resetAll();
+    level::prepareActiveTestCase(0,runtimeState);
     customParameterStacks.clear();
     runtimeStopRequested=false;
     levelTestFailed=false;
@@ -5359,7 +5562,7 @@ void drawStage(QGraphicsScene& scene){
         QString filePath=QFileDialog::getSaveFileName(
             nullptr,
             "保存文件",
-            QDir(archiveDirectoryPath()).filePath("BlockBot.json"),
+            archiveDefaultFilePath(),
             "JSON 文件 (*.json)"
         );
         if (filePath.isEmpty()) {
@@ -5400,14 +5603,53 @@ void drawStage(QGraphicsScene& scene){
         file.close();
         QJsonParseError parseError;
         QJsonDocument jsonDoc = QJsonDocument::fromJson(jsonData, &parseError);
+        if (parseError.error != QJsonParseError::NoError||!jsonDoc.isObject()) {
+            message::otherError("当前存档格式错误");
+            return;
+        }
+        QJsonObject checkedRoot=jsonDoc.object();
+        QJsonValue levelValue=checkedRoot["levelNumber"];
+        if(!levelValue.isDouble()){
+            message::otherError("当前存档格式错误");
+            return;
+        }
+        int checkedFileLevelNumber=levelValue.toInt(-1);
+        if(checkedFileLevelNumber<level::MinLevelNumber||
+           checkedFileLevelNumber>level::TotalLevelCount){
+            message::otherError("当前存档格式错误");
+            return;
+        }
+        int checkedCurrentLevelNumber=level::activeLevelNumber();
+        if(checkedFileLevelNumber!=checkedCurrentLevelNumber){
+            QMessageBox::warning(nullptr,"关卡不一致",
+                QString("当前是第 %1 关，打开的文件是第 %2 关")
+                    .arg(checkedCurrentLevelNumber)
+                    .arg(checkedFileLevelNumber));
+            return;
+        }
+        clearUndoCache();
+        restoreWorkspace(checkedRoot);
+        saveUndoCheckpoint();
+        return;
         if (parseError.error != QJsonParseError::NoError) {
             message::otherError(std::string("JSON 解析失败:")+parseError.errorString().toStdString());
             return;
         }
 
         if (jsonDoc.isObject()) {
+            QJsonObject root=jsonDoc.object();
+            if(root.contains("levelNumber")){
+                int fileLevelNumber=root["levelNumber"].toInt(level::activeLevelNumber());
+                int currentLevelNumber=level::activeLevelNumber();
+                if(fileLevelNumber!=currentLevelNumber){
+                    QMessageBox::warning(nullptr,"关卡不一致",
+                        QString("当前是第 %1 关，打开的文件是第 %2 关")
+                            .arg(currentLevelNumber)
+                            .arg(fileLevelNumber));
+                }
+            }
             clearUndoCache();
-            restoreWorkspace(jsonDoc.object());
+            restoreWorkspace(root);
             saveUndoCheckpoint();
         }
         else if (jsonDoc.isArray()) {
@@ -5472,6 +5714,7 @@ void drawToolbox(QGraphicsScene& scene){
     addCode(new CodeBlock(1,"右转",true));
     addCode(new FloatCodeBlock(3,"向前移动",nullptr,true));
     addCode(new FloatCodeBlock(4,"等待",nullptr,true));
+    addCode(new OutputBlock("x",nullptr,true));
     addCode(new ControlCodeBlock(5,"如果",nullptr,true));
     addCode(new ControlCodeBlock(6,"当",nullptr,true));
 
@@ -5537,6 +5780,25 @@ void drawWorkspace(QGraphicsScene& scene){
 }
 void MainWindow::onStartButtonClicked()
 {
+    bool ok=false;
+    int levelNumber=QInputDialog::getInt(this,"选择关卡","关卡",
+        level::MinLevelNumber,level::MinLevelNumber,level::TotalLevelCount,1,&ok);
+    if(!ok){
+        return;
+    }
+    level::LevelType levelType=level::defaultLevelTypeForNumber(levelNumber);
+    level::configureActiveLevel(levelNumber,levelType);
+    runtimeState.clearAll();
+    level::prepareActiveTestCase(0,runtimeState);
+    init();
+    if(view==nullptr){
+        scene = new QGraphicsScene(this);
+        view = new AppGraphicsView(scene);
+        view->onClosed=[this]()
+        {
+            this->show();
+        };
+    }
     this->hide();
     view->show();
 }
@@ -5545,13 +5807,7 @@ MainWindow:: MainWindow(QWidget *parent) : QMainWindow(parent) {
     QVBoxLayout *layout = new QVBoxLayout(this);
     layout->addWidget(startBtn);
 
-    scene = new QGraphicsScene(this);
-    view = new AppGraphicsView(scene);
     connect(startBtn, &QPushButton::clicked, this, &MainWindow::onStartButtonClicked);
-    view->onClosed=[this]()
-    {
-        this->show();
-    };
 }
 int ui::runApp(int argc,char* argv[]){
     init();
