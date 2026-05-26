@@ -87,6 +87,7 @@ public:
     bool running() const;
     Node currentNode() const;
     bool step(const BlockReader& readBlock,RobotActions& actions);
+    bool didConsumeActionStep() const;
     void executeOne(int blockType,double floatValue,RobotActions& actions) const;
 
 private:
@@ -101,6 +102,7 @@ private:
     std::vector<Frame> frames;
     Node waiting = nullptr;
     double waitRemaining = 0.0;
+    bool lastStepConsumedActionStep = false;
 };
 
 }

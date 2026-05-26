@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <sstream>
 
 namespace level{
@@ -29,6 +30,122 @@ void fillBorderWalls(LevelConfig& level,int size){
     }
 }
 
+DataTestCase makeLevel6Case(const std::vector<double>& time,const std::vector<double>& pos,int n){
+    DataTestCase testCase;
+    testCase.inputVariables["n"]=n;
+    testCase.inputLists["time"]=time;
+    testCase.inputLists["pos"]=pos;
+
+    std::vector<std::pair<double,double>> valid;
+    int count=std::min(n,static_cast<int>(std::min(time.size(),pos.size())));
+    for(int i=0;i<count;i++){
+        if(time[i]<1||time[i]>1000||pos[i]<1||pos[i]>=410){
+            continue;
+        }
+        valid.push_back({time[i],pos[i]});
+    }
+    std::sort(valid.begin(),valid.end(),[](const auto& lhs,const auto& rhs){
+        if(lhs.first!=rhs.first){
+            return lhs.first<rhs.first;
+        }
+        return lhs.second<rhs.second;
+    });
+    for(const auto& item:valid){
+        testCase.expectedLists["target"].push_back(item.second);
+    }
+    return testCase;
+}
+
+DataTestCase makeGeneratedLevel6Case(int seed,int n){
+    std::vector<double> time;
+    std::vector<double> pos;
+    time.reserve(n);
+    pos.reserve(n);
+    std::srand(seed);
+    for(int i=0;i<n;i++){
+        int rawTime=std::rand()%1108-49;
+        int rawPos=std::rand()%470-29;
+        if(i%17==0){
+            rawTime=-1;
+        }
+        else if(i%29==0){
+            rawTime=1001;
+        }
+        if(i%13==0){
+            rawPos=0;
+        }
+        else if(i%31==0){
+            rawPos=410;
+        }
+        time.push_back(rawTime);
+        pos.push_back(rawPos);
+    }
+    return makeLevel6Case(time,pos,n);
+}
+
+DataTestCase makeLevel7Case(int seed){
+    DataTestCase c;
+    std::srand(seed);
+    int origin=100000+std::rand()%900000;
+    c.expectedVariables["明文"]=origin;
+    std::vector<int> numberlist;
+    int value=origin;
+    while(value!=0){
+        int a=value%10;
+        numberlist.push_back((a+3)%10);
+        value=value/10;
+    }
+    int ans=0;
+    int n=numberlist.size();
+    for(int i=0;i<n;i++){
+        ans=ans*10+numberlist[(i-2+n)%n];
+    }
+    c.inputVariables["密码"]=ans;
+    return c;
+}
+
+DataTestCase makeLevel8Case(int seed){
+    DataTestCase c;
+    using std::rand;
+    std::srand(seed);
+    int n=rand()%1000+1;
+    c.inputVariables["n"]=n;
+    std::vector<double> height;
+    for(int i=0;i<n;i++){
+        height.push_back(rand()%100);
+    }
+    c.inputLists["高度"]=height;
+    std::vector<double> threshold;
+    for(int i=0;i<n;i++){
+        threshold.push_back(rand()%5);
+    }
+    c.inputLists["阈值"]=threshold;
+    int left=0,right=n-1;
+    int leftMax=0,rightMax=0;
+    std::vector<double> ans;
+    while(left<=right){
+        if(leftMax<=rightMax){
+            int risk=std::max(0,leftMax-(int)height[left]);
+            if(risk>threshold[left]){
+                ans.push_back(left+1);
+            }
+            leftMax=std::max(leftMax,(int)height[left]);
+            left++;
+        }
+        else{
+            int risk=std::max(0,rightMax-(int)height[right]);
+            if(risk>threshold[right]){
+                ans.push_back(right+1);
+            }
+            rightMax=std::max(rightMax,(int)height[right]);
+            right--;
+        }
+    }
+    std::sort(ans.begin(),ans.end());
+    c.expectedLists["危险点"]=ans;
+    return c;
+}
+
 void configureMapLevel(int levelNumber){
     constexpr int size=40;
     resetActiveLevel(size,size);
@@ -41,23 +158,64 @@ void configureDataOutputLevel(int levelNumber){
     resetActiveLevel(size,size);
     fillBorderWalls(currentLevel,size);
     currentLevel.setRobotStart(5,5,0);
-
-    DataTestCase c1;
-    c1.inputVariables["a"]=1;
-    c1.inputVariables["b"]=1;
-    c1.expectedVariables["ans"]=2;
-
-    DataTestCase c2;
-    c2.inputVariables["a"]=116;
-    c2.inputVariables["b"]=132;
-    c2.expectedVariables["ans"]=248;
-
-    DataTestCase c3;
-    c3.inputVariables["a"]=1145;
-    c3.inputVariables["b"]=1919;
-    c3.expectedVariables["ans"]=3064;
-
-    currentLevel.setDataOutputCases({c1,c2,c3});
+    std::vector<DataTestCase> cases;
+    if(levelNumber==6){
+        cases.push_back(makeLevel6Case(
+            {7,3},
+            {41,284},
+            2
+        ));
+        cases.push_back(makeLevel6Case(
+            {-1,123,321,598,1001,1,1000,450,40,265},
+            {12,411,410,0,88,1,999,284,-1,120},
+            10
+        ));
+        cases.push_back(makeLevel6Case(
+            {1000,999,1,2,500,501,250,750},
+            {410,409,1,2,250,251,100,300},
+            8
+        ));
+        cases.push_back(makeLevel6Case(
+            {4,4,2,2,3,3,1,1},
+            {80,20,30,10,60,50,40,70},
+            8
+        ));
+        cases.push_back(makeLevel6Case(
+            {0,1001,-1,2000},
+            {1,2,3,4},
+            4
+        ));
+        cases.push_back(makeLevel6Case(
+            {10,20,30,40,50,60},
+            {-1,0,410,999,120,1},
+            6
+        ));
+        cases.push_back(makeGeneratedLevel6Case(7,50));
+        cases.push_back(makeGeneratedLevel6Case(19,120));
+        cases.push_back(makeGeneratedLevel6Case(31,500));
+        cases.push_back(makeGeneratedLevel6Case(43,1000));
+    }
+    if(levelNumber==7){
+        DataTestCase c1;
+        c1.expectedVariables["明文"]=923456;
+        c1.inputVariables["密码"]=529876;
+        cases.push_back(c1);
+        for(int i=0;i<9;i++){
+            cases.push_back(makeLevel7Case(i+13));
+        }
+    }
+    if(levelNumber==8){
+        DataTestCase c1;
+        c1.inputVariables["n"]=5;
+        c1.inputLists["高度"]={4,3,4,1,3};
+        c1.inputLists["阈值"]={0,0,0,1,1};
+        c1.expectedLists["危险点"]={1,3};
+        cases.push_back(c1);
+        for(int i=0;i<9;i++){
+            cases.push_back(makeLevel8Case(i+13));
+        }
+    }
+    currentLevel.setDataOutputCases(cases);
 }
 
 }
@@ -337,7 +495,7 @@ LevelType activeLevelType(){
 
 LevelType defaultLevelTypeForNumber(int levelNumber){
     levelNumber=std::max(MinLevelNumber,std::min(levelNumber,TotalLevelCount));
-    return levelNumber<=10?LevelType::Map:LevelType::DataOutput;
+    return levelNumber>=6&&levelNumber<=8?LevelType::DataOutput:LevelType::Map;
 }
 
 void configureActiveLevel(int levelNumber,LevelType type){

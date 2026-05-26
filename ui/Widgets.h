@@ -14,6 +14,9 @@
 #include <cmath>
 #include <functional>
 
+inline constexpr qreal scrollSliderWidth=18;
+inline constexpr qreal scrollSliderHeight=60;
+
 class Button:public QGraphicsPolygonItem{
 public:
     int type;
@@ -77,6 +80,7 @@ public:
     }
 
     void hoverEnterEvent(QGraphicsSceneHoverEvent* event) override{
+        setCursor(Qt::PointingHandCursor);
         if(scene()!=nullptr&&shadow->scene()==nullptr){
             scene()->addItem(shadow);
         }
@@ -87,6 +91,7 @@ public:
     }
 
     void hoverLeaveEvent(QGraphicsSceneHoverEvent* event) override{
+        unsetCursor();
         shadow->hide();
         event->accept();
     }
@@ -110,11 +115,13 @@ public:
     ScrollSlider(qreal x,qreal y,qreal height,QGraphicsItem* parent=nullptr):
         QGraphicsPolygonItem(parent){
         minY=y;
-        maxY=y+height-40;
+        maxY=y+height-scrollSliderHeight;
         dragOffsetY=0;
         dragging=false;
         QPolygonF shape;
-        shape<<QPointF(0,0)<<QPointF(12,0)<<QPointF(12,40)<<QPointF(0,40);
+        shape<<QPointF(0,0)<<QPointF(scrollSliderWidth,0)
+             <<QPointF(scrollSliderWidth,scrollSliderHeight)
+             <<QPointF(0,scrollSliderHeight);
         setPolygon(shape);
         setBrush(QColor(75,85,99));
         setPen(QPen(Qt::black,1.5));

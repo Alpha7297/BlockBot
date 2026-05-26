@@ -91,3 +91,6 @@ build-run/
 .vscode/
 cache/
 __pycache__/
+origin_images/
+cleared_originimages/
+prompt.md

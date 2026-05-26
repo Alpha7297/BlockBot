@@ -228,6 +228,7 @@ void BlockExecutor::reset(Node firstBlock){
     frames.clear();
     waiting=nullptr;
     waitRemaining=0.0;
+    lastStepConsumedActionStep=false;
 }
 
 bool BlockExecutor::running() const{
@@ -238,7 +239,12 @@ BlockExecutor::Node BlockExecutor::currentNode() const{
     return current;
 }
 
+bool BlockExecutor::didConsumeActionStep() const{
+    return lastStepConsumedActionStep;
+}
+
 bool BlockExecutor::step(const BlockReader& readBlock,RobotActions& actions){
+    lastStepConsumedActionStep=false;
     if(readBlock==nullptr){
         current=nullptr;
         frames.clear();
@@ -334,6 +340,9 @@ bool BlockExecutor::step(const BlockReader& readBlock,RobotActions& actions){
         return true;
     }
 
+    if(block.type==0||block.type==1||block.type==3){
+        lastStepConsumedActionStep=true;
+    }
     executeOne(block.type,block.value,actions);
     current=block.next;
     return true;

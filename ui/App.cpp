@@ -1,4 +1,5 @@
 #include <QApplication>
+#include <QCoreApplication>
 #include <QDir>
 #include <QDialog>
 #include <QDialogButtonBox>
@@ -6,6 +7,7 @@
 #include <QFileInfo>
 #include <QFormLayout>
 #include <QGraphicsRectItem>
+#include <QGraphicsPixmapItem>
 #include <QGraphicsScene>
 #include <QGraphicsView>
 #include <QJsonArray>
@@ -13,12 +15,14 @@
 #include <QJsonObject>
 #include <QKeyEvent>
 #include <QMessageBox>
+#include <QPainter>
 #include <QPen>
 #include <QPoint>
 #include <QGraphicsPolygonItem>
 #include <QGraphicsTextItem>
 #include <QGraphicsSceneMouseEvent>
 #include <QGraphicsSceneHoverEvent>
+#include <QImage>
 #include <QPolygonF>
 #include <QBrush>
 #include <QTimer>
@@ -31,6 +35,7 @@
 #include <QCloseEvent>
 #include <QMainWindow>
 #include <QPushButton>
+#include <QPixmap>
 #include <algorithm>
 #include <cmath>
 #include <functional>
@@ -55,11 +60,16 @@ core::RuntimeState runtimeState;
 QGraphicsScene* appScene = nullptr;
 bool runtimeSkipCurrentBlock=false;
 bool runtimeStopRequested=false;
+bool programRunning=false;
 bool levelTestRunning=false;
 bool levelTestFailed=false;
 int levelTestStepCount=0;
+int levelTestTimeCount=0;
 int levelTestCaseIndex=0;
 int levelTestCaseTotal=1;
+bool runtimeCountersActive=false;
+bool suppressRuntimeFloatStepCount=false;
+bool stageExpanded=false;
 bool contextMenuButtonPressed=false;
 vector<QString> undoCheckpoints;
 int undoCheckpointId=0;
@@ -85,6 +95,24 @@ class ListSizeBlock;
 class PushListBlock;
 class SetListBlock;
 class ClearListBlock;
+
+void recordRuntimeStepUse(){
+    if(runtimeCountersActive){
+        levelTestStepCount++;
+    }
+}
+
+void recordRuntimeTimeUse(){
+    if(runtimeCountersActive){
+        levelTestTimeCount++;
+    }
+}
+
+void recordFloatValueUse(){
+    if(!suppressRuntimeFloatStepCount){
+        recordRuntimeStepUse();
+    }
+}
 void refreshFloatAncestors(FloatBlock* block);
 void refreshAllControlLayouts();
 void refreshVariableToolbox();
@@ -121,7 +149,100 @@ QColor robotCoordColor(){
 }
 
 QColor fileButtonColor(){
-    return QColor(126,70,180);
+    return QColor(92,98,108);
+}
+
+QColor appBackgroundColor(){
+    return QColor(34,38,44);
+}
+
+QColor panelBackgroundColor(){
+    return QColor(45,50,58);
+}
+
+QPixmap loadImageAsset(const QString& fileName){
+    QStringList roots;
+    roots<<QDir::currentPath()
+         <<QCoreApplication::applicationDirPath()
+         <<QDir(QCoreApplication::applicationDirPath()).absoluteFilePath("..")
+         <<QDir(QCoreApplication::applicationDirPath()).absoluteFilePath("../..");
+    for(const QString& root:roots){
+        QString path=QDir(root).filePath(QString("images/%1").arg(fileName));
+        if(QFileInfo::exists(path)){
+            return QPixmap(path);
+        }
+    }
+    return QPixmap();
+}
+
+QPixmap loadPaintingAsset(const QString& fileName){
+    QStringList roots;
+    roots<<QDir::currentPath()
+         <<QCoreApplication::applicationDirPath()
+         <<QDir(QCoreApplication::applicationDirPath()).absoluteFilePath("..")
+         <<QDir(QCoreApplication::applicationDirPath()).absoluteFilePath("../..");
+    for(const QString& root:roots){
+        QString path=QDir(root).filePath(QString("painting/%1").arg(fileName));
+        if(QFileInfo::exists(path)){
+            return QPixmap(path);
+        }
+    }
+    return QPixmap();
+}
+
+qreal scaledAssetHeight(const QString& fileName,qreal targetWidth,qreal fallbackHeight){
+    QPixmap pixmap=loadImageAsset(fileName);
+    if(pixmap.isNull()||pixmap.width()<=0){
+        return fallbackHeight;
+    }
+    return std::round(targetWidth*pixmap.height()/double(pixmap.width()));
+}
+
+QPixmap trimTransparentPixmap(const QPixmap& pixmap){
+    if(pixmap.isNull()){
+        return pixmap;
+    }
+    QImage image=pixmap.toImage().convertToFormat(QImage::Format_ARGB32);
+    int minX=image.width();
+    int minY=image.height();
+    int maxX=-1;
+    int maxY=-1;
+    for(int y=0;y<image.height();y++){
+        const QRgb* line=reinterpret_cast<const QRgb*>(image.constScanLine(y));
+        for(int x=0;x<image.width();x++){
+            if(qAlpha(line[x])>10){
+                minX=std::min(minX,x);
+                minY=std::min(minY,y);
+                maxX=std::max(maxX,x);
+                maxY=std::max(maxY,y);
+            }
+        }
+    }
+    if(maxX<minX||maxY<minY){
+        return pixmap;
+    }
+    return pixmap.copy(QRect(minX,minY,maxX-minX+1,maxY-minY+1));
+}
+
+void addHeaderLogo(QGraphicsScene& scene){
+    QPixmap logoPixmap=trimTransparentPixmap(loadImageAsset("logo-flatten.png"));
+    if(!logoPixmap.isNull()){
+        constexpr int logoHeight=48;
+        int logoWidth=int(std::round(double(logoPixmap.width())*logoHeight/logoPixmap.height()));
+        QGraphicsPixmapItem* logoImage=scene.addPixmap(
+            logoPixmap.scaled(logoWidth,logoHeight,Qt::KeepAspectRatio,Qt::SmoothTransformation)
+        );
+        logoImage->setPos(24,16);
+        logoImage->setZValue(topUiZ+1);
+        logoImage->setAcceptedMouseButtons(Qt::NoButton);
+        return;
+    }
+
+    QGraphicsTextItem* logoText=scene.addText("BlockBot:Factory");
+    logoText->setDefaultTextColor(Qt::white);
+    logoText->setPos(24,27);
+    logoText->setZValue(topUiZ+1);
+    logoText->setAcceptedMouseButtons(Qt::NoButton);
 }
 
 QString archiveDirectoryPath(){
@@ -187,16 +308,25 @@ public:
 class TextButton:public QGraphicsPolygonItem{
 public:
     QGraphicsTextItem* text;
+    QGraphicsPixmapItem* texture;
+    QPixmap texturePixmap;
+    qreal buttonWidth;
+    qreal buttonHeight;
     std::function<void()> onClick;
 
     TextButton(QString label,QGraphicsItem* parent=nullptr):QGraphicsPolygonItem(parent){
+        texture=nullptr;
+        buttonWidth=0;
+        buttonHeight=0;
         text=new QGraphicsTextItem(label,this);
         text->document()->setDocumentMargin(0);
         text->setDefaultTextColor(Qt::white);
         text->setAcceptedMouseButtons(Qt::NoButton);
+        text->setZValue(2);
         refreshShape();
         setBrush(QColor(80,120,170));
         setPen(QPen(Qt::black,1.5));
+        setAcceptHoverEvents(true);
         setAcceptedMouseButtons(Qt::LeftButton);
     }
 
@@ -204,17 +334,72 @@ public:
         QRectF rect=text->boundingRect();
         qreal width=rect.width()+20;
         qreal height=rect.height()+10;
+        buttonWidth=width;
+        buttonHeight=height;
         QPolygonF shape;
         shape<<QPointF(0,0)<<QPointF(width,0)
              <<QPointF(width,height)<<QPointF(0,height);
         setPolygon(shape);
         text->setPos(10,5);
+        refreshTexture();
+    }
+
+    void setFixedSize(qreal width,qreal height){
+        buttonWidth=width;
+        buttonHeight=height;
+        QPolygonF shape;
+        shape<<QPointF(0,0)<<QPointF(width,0)
+             <<QPointF(width,height)<<QPointF(0,height);
+        setPolygon(shape);
+        QRectF rect=text->boundingRect();
+        text->setPos((width-rect.width())/2,(height-rect.height())/2);
+        refreshTexture();
+    }
+
+    void setTexture(const QString& fileName){
+        QPixmap pixmap=loadImageAsset(fileName);
+        if(pixmap.isNull()){
+            return;
+        }
+        texturePixmap=pixmap;
+        if(texture==nullptr){
+            texture=new QGraphicsPixmapItem(this);
+            texture->setAcceptedMouseButtons(Qt::NoButton);
+            texture->setZValue(1);
+        }
+        text->show();
+        setBrush(Qt::NoBrush);
+        setPen(Qt::NoPen);
+        refreshTexture();
+    }
+
+    void refreshTexture(){
+        if(texture==nullptr||texturePixmap.isNull()||buttonWidth<=0||buttonHeight<=0){
+            return;
+        }
+        texture->setPixmap(texturePixmap.scaled(
+            int(buttonWidth),
+            int(buttonHeight),
+            Qt::IgnoreAspectRatio,
+            Qt::SmoothTransformation
+        ));
+        texture->setPos(0,0);
     }
 
     void mousePressEvent(QGraphicsSceneMouseEvent* event) override{
         if(onClick){
             onClick();
         }
+        event->accept();
+    }
+
+    void hoverEnterEvent(QGraphicsSceneHoverEvent* event) override{
+        setCursor(Qt::PointingHandCursor);
+        event->accept();
+    }
+
+    void hoverLeaveEvent(QGraphicsSceneHoverEvent* event) override{
+        unsetCursor();
         event->accept();
     }
 };
@@ -383,6 +568,7 @@ public:
         return false;
     }
     virtual double getValue() const{
+        recordFloatValueUse();
         return data;
     }
     virtual void editValue(){
@@ -458,6 +644,7 @@ public:
     }
 
     double getValue() const override{
+        recordFloatValueUse();
         double value=0.0;
         std::string name=variableName.toStdString();
         if(!runtimeState.getVariable(name,&value)){
@@ -529,6 +716,7 @@ public:
         return true;
     }
     double getValue() const override{
+        recordFloatValueUse();
         double val=slot->getValue();
         if(type==0){
             return checkedDoubleResult(std::sin(val),"sin");
@@ -629,6 +817,7 @@ public:
         return true;
     }
     double getValue() const override{
+        recordFloatValueUse();
         double a=left->getValue();
         double b=right->getValue();
         if(type==0){
@@ -1012,6 +1201,7 @@ public:
     }
 
     double getValue() const override{
+        recordFloatValueUse();
         std::string name=listName.toStdString();
         if(!runtimeState.hasList(name)){
             QByteArray bytes=listName.toUtf8();
@@ -1019,11 +1209,12 @@ public:
             runtimeStopRequested=true;
             return 0.0;
         }
-        int idx=static_cast<int>(std::floor(index->getValue()));
+        int userIndex=static_cast<int>(std::floor(index->getValue()));
+        int idx=userIndex-1;
         double value=0.0;
         if(!runtimeState.getListValue(name,idx,&value)){
             QByteArray bytes=listName.toUtf8();
-            message::listIndexOutOfRange(bytes.constData(),idx);
+            message::listIndexOutOfRange(bytes.constData(),userIndex);
             runtimeStopRequested=true;
             return 0.0;
         }
@@ -1112,6 +1303,7 @@ public:
     }
 
     double getValue() const override{
+        recordFloatValueUse();
         std::string name=listName.toStdString();
         int size=runtimeState.listSize(name);
         if(size<0){
@@ -1528,6 +1720,7 @@ public:
     }
 
     double getValue() const override{
+        recordFloatValueUse();
         return customParameterValue(customName);
     }
 
@@ -1741,30 +1934,70 @@ const T min(const T a,const T b){
 
 extern int mapdata[screensize][screensize];
 
-class Robot:public QGraphicsPolygonItem{
+class Robot:public QGraphicsPixmapItem{
 public:
     int gridx;
     int gridy;
     int direction;
-    Robot(QGraphicsItem * parent=nullptr):QGraphicsPolygonItem(parent){
-        QPolygonF shape;
-        shape<<QPointF(2,2)<<QPointF(6,4)<<QPointF(2,6);
-        setPolygon(shape);
-        setBrush(Qt::green);
-        setPen(Qt::NoPen);
+    QPixmap directionSprites[4];
+    int currentCellSize;
+
+    Robot(QGraphicsItem * parent=nullptr):QGraphicsPixmapItem(parent){
+        directionSprites[0]=trimTransparentPixmap(loadPaintingAsset("right.png"));
+        directionSprites[1]=trimTransparentPixmap(loadPaintingAsset("back.png"));
+        directionSprites[2]=trimTransparentPixmap(loadPaintingAsset("left.png"));
+        directionSprites[3]=trimTransparentPixmap(loadPaintingAsset("straight.png"));
         gridx=0;
         gridy=0;
         direction=0;
-        setTransformOriginPoint(4,4);
-        setRotation(direction*90);
+        currentCellSize=squaresize;
+        setTransformationMode(Qt::SmoothTransformation);
+        setAcceptedMouseButtons(Qt::NoButton);
+        refreshSprite(currentCellSize);
     }
+
+    QPixmap fallbackSprite(int cellSize) const{
+        QPixmap pixmap(cellSize,cellSize);
+        pixmap.fill(Qt::transparent);
+        QPainter painter(&pixmap);
+        painter.setRenderHint(QPainter::Antialiasing,true);
+        painter.setBrush(QColor(48,180,70));
+        painter.setPen(Qt::NoPen);
+        qreal pad=cellSize*0.22;
+        QPolygonF shape;
+        if(direction==0){
+            shape<<QPointF(pad,pad)<<QPointF(cellSize-pad,cellSize/2.0)<<QPointF(pad,cellSize-pad);
+        }
+        else if(direction==1){
+            shape<<QPointF(pad,pad)<<QPointF(cellSize-pad,pad)<<QPointF(cellSize/2.0,cellSize-pad);
+        }
+        else if(direction==2){
+            shape<<QPointF(cellSize-pad,pad)<<QPointF(pad,cellSize/2.0)<<QPointF(cellSize-pad,cellSize-pad);
+        }
+        else{
+            shape<<QPointF(pad,cellSize-pad)<<QPointF(cellSize-pad,cellSize-pad)<<QPointF(cellSize/2.0,pad);
+        }
+        painter.drawPolygon(shape);
+        return pixmap;
+    }
+
+    void refreshSprite(int cellSize){
+        currentCellSize=cellSize;
+        QPixmap sprite=directionSprites[direction];
+        QPixmap scaled=sprite.isNull()
+            ?fallbackSprite(cellSize)
+            :sprite.scaled(cellSize,cellSize,Qt::KeepAspectRatio,Qt::SmoothTransformation);
+        setPixmap(scaled);
+        setOffset((cellSize-scaled.width())/2.0,(cellSize-scaled.height())/2.0);
+    }
+
     void turnLeft(){
         direction=(direction+3)%4;
-        setRotation(direction*90);
+        refreshSprite(currentCellSize);
     }
     void turnRight(){
         direction=(direction+1)%4;
-        setRotation(direction*90);
+        refreshSprite(currentCellSize);
     }
     void moveForward(int step){
         if(step==0){
@@ -1802,7 +2035,7 @@ public:
     }
     void SyncCell(int cellSize,QPoint offset){
         setPos(gridx*cellSize+offset.x(),gridy*cellSize+offset.y());
-        setRotation(direction*90);
+        refreshSprite(cellSize);
     }
 };
 
@@ -1846,6 +2079,7 @@ public:
     }
 
     double getValue() const override{
+        recordFloatValueUse();
         if(player==nullptr){
             return 0.0;
         }
@@ -1877,6 +2111,7 @@ public:
     }
 
     double getValue() const override{
+        recordFloatValueUse();
         return frontMapType();
     }
 
@@ -1963,9 +2198,10 @@ public:
             runtimeStopRequested=true;
             return;
         }
-        int idx=static_cast<int>(std::floor(index));
+        int userIndex=static_cast<int>(std::floor(index));
+        int idx=userIndex-1;
         if(!runtimeState.setListValue(name,idx,value)){
-            message::listIndexOutOfRange(bytes.constData(),idx);
+            message::listIndexOutOfRange(bytes.constData(),userIndex);
             runtimeStopRequested=true;
             return;
         }
@@ -2015,9 +2251,16 @@ QGraphicsRectItem* workspaceBackground;
 QGraphicsRectItem* squares[screensize][screensize];
 Button* runButton=nullptr;
 Button* fastRunButton=nullptr;
+TextButton* runTextButton=nullptr;
 Button* activeRunButton=nullptr;
 TextButton* testButton=nullptr;
+TextButton* fullscreenButton=nullptr;
+TextButton* shrinkStageButton=nullptr;
+QGraphicsPixmapItem* informationImage=nullptr;
+QGraphicsRectItem* informationFallbackBox=nullptr;
+QGraphicsRectItem* fullscreenBackdrop=nullptr;
 QGraphicsTextItem* testStatusText=nullptr;
+QGraphicsTextItem* timeStatusText=nullptr;
 TextButton* createVariableButton=nullptr;
 TextButton* createListButton=nullptr;
 TextButton* createCustomBlockButton=nullptr;
@@ -2058,9 +2301,175 @@ double customParameterValue(const QString& customName){
     }
     return it->second.back();
 }
+
+int stageDisplaySize(){
+    return stageExpanded?720:stagePixelSize;
+}
+
+QPoint stageDisplayOrigin(){
+    return stageExpanded?QPoint((appWidth-stageDisplaySize())/2,10):QPoint(stageX,stageY);
+}
+
+int stageDisplayCellSize(){
+    return stageDisplaySize()/screensize;
+}
+
+QRectF informationRect(){
+    QPoint origin=stageDisplayOrigin();
+    int y=stageExpanded?origin.y()+stageDisplaySize()+10:460;
+    int infoWidth=320;
+    int infoHeight=107;
+    QPixmap pixmap=loadImageAsset("information.png");
+    if(stageExpanded){
+        infoHeight=80;
+        infoWidth=int(std::round(double(infoHeight)*320.0/107.0));
+        if(!pixmap.isNull()&&pixmap.height()>0){
+            infoWidth=int(std::round(double(infoHeight)*pixmap.width()/pixmap.height()));
+        }
+    }
+    else{
+        infoWidth=320;
+        if(!pixmap.isNull()&&pixmap.width()>0){
+            infoHeight=int(std::round(double(infoWidth)*pixmap.height()/pixmap.width()));
+        }
+    }
+    int x=stageExpanded?origin.x()+(stageDisplaySize()-infoWidth)/2:10;
+    return QRectF(x,y,infoWidth,infoHeight);
+}
+
+void updateInformationGeometry(){
+    QRectF rect=informationRect();
+    qreal z=stageExpanded?panelMaskZ+100030:20;
+    QPixmap pixmap=loadImageAsset("information.png");
+    if(informationImage!=nullptr&&!pixmap.isNull()){
+        informationImage->setPixmap(pixmap.scaled(
+            int(rect.width()),
+            int(rect.height()),
+            Qt::KeepAspectRatio,
+            Qt::SmoothTransformation
+        ));
+        informationImage->setPos(rect.topLeft());
+        informationImage->setZValue(z);
+    }
+    if(informationFallbackBox!=nullptr){
+        informationFallbackBox->setRect(rect);
+        informationFallbackBox->setZValue(z);
+    }
+    if(testStatusText!=nullptr){
+        qreal scale=rect.height()/107.0;
+        testStatusText->setFont(QFont("Arial",std::max(8,int(std::round(20*scale))),QFont::Bold));
+        testStatusText->setTextWidth(70*scale);
+        testStatusText->setPos(rect.left()+72*scale,rect.top()+34*scale);
+        testStatusText->setZValue(z+1);
+    }
+    if(timeStatusText!=nullptr){
+        qreal scale=rect.height()/107.0;
+        timeStatusText->setFont(QFont("Arial",std::max(8,int(std::round(20*scale))),QFont::Bold));
+        timeStatusText->setTextWidth(70*scale);
+        timeStatusText->setPos(rect.left()+225*scale,rect.top()+34*scale);
+        timeStatusText->setZValue(z+1);
+    }
+}
+
+void updateStageGeometry(){
+    if(stage==nullptr){
+        return;
+    }
+    QPoint origin=stageDisplayOrigin();
+    int size=stageDisplaySize();
+    int cellSize=stageDisplayCellSize();
+    qreal baseZ=stageExpanded?panelMaskZ+100010:0;
+
+    stage->setRect(origin.x(),origin.y(),size,size);
+    stage->setZValue(baseZ);
+
+    QPixmap floorPixmap=loadImageAsset("floor.png");
+    QPixmap boxPixmap=loadImageAsset("box.png");
+    QBrush floorBrush(Qt::gray);
+    QBrush boxBrush(QColor(126,76,36));
+    if(!floorPixmap.isNull()){
+        floorBrush=QBrush(floorPixmap.scaled(
+            cellSize,
+            cellSize,
+            Qt::IgnoreAspectRatio,
+            Qt::SmoothTransformation
+        ));
+    }
+    if(!boxPixmap.isNull()){
+        boxBrush=QBrush(boxPixmap.scaled(
+            cellSize,
+            cellSize,
+            Qt::IgnoreAspectRatio,
+            Qt::SmoothTransformation
+        ));
+    }
+    for(int i=0;i<screensize;i++){
+        for(int j=0;j<screensize;j++){
+            if(squares[i][j]==nullptr){
+                continue;
+            }
+            squares[i][j]->setRect(0,0,cellSize,cellSize);
+            if(mapdata[i][j]==level::CellWall){
+                squares[i][j]->setBrush(boxBrush);
+            }
+            else if(mapdata[i][j]==level::CellTrap){
+                squares[i][j]->setBrush(QColor(178,48,48));
+            }
+            else{
+                squares[i][j]->setBrush(floorBrush);
+            }
+            squares[i][j]->setPos(origin.x()+i*cellSize,origin.y()+j*cellSize);
+            squares[i][j]->setZValue(baseZ+1);
+        }
+    }
+    if(player!=nullptr){
+        player->setZValue(baseZ+10);
+        player->SyncCell(cellSize,origin);
+    }
+}
+
+void setStageExpanded(bool expanded){
+    stageExpanded=expanded;
+    if(fullscreenBackdrop==nullptr&&appScene!=nullptr){
+        fullscreenBackdrop=appScene->addRect(0,0,appWidth,appHeight);
+        fullscreenBackdrop->setBrush(panelBackgroundColor());
+        fullscreenBackdrop->setPen(Qt::NoPen);
+        fullscreenBackdrop->setAcceptedMouseButtons(Qt::LeftButton);
+    }
+    if(fullscreenBackdrop!=nullptr){
+        fullscreenBackdrop->setVisible(stageExpanded);
+        fullscreenBackdrop->setRect(0,0,appWidth,appHeight);
+        fullscreenBackdrop->setZValue(panelMaskZ+100000);
+    }
+    updateStageGeometry();
+    updateInformationGeometry();
+    if(fullscreenButton!=nullptr){
+        fullscreenButton->setVisible(!stageExpanded);
+    }
+    if(shrinkStageButton!=nullptr){
+        shrinkStageButton->setVisible(stageExpanded);
+        shrinkStageButton->setZValue(panelMaskZ+100040);
+        shrinkStageButton->setPos(informationRect().right()+20,informationRect().top());
+    }
+    if(appScene!=nullptr){
+        appScene->setSceneRect(0,0,appWidth,appHeight);
+        for(QGraphicsView* view:appScene->views()){
+            if(stageExpanded){
+                view->showNormal();
+                view->setFixedSize(appWidth,appHeight);
+            }
+            else{
+                view->showNormal();
+                view->setFixedSize(appWidth,appHeight);
+            }
+        }
+    }
+}
+
 void drawStage(QGraphicsScene& scene);
 void drawToolbox(QGraphicsScene& scene);
 void drawWorkspace(QGraphicsScene& scene);
+void updateTestStatusText();
 void finishLevelTest(bool forcedFail,const QString& message=QString());
 void resetRunButtons();
 core::BlockExecutor::BlockSnapshot readRuntimeBlock(core::BlockExecutor::Node node);
@@ -2068,7 +2477,7 @@ AppGraphicsView::AppGraphicsView(QGraphicsScene* scene):QGraphicsView(scene)
 {
     appScene=scene;
     QGraphicsRectItem* background=scene->addRect(-10000,-10000,20000,20000);
-    background->setBrush(Qt::white);
+    background->setBrush(appBackgroundColor());
     background->setPen(Qt::NoPen);
     background->setZValue(-100000);
     drawStage(*scene);
@@ -2078,7 +2487,6 @@ AppGraphicsView::AppGraphicsView(QGraphicsScene* scene):QGraphicsView(scene)
     saveUndoCheckpoint();
 
     timerPtr=new QTimer(this);
-    QPoint stageoffset(stageX,stageY);
     executorPtr=new core::BlockExecutor();
     RobotActionAdapter* robotActions=new RobotActionAdapter(player);
     QObject::connect(this,&QObject::destroyed,this,[robotActions](){
@@ -2087,7 +2495,7 @@ AppGraphicsView::AppGraphicsView(QGraphicsScene* scene):QGraphicsView(scene)
         executorPtr=nullptr;
         timerPtr=nullptr;
     });
-    QObject::connect(timerPtr,&QTimer::timeout,this,[robotActions,stageoffset](){
+    QObject::connect(timerPtr,&QTimer::timeout,this,[robotActions](){
         if(executorPtr==nullptr||timerPtr==nullptr){
             return;
         }
@@ -2097,25 +2505,30 @@ AppGraphicsView::AppGraphicsView(QGraphicsScene* scene):QGraphicsView(scene)
                 finishLevelTest(false);
                 return;
             }
+            programRunning=false;
+            runtimeCountersActive=false;
             resetRunButtons();
             return;
         }
 
         bool stepped=executorPtr->step(readRuntimeBlock,*robotActions);
+        if(executorPtr->didConsumeActionStep()){
+            recordRuntimeTimeUse();
+        }
+        updateTestStatusText();
         if(levelTestRunning){
-            levelTestStepCount++;
             if(levelTestStepCount>levelTestStepLimit){
-                player->SyncCell(squaresize,stageoffset);
+                player->SyncCell(stageDisplayCellSize(),stageDisplayOrigin());
                 double seconds=levelTestStepLimit*level::activeTestIntervalMs()/1000.0;
                 finishLevelTest(true,
-                                QString("测试失败，运行 %1 步 %2 秒，已超时")
-                                    .arg(levelTestStepLimit)
-                                    .arg(seconds,0,'g',4));
+                    QString("测试失败，执行 %1 次 %2 秒，已超时")
+                        .arg(levelTestStepLimit)
+                        .arg(seconds,0,'g',4));
                 return;
             }
         }
         if(runtimeStopRequested){
-            player->SyncCell(squaresize,stageoffset);
+            player->SyncCell(stageDisplayCellSize(),stageDisplayOrigin());
             executorPtr->reset(nullptr);
             runningBlock=nullptr;
             timerPtr->stop();
@@ -2123,11 +2536,13 @@ AppGraphicsView::AppGraphicsView(QGraphicsScene* scene):QGraphicsView(scene)
                 finishLevelTest(true);
                 return;
             }
+            programRunning=false;
+            runtimeCountersActive=false;
             resetRunButtons();
             return;
         }
 
-        player->SyncCell(squaresize,stageoffset);
+        player->SyncCell(stageDisplayCellSize(),stageDisplayOrigin());
         runningBlock=static_cast<CodeBlock*>(executorPtr->currentNode());
 
         if(!stepped||!executorPtr->running()){
@@ -2137,6 +2552,8 @@ AppGraphicsView::AppGraphicsView(QGraphicsScene* scene):QGraphicsView(scene)
                 finishLevelTest(!stepped);
                 return;
             }
+            programRunning=false;
+            runtimeCountersActive=false;
             resetRunButtons();
         }
     });
@@ -3534,7 +3951,11 @@ double codeBlockFloatValue(CodeBlock* block){
     }
     ControlCodeBlock* controlBlock=dynamic_cast<ControlCodeBlock*>(block);
     if(controlBlock!=nullptr&&controlBlock->condition!=nullptr){
-        return controlBlock->condition->getValue();
+        bool previousSuppress=suppressRuntimeFloatStepCount;
+        suppressRuntimeFloatStepCount=true;
+        double value=controlBlock->condition->getValue();
+        suppressRuntimeFloatStepCount=previousSuppress;
+        return value;
     }
     return 0.0;
 }
@@ -3545,6 +3966,7 @@ core::BlockExecutor::BlockSnapshot readRuntimeBlock(core::BlockExecutor::Node no
     if(block==nullptr){
         return snapshot;
     }
+    recordRuntimeStepUse();
     snapshot.type=block->type;
     runtimeSkipCurrentBlock=false;
     snapshot.value=codeBlockFloatValue(block);
@@ -3580,7 +4002,7 @@ core::BlockExecutor::BlockSnapshot readRuntimeBlock(core::BlockExecutor::Node no
         snapshot.customName=customCall->customName.toStdString();
         auto it=customHatBlocks.find(customCall->customName);
         if(it!=customHatBlocks.end()&&it->second!=nullptr){
-            snapshot.callTarget=it->second->next;
+            snapshot.callTarget=it->second;
         }
     }
     OutputBlock* outputBlock=dynamic_cast<OutputBlock*>(block);
@@ -5151,22 +5573,19 @@ level::TestContext currentLevelTestContext(){
 }
 
 void updateTestStatusText(){
-    if(testStatusText==nullptr){
-        return;
+    if(testStatusText!=nullptr){
+        testStatusText->setPlainText(QString::number(levelTestStepCount));
     }
-    if(!levelTestRunning){
-        testStatusText->setPlainText("");
-        return;
+    if(timeStatusText!=nullptr){
+        timeStatusText->setPlainText(QString::number(levelTestTimeCount));
     }
-    testStatusText->setPlainText(
-        QString("running on case %1").arg(levelTestCaseIndex+1)
-    );
 }
 
 void finishLevelTest(bool forcedFail,const QString& message){
     if(timerPtr!=nullptr){
         timerPtr->stop();
     }
+    runtimeCountersActive=false;
     if(executorPtr!=nullptr){
         executorPtr->reset(nullptr);
     }
@@ -5205,6 +5624,7 @@ void finishLevelTest(bool forcedFail,const QString& message){
 }
 
 void beginLevelTestCase(int index){
+    programRunning=true;
     resetRobot();
     runtimeState.resetAll();
     level::prepareActiveTestCase(index,runtimeState);
@@ -5212,6 +5632,8 @@ void beginLevelTestCase(int index){
     runtimeStopRequested=false;
     levelTestFailed=false;
     levelTestStepCount=0;
+    levelTestTimeCount=0;
+    runtimeCountersActive=true;
     updateTestStatusText();
     if(currentStartBlock==nullptr||currentStartBlock->next==nullptr){
         finishLevelTest(true,"测试失败，缺少开始积木块");
@@ -5332,10 +5754,15 @@ void resetRobot(){
     player->gridx=std::max(0,std::min(start.x,screensize-1));
     player->gridy=std::max(0,std::min(start.y,screensize-1));
     player->direction=((start.direction%4)+4)%4;
-    player->SyncCell(squaresize,QPoint(stageX,stageY));
+    player->SyncCell(stageDisplayCellSize(),stageDisplayOrigin());
 }
 
 void resetRunButtons(){
+    programRunning=false;
+    if(runTextButton!=nullptr){
+        runTextButton->text->setPlainText("运行");
+        runTextButton->setTexture("run.png");
+    }
     if(runButton!=nullptr){
         runButton->setPlayShape();
     }
@@ -5346,10 +5773,13 @@ void resetRunButtons(){
 }
 
 void stopProgram(){
+    programRunning=false;
     runtimeStopRequested=true;
     levelTestRunning=false;
     levelTestFailed=false;
     levelTestStepCount=0;
+    levelTestTimeCount=0;
+    runtimeCountersActive=false;
     levelTestCaseIndex=0;
     levelTestCaseTotal=1;
     updateTestStatusText();
@@ -5365,7 +5795,7 @@ void stopProgram(){
 }
 
 void startProgram(Button* button,int intervalMs){
-    if(activeRunButton!=nullptr){
+    if(programRunning||activeRunButton!=nullptr){
         stopProgram();
     }
     resetRobot();
@@ -5374,9 +5804,19 @@ void startProgram(Button* button,int intervalMs){
     customParameterStacks.clear();
     runtimeStopRequested=false;
     levelTestFailed=false;
+    levelTestStepCount=0;
+    levelTestTimeCount=0;
+    runtimeCountersActive=true;
+    updateTestStatusText();
     if(currentStartBlock==nullptr||currentStartBlock->next==nullptr){
         resetRunButtons();
         return;
+    }
+    programRunning=true;
+    if(runTextButton!=nullptr){
+        runTextButton->text->setPlainText("运行中");
+        runTextButton->refreshShape();
+        runTextButton->setFixedSize(150,scaledAssetHeight("run.png",150,40));
     }
     runningBlock=currentStartBlock->next;
     if(executorPtr!=nullptr){
@@ -5401,65 +5841,164 @@ void toggleProgram(Button* button,int intervalMs){
 }
 
 void drawStage(QGraphicsScene& scene){
-    stage=scene.addRect(stageX,stageY,stagePixelSize,stagePixelSize);
-    stage->setBrush(Qt::white);
+    QPixmap titleBarPixmap=loadImageAsset("title_bar.png");
+    if(!titleBarPixmap.isNull()){
+        QGraphicsPixmapItem* titleBarImage=scene.addPixmap(
+            titleBarPixmap.scaled(1040,60,Qt::IgnoreAspectRatio,Qt::SmoothTransformation)
+        );
+        titleBarImage->setPos(10,10);
+        titleBarImage->setZValue(topUiZ);
+    }
+    else{
+        QGraphicsRectItem* logoPlaceholder=scene.addRect(10,10,1040,60);
+        logoPlaceholder->setBrush(QColor(38,44,52));
+        logoPlaceholder->setPen(QPen(QColor(90,100,112),1.5));
+        logoPlaceholder->setZValue(topUiZ);
+    }
+    addHeaderLogo(scene);
 
-    int squaresize=stagePixelSize/screensize;
+    QPoint stageOrigin=stageDisplayOrigin();
+    int stageSize=stageDisplaySize();
+    stage=scene.addRect(stageOrigin.x(),stageOrigin.y(),stageSize,stageSize);
+    stage->setBrush(Qt::white);
+    stage->setPen(Qt::NoPen);
+
+    int cellSize=stageDisplayCellSize();
+    QPixmap floorPixmap=loadImageAsset("floor.png");
+    QPixmap boxPixmap=loadImageAsset("box.png");
+    QBrush floorBrush(Qt::gray);
+    QBrush boxBrush(QColor(126,76,36));
+    if(!floorPixmap.isNull()){
+        floorBrush=QBrush(floorPixmap.scaled(
+            cellSize,
+            cellSize,
+            Qt::IgnoreAspectRatio,
+            Qt::SmoothTransformation
+        ));
+    }
+    if(!boxPixmap.isNull()){
+        boxBrush=QBrush(boxPixmap.scaled(
+            cellSize,
+            cellSize,
+            Qt::IgnoreAspectRatio,
+            Qt::SmoothTransformation
+        ));
+    }
     for(int i=0;i<screensize;i++){
         for(int j=0;j<screensize;j++){
-            squares[i][j]=scene.addRect(0,0,squaresize,squaresize);
+            squares[i][j]=scene.addRect(0,0,cellSize,cellSize);
             if(mapdata[i][j]==level::CellWall){
-                squares[i][j]->setBrush(QColor(126,76,36));
+                squares[i][j]->setBrush(boxBrush);
             }
             else if(mapdata[i][j]==level::CellTrap){
                 squares[i][j]->setBrush(QColor(178,48,48));
             }
             else{
-                squares[i][j]->setBrush(Qt::gray);
+                squares[i][j]->setBrush(floorBrush);
             }
-            squares[i][j]->setPos(stageX+i*squaresize,stageY+j*squaresize);
+            squares[i][j]->setPos(stageOrigin.x()+i*cellSize,stageOrigin.y()+j*cellSize);
         }
     }
     resetRobot();
     player->setZValue(10);
     scene.addItem(player);
-    runButton=new Button(0,"");
-    runButton->setPlayShape();
-    runButton->setPos(320,360);
-    runButton->setZValue(20);
-    runButton->onClick = [](){
-        toggleProgram(runButton,300);
-    };
-    scene.addItem(runButton);
+    updateStageGeometry();
+    runButton=nullptr;
+    fastRunButton=nullptr;
 
-    fastRunButton=new Button(1,"");
-    fastRunButton->setLightningShape();
-    fastRunButton->setPos(320,384);
-    fastRunButton->setZValue(20);
-    fastRunButton->onClick=[](){
-        toggleProgram(fastRunButton,40);
+    runTextButton=new TextButton("运行");
+    runTextButton->setPos(15,410);
+    runTextButton->setFixedSize(150,scaledAssetHeight("run.png",150,40));
+    runTextButton->setBrush(QColor(44,135,82));
+    runTextButton->setTexture("run.png");
+    runTextButton->setZValue(20);
+    runTextButton->onClick=[](){
+        startProgram(nullptr,300);
     };
-    scene.addItem(fastRunButton);
+    scene.addItem(runTextButton);
 
-    testButton=new TextButton("测试");
-    testButton->setPos(260,360);
-    testButton->setBrush(QColor(70,80,96));
-    testButton->setZValue(20);
-    testButton->onClick=[](){
-        startLevelTestRun();
+    TextButton* stopTextButton=new TextButton("停止");
+    stopTextButton->setPos(175,410);
+    stopTextButton->setFixedSize(150,scaledAssetHeight("stop.png",150,40));
+    stopTextButton->setBrush(QColor(180,48,48));
+    stopTextButton->setTexture("stop.png");
+    stopTextButton->setZValue(20);
+    stopTextButton->onClick=[](){
+        stopProgram();
     };
-    scene.addItem(testButton);
+    scene.addItem(stopTextButton);
+
+    fullscreenButton=new TextButton("全");
+    fullscreenButton->setPos(260,577);
+    fullscreenButton->setFixedSize(60,60);
+    fullscreenButton->setBrush(fileButtonColor());
+    fullscreenButton->setTexture("larger.png");
+    fullscreenButton->text->hide();
+    fullscreenButton->setZValue(20);
+    fullscreenButton->onClick=[](){
+        setStageExpanded(true);
+        if(!programRunning){
+            startProgram(nullptr,300);
+        }
+    };
+    scene.addItem(fullscreenButton);
+
+    shrinkStageButton=new TextButton("缩");
+    shrinkStageButton->setFixedSize(60,60);
+    shrinkStageButton->setBrush(fileButtonColor());
+    shrinkStageButton->setTexture("smaller.png");
+    shrinkStageButton->text->hide();
+    shrinkStageButton->setVisible(false);
+    shrinkStageButton->onClick=[](){
+        setStageExpanded(false);
+    };
+    scene.addItem(shrinkStageButton);
+
+    QPixmap informationPixmap=loadImageAsset("information.png");
+    if(!informationPixmap.isNull()){
+        constexpr int infoWidth=320;
+        int infoHeight=int(std::round(double(informationPixmap.height())*infoWidth/informationPixmap.width()));
+        informationImage=scene.addPixmap(
+            informationPixmap.scaled(infoWidth,infoHeight,Qt::KeepAspectRatio,Qt::SmoothTransformation)
+        );
+        informationImage->setPos(10,460);
+        informationImage->setZValue(20);
+    }
+    else{
+        informationFallbackBox=scene.addRect(10,460,320,107);
+        informationFallbackBox->setBrush(QColor(230,233,238));
+        informationFallbackBox->setPen(QPen(QColor(90,100,112),1.5));
+        informationFallbackBox->setZValue(20);
+    }
+
+    testButton=nullptr;
     testStatusText=new QGraphicsTextItem();
     testStatusText->document()->setDocumentMargin(0);
-    testStatusText->setDefaultTextColor(QColor(70,80,96));
-    testStatusText->setPos(230,390);
-    testStatusText->setZValue(20);
+    testStatusText->setDefaultTextColor(QColor(255,255,255));
+    testStatusText->setFont(QFont("Arial",20,QFont::Bold));
+    testStatusText->setTextWidth(70);
+    testStatusText->setPos(82,494);
+    testStatusText->setZValue(21);
     testStatusText->setAcceptedMouseButtons(Qt::NoButton);
     scene.addItem(testStatusText);
 
+    timeStatusText=new QGraphicsTextItem();
+    timeStatusText->document()->setDocumentMargin(0);
+    timeStatusText->setDefaultTextColor(QColor(255,255,255));
+    timeStatusText->setFont(QFont("Arial",20,QFont::Bold));
+    timeStatusText->setTextWidth(70);
+    timeStatusText->setPos(235,494);
+    timeStatusText->setZValue(21);
+    timeStatusText->setAcceptedMouseButtons(Qt::NoButton);
+    scene.addItem(timeStatusText);
+    updateInformationGeometry();
+    updateTestStatusText();
+
     createVariableButton=new TextButton("创建新变量");
-    createVariableButton->setPos(20,360);
+    createVariableButton->setPos(10,577);
+    createVariableButton->setFixedSize(160,scaledAssetHeight("create_variable.png",160,40));
     createVariableButton->setBrush(variableColor());
+    createVariableButton->setTexture("create_variable.png");
     createVariableButton->setZValue(20);
     createVariableButton->onClick=[](){
         bool ok=false;
@@ -5480,8 +6019,10 @@ void drawStage(QGraphicsScene& scene){
     scene.addItem(createVariableButton);
 
     createListButton=new TextButton("创建新列表");
-    createListButton->setPos(20,405);
+    createListButton->setPos(10,617);
+    createListButton->setFixedSize(160,scaledAssetHeight("create_list.png",160,40));
     createListButton->setBrush(listColor());
+    createListButton->setTexture("create_list.png");
     createListButton->setZValue(20);
     createListButton->onClick=[](){
         bool ok=false;
@@ -5502,8 +6043,10 @@ void drawStage(QGraphicsScene& scene){
     scene.addItem(createListButton);
 
     createCustomBlockButton=new TextButton("创建自定义积木");
-    createCustomBlockButton->setPos(20,450);
+    createCustomBlockButton->setPos(10,657);
+    createCustomBlockButton->setFixedSize(160,scaledAssetHeight("create_custom.png",160,40));
     createCustomBlockButton->setBrush(customBlockColor());
+    createCustomBlockButton->setTexture("create_custom.png");
     createCustomBlockButton->setZValue(20);
     createCustomBlockButton->onClick=[](){
         QDialog dialog;
@@ -5555,9 +6098,12 @@ void drawStage(QGraphicsScene& scene){
     scene.addItem(createCustomBlockButton);
 
     TextButton* saveButton=new TextButton("保存");
-    saveButton->setPos(260,420);
+    saveButton->setPos(1060,10);
+    saveButton->setFixedSize(60,60);
     saveButton->setBrush(fileButtonColor());
-    saveButton->setZValue(20);
+    saveButton->setTexture("save.png");
+    saveButton->text->hide();
+    saveButton->setZValue(topUiZ);
     saveButton->onClick=[](){
         QString filePath=QFileDialog::getSaveFileName(
             nullptr,
@@ -5580,9 +6126,12 @@ void drawStage(QGraphicsScene& scene){
     scene.addItem(saveButton);
 
     TextButton* openButton=new TextButton("打开");
-    openButton->setPos(260,465);
+    openButton->setPos(1130,10);
+    openButton->setFixedSize(60,60);
     openButton->setBrush(fileButtonColor());
-    openButton->setZValue(20);
+    openButton->setTexture("open.png");
+    openButton->text->hide();
+    openButton->setZValue(topUiZ);
     openButton->onClick=[](){
         QString filePath=QFileDialog::getOpenFileName(
             nullptr,
@@ -5658,14 +6207,16 @@ void drawStage(QGraphicsScene& scene){
     };
     scene.addItem(openButton);
     exitButton=new TextButton("退出");
-    exitButton->setPos(260,515);
+    exitButton->setPos(10,697);
+    exitButton->setFixedSize(160,scaledAssetHeight("exit.png",160,40));
     exitButton->setBrush(fileButtonColor());
+    exitButton->setTexture("exit.png");
     exitButton->setZValue(20);
     scene.addItem(exitButton);
 }
 
 void addPanelMasks(QGraphicsScene& scene,QRectF panelRect,bool protectStage=false){
-    QColor maskColor(255,255,255);
+    QColor maskColor=appBackgroundColor();
     QVector<QRectF> masks;
     qreal leftMaskX=panelRect.left()-20;
     qreal leftMaskWidth=20;
@@ -5683,16 +6234,13 @@ void addPanelMasks(QGraphicsScene& scene,QRectF panelRect,bool protectStage=fals
         mask->setPen(Qt::NoPen);
         mask->setZValue(panelMaskZ);
     }
-    QGraphicsRectItem* border=scene.addRect(panelRect);
-    border->setBrush(Qt::NoBrush);
-    border->setPen(QPen(Qt::black,1.5));
-    border->setZValue(panelMaskZ+1);
 }
 
 void drawToolbox(QGraphicsScene& scene){
     QRectF panelRect(toolboxX,toolboxY,toolboxWidth,toolboxHeight);
     toolboxBackground=scene.addRect(panelRect);
-    toolboxBackground->setBrush(Qt::white);
+    toolboxBackground->setBrush(panelBackgroundColor());
+    toolboxBackground->setPen(Qt::NoPen);
     int y=20;
     auto addCode=[&](CodeBlock* block){
         setCodeBlockStagePos(block,scrollToolbox,QPointF(20,y));
@@ -5757,7 +6305,17 @@ void drawToolbox(QGraphicsScene& scene){
 
     refreshVariableToolbox();
     updateToolboxScrollRange();
-    toolboxSlider=new ScrollSlider(panelRect.right()-16,panelRect.top()+10,panelRect.height()-30);
+    toolboxSlider=new ScrollSlider(panelRect.right()-22,panelRect.top()+10,panelRect.height()-30);
+    QPixmap sliderPixmap=loadImageAsset("slider.png");
+    if(!sliderPixmap.isNull()){
+        toolboxSlider->setBrush(QBrush(sliderPixmap.scaled(
+            int(scrollSliderWidth),
+            int(scrollSliderHeight),
+            Qt::IgnoreAspectRatio,
+            Qt::SmoothTransformation
+        )));
+        toolboxSlider->setPen(Qt::NoPen);
+    }
     toolboxSlider->onChanged=[](qreal value){
         toolboxScrollY=value*toolboxMaxScrollY;
         syncScrollArea(scrollToolbox);
@@ -5769,8 +6327,19 @@ void drawToolbox(QGraphicsScene& scene){
 void drawWorkspace(QGraphicsScene& scene){
     QRectF panelRect=workspaceRect();
     workspaceBackground=scene.addRect(panelRect);
-    workspaceBackground->setBrush(Qt::white);
-    workspaceSlider=new ScrollSlider(panelRect.right()-16,panelRect.top()+10,panelRect.height()-30);
+    workspaceBackground->setBrush(panelBackgroundColor());
+    workspaceBackground->setPen(Qt::NoPen);
+    workspaceSlider=new ScrollSlider(panelRect.right()-22,panelRect.top()+10,panelRect.height()-30);
+    QPixmap sliderPixmap=loadImageAsset("slider.png");
+    if(!sliderPixmap.isNull()){
+        workspaceSlider->setBrush(QBrush(sliderPixmap.scaled(
+            int(scrollSliderWidth),
+            int(scrollSliderHeight),
+            Qt::IgnoreAspectRatio,
+            Qt::SmoothTransformation
+        )));
+        workspaceSlider->setPen(Qt::NoPen);
+    }
     workspaceSlider->onChanged=[](qreal value){
         workspaceScrollY=value*workspaceHeight;
         syncScrollArea(scrollWorkspace);
@@ -5791,14 +6360,19 @@ void MainWindow::onStartButtonClicked()
     runtimeState.clearAll();
     level::prepareActiveTestCase(0,runtimeState);
     init();
-    if(view==nullptr){
-        scene = new QGraphicsScene(this);
-        view = new AppGraphicsView(scene);
-        view->onClosed=[this]()
-        {
-            this->show();
-        };
+    stageExpanded=false;
+    if(view!=nullptr){
+        view->close();
+        view->deleteLater();
+        view=nullptr;
+        scene=nullptr;
     }
+    scene = new QGraphicsScene(this);
+    view = new AppGraphicsView(scene);
+    view->onClosed=[this]()
+    {
+        this->show();
+    };
     this->hide();
     view->show();
 }
