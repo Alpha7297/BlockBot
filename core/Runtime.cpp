@@ -349,7 +349,7 @@ void BlockExecutor::executeOne(int blockType,double floatValue,RobotActions& act
         return;
     }
     if(blockType==3){
-        actions.moveForward(floatValue);
+        actions.moveForward(1.0);
         return;
     }
     if(blockType==4){

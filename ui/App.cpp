@@ -1767,37 +1767,37 @@ public:
         setRotation(direction*90);
     }
     void moveForward(int step){
-        int count=std::abs(step);
-        int sign=step>=0?1:-1;
-        for(int i=0;i<count;i++){
-            int newx=gridx;
-            int newy=gridy;
-            if(direction==0){
-                newx+=sign;
-            }
-            if(direction==1){
-                newy+=sign;
-            }
-            if(direction==2){
-                newx-=sign;
-            }
-            if(direction==3){
-                newy-=sign;
-            }
-            if(newx<0||newx>=screensize||newy<0||newy>=screensize){
-                return;
-            }
-            int cell=mapdata[newx][newy];
-            if(cell==level::CellWall){
-                return;
-            }
-            gridx=newx;
-            gridy=newy;
-            if(cell==level::CellTrap){
-                levelTestFailed=true;
-                runtimeStopRequested=true;
-                return;
-            }
+        if(step==0){
+            return;
+        }
+        int sign=1;
+        int newx=gridx;
+        int newy=gridy;
+        if(direction==0){
+            newx+=sign;
+        }
+        if(direction==1){
+            newy+=sign;
+        }
+        if(direction==2){
+            newx-=sign;
+        }
+        if(direction==3){
+            newy-=sign;
+        }
+        if(newx<0||newx>=screensize||newy<0||newy>=screensize){
+            return;
+        }
+        int cell=mapdata[newx][newy];
+        if(cell==level::CellWall){
+            return;
+        }
+        gridx=newx;
+        gridy=newy;
+        if(cell==level::CellTrap){
+            levelTestFailed=true;
+            runtimeStopRequested=true;
+            return;
         }
     }
     void SyncCell(int cellSize,QPoint offset){
@@ -1914,7 +1914,7 @@ public:
     }
 
     void moveForward(double steps) override{
-        robot->moveForward(static_cast<int>(std::round(steps)));
+        robot->moveForward(steps==0.0?0:1);
     }
 
     void waitFrames(double) override{
@@ -5712,7 +5712,7 @@ void drawToolbox(QGraphicsScene& scene){
     addCode(new StartBlock(true));
     addCode(new CodeBlock(0,"左转",true));
     addCode(new CodeBlock(1,"右转",true));
-    addCode(new FloatCodeBlock(3,"向前移动",nullptr,true));
+    addCode(new CodeBlock(3,"向前移动",true));
     addCode(new FloatCodeBlock(4,"等待",nullptr,true));
     addCode(new OutputBlock("x",nullptr,true));
     addCode(new ControlCodeBlock(5,"如果",nullptr,true));

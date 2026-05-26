@@ -80,7 +80,7 @@ void UnaryBlock::execute(){
 void UnaryBlock::execute(RobotActions& actions){
     double data=val->getval();
     if(type==0){
-        actions.moveForward(data);
+        actions.moveForward(1.0);
     }
     if(type==1){
         actions.waitFrames(data);
