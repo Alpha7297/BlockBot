@@ -41,6 +41,7 @@
 #include <functional>
 #include <limits>
 #include <map>
+#include <set>
 #include <vector>
 
 #include "App.h"
@@ -2285,6 +2286,56 @@ qreal toolboxScrollY=0;
 qreal workspaceScrollY=0;
 qreal toolboxMaxScrollY=0;
 int variableToolboxStartY=0;
+std::set<std::string> dataLockedVariableNames;
+std::set<std::string> dataLockedListNames;
+
+void clearDataLockedNames(){
+    dataLockedVariableNames.clear();
+    dataLockedListNames.clear();
+}
+
+void lockDataCaseNames(const std::vector<level::DataTestCase>& cases){
+    clearDataLockedNames();
+    for(const level::DataTestCase& testCase:cases){
+        for(const auto& item:testCase.inputVariables){
+            dataLockedVariableNames.insert(item.first);
+        }
+        for(const auto& item:testCase.expectedVariables){
+            dataLockedVariableNames.insert(item.first);
+        }
+        for(const auto& item:testCase.inputLists){
+            dataLockedListNames.insert(item.first);
+        }
+        for(const auto& item:testCase.expectedLists){
+            dataLockedListNames.insert(item.first);
+        }
+    }
+}
+
+void lockCurrentDataRuntimeNames(){
+    clearDataLockedNames();
+    if(level::activeLevelType()!=level::LevelType::DataOutput){
+        return;
+    }
+    for(const auto& item:runtimeState.variables()){
+        dataLockedVariableNames.insert(item.first);
+    }
+    for(const auto& item:runtimeState.lists()){
+        dataLockedListNames.insert(item.first);
+    }
+}
+
+bool canRenameVariableName(const QString& name){
+    std::string key=name.toStdString();
+    return dataLockedVariableNames.find(key)==dataLockedVariableNames.end()&&
+           !runtimeState.variableReadOnly(key);
+}
+
+bool canRenameListName(const QString& name){
+    std::string key=name.toStdString();
+    return dataLockedListNames.find(key)==dataLockedListNames.end()&&
+           !runtimeState.listReadOnly(key);
+}
 
 qreal nextDragZ(){
     maxZ++;
@@ -2894,6 +2945,12 @@ void copyCodeContext(CodeBlock* block){
     QPointF targetPos=source->pos()+QPointF(source->len+40,0);
     syncCodeChainFrom(copy,targetPos);
     setCodeTreeZValue(copy,10);
+    if(outsideWorkspaceHorizontal(codeTreeSceneRect(copy))){
+        message::workspaceWidthLimitReached();
+        deleteCodeChain(copy);
+        refreshAllControlLayouts();
+        return;
+    }
     rememberCodeTreeStagePos(copy,scrollWorkspace);
     refreshAllControlLayouts();
     saveUndoCheckpoint();
@@ -2930,6 +2987,11 @@ void copyFloatContext(FloatBlock* block){
     copy->scrollArea=scrollWorkspace;
     resetFloatTreeZValue(copy);
     setInsertedOperatorInteractivity(copy);
+    if(outsideWorkspaceHorizontal(copy->sceneBoundingRect())){
+        message::workspaceWidthLimitReached();
+        deleteFloatBlock(copy);
+        return;
+    }
     rememberFloatBlockStagePos(copy,scrollWorkspace);
     saveUndoCheckpoint();
 }
@@ -3019,6 +3081,53 @@ bool codeTreeContains(CodeBlock* root,CodeBlock* target){
         curr=curr->next;
     }
     return false;
+}
+
+CodeBlock* topCodeTreeRoot(CodeBlock* block){
+    CodeBlock* root=block;
+    while(root!=nullptr){
+        while(root->pre!=nullptr){
+            root=root->pre;
+        }
+        if(root->insideParent==nullptr){
+            return root;
+        }
+        root=root->insideParent;
+    }
+    return nullptr;
+}
+
+qreal workspaceTopZExcludingCodeTree(CodeBlock* excludedRoot){
+    qreal top=10;
+    auto considerCode=[&](CodeBlock* block){
+        if(block==nullptr||block->isbase||block->scrollArea!=scrollWorkspace||
+           block->dragging||block->ismoving||codeTreeContains(excludedRoot,block)){
+            return;
+        }
+        top=std::max(top,block->zValue());
+    };
+    for(CodeBlock* block:codeBlocks){
+        considerCode(block);
+    }
+    considerCode(currentStartBlock);
+    for(FloatBlock* block:floatBlocks){
+        if(block==nullptr||block->isbase||block->parentItem()!=nullptr||
+           block->scrollArea!=scrollWorkspace||block->dragging){
+            continue;
+        }
+        top=std::max(top,block->zValue());
+    }
+    return top;
+}
+
+CodeBlock* raiseCodeTreeAboveWorkspace(CodeBlock* block){
+    CodeBlock* root=topCodeTreeRoot(block);
+    if(root==nullptr){
+        return block;
+    }
+    qreal z=std::min(workspaceTopZExcludingCodeTree(root)+20,panelMaskZ-1000);
+    setCodeTreeZValue(root,z);
+    return root;
 }
 
 void removeCustomBlockReferences(const QString& customName,CodeBlock* excludedTree){
@@ -3733,6 +3842,313 @@ void showUndoContextMenu(QPointF scenePos){
     });
 }
 
+void refreshEditedFloatName(FloatBlock* block){
+    if(block==nullptr){
+        return;
+    }
+    block->refreshSize();
+    QGraphicsItem* parent=block->parentItem();
+    FloatBlock* floatParent=dynamic_cast<FloatBlock*>(parent);
+    if(floatParent!=nullptr){
+        refreshFloatAncestors(floatParent);
+    }
+    CodeBlock* codeParent=dynamic_cast<CodeBlock*>(parent);
+    if(codeParent!=nullptr){
+        codeParent->refreshSize();
+        refreshAllControlLayouts();
+        checkEditedCodeWorkspaceWidth(codeParent);
+    }
+    if(parent==nullptr){
+        checkEditedFloatWorkspaceWidth(block);
+    }
+}
+
+void refreshEditedCodeName(CodeBlock* block){
+    if(block==nullptr){
+        return;
+    }
+    block->refreshSize();
+    refreshAllControlLayouts();
+    checkEditedCodeWorkspaceWidth(block);
+}
+
+bool renameRuntimeVariable(const QString& oldName,const QString& newName){
+    if(!validVariableName(newName)){
+        message::invalidVariableName();
+        return false;
+    }
+    if(newName==oldName){
+        return true;
+    }
+    std::string oldStd=oldName.toStdString();
+    std::string newStd=newName.toStdString();
+    if(!canRenameVariableName(oldName)){
+        message::invalidVariableName();
+        return false;
+    }
+    if(runtimeState.hasVariable(newStd)){
+        message::invalidVariableName();
+        return false;
+    }
+    double value=0.0;
+    bool exists=runtimeState.getVariable(oldStd,&value);
+    if(exists&&runtimeState.variableReadOnly(oldStd)){
+        message::invalidVariableName();
+        return false;
+    }
+    if(exists&&!runtimeState.removeVariable(oldStd)){
+        message::invalidVariableName();
+        return false;
+    }
+    runtimeState.forceSetVariable(newStd,value,false);
+    return true;
+}
+
+bool renameRuntimeList(const QString& oldName,const QString& newName){
+    if(!validVariableName(newName)){
+        message::invalidVariableName();
+        return false;
+    }
+    if(newName==oldName){
+        return true;
+    }
+    std::string oldStd=oldName.toStdString();
+    std::string newStd=newName.toStdString();
+    if(!canRenameListName(oldName)){
+        message::invalidVariableName();
+        return false;
+    }
+    if(runtimeState.hasList(newStd)){
+        message::invalidVariableName();
+        return false;
+    }
+    std::vector<double> values;
+    auto oldIt=runtimeState.lists().find(oldStd);
+    bool exists=oldIt!=runtimeState.lists().end();
+    if(exists){
+        values=oldIt->second;
+    }
+    if(exists&&runtimeState.listReadOnly(oldStd)){
+        message::invalidVariableName();
+        return false;
+    }
+    if(exists&&!runtimeState.removeList(oldStd)){
+        message::invalidVariableName();
+        return false;
+    }
+    runtimeState.forceSetList(newStd,values,false);
+    return true;
+}
+
+void renameVariableReferencesInFloat(FloatBlock* block,const QString& oldName,const QString& newName){
+    if(block==nullptr){
+        return;
+    }
+    VariableBlock* variable=dynamic_cast<VariableBlock*>(block);
+    if(variable!=nullptr&&variable->variableName==oldName){
+        variable->setVariableName(newName);
+        refreshEditedFloatName(variable);
+    }
+    UnaryOpBlock* unary=dynamic_cast<UnaryOpBlock*>(block);
+    if(unary!=nullptr){
+        renameVariableReferencesInFloat(unary->slot,oldName,newName);
+        return;
+    }
+    BinaryOpBlock* binary=dynamic_cast<BinaryOpBlock*>(block);
+    if(binary!=nullptr){
+        renameVariableReferencesInFloat(binary->left,oldName,newName);
+        renameVariableReferencesInFloat(binary->right,oldName,newName);
+        return;
+    }
+    ListGetBlock* listGet=dynamic_cast<ListGetBlock*>(block);
+    if(listGet!=nullptr){
+        renameVariableReferencesInFloat(listGet->index,oldName,newName);
+    }
+}
+
+void renameListReferencesInFloat(FloatBlock* block,const QString& oldName,const QString& newName){
+    if(block==nullptr){
+        return;
+    }
+    ListGetBlock* listGet=dynamic_cast<ListGetBlock*>(block);
+    if(listGet!=nullptr){
+        if(listGet->listName==oldName){
+            listGet->listName=newName;
+            listGet->listText->setPlainText(newName);
+            refreshEditedFloatName(listGet);
+        }
+        renameListReferencesInFloat(listGet->index,oldName,newName);
+        return;
+    }
+    ListSizeBlock* listSize=dynamic_cast<ListSizeBlock*>(block);
+    if(listSize!=nullptr&&listSize->listName==oldName){
+        listSize->listName=newName;
+        listSize->listText->setPlainText(newName);
+        refreshEditedFloatName(listSize);
+    }
+    UnaryOpBlock* unary=dynamic_cast<UnaryOpBlock*>(block);
+    if(unary!=nullptr){
+        renameListReferencesInFloat(unary->slot,oldName,newName);
+        return;
+    }
+    BinaryOpBlock* binary=dynamic_cast<BinaryOpBlock*>(block);
+    if(binary!=nullptr){
+        renameListReferencesInFloat(binary->left,oldName,newName);
+        renameListReferencesInFloat(binary->right,oldName,newName);
+    }
+}
+
+void renameVariableReferencesInCode(CodeBlock* head,const QString& oldName,const QString& newName){
+    CodeBlock* curr=head;
+    while(curr!=nullptr){
+        SetVariableBlock* setVariable=dynamic_cast<SetVariableBlock*>(curr);
+        if(setVariable!=nullptr){
+            if(setVariable->variableName==oldName){
+                setVariable->variableName=newName;
+                setVariable->variableText->setPlainText(newName);
+                refreshEditedCodeName(setVariable);
+            }
+            renameVariableReferencesInFloat(setVariable->value,oldName,newName);
+        }
+        FloatCodeBlock* floatCode=dynamic_cast<FloatCodeBlock*>(curr);
+        if(floatCode!=nullptr){
+            renameVariableReferencesInFloat(floatCode->value,oldName,newName);
+        }
+        OutputBlock* output=dynamic_cast<OutputBlock*>(curr);
+        if(output!=nullptr){
+            renameVariableReferencesInFloat(output->value,oldName,newName);
+        }
+        PushListBlock* pushList=dynamic_cast<PushListBlock*>(curr);
+        if(pushList!=nullptr){
+            renameVariableReferencesInFloat(pushList->value,oldName,newName);
+        }
+        SetListBlock* setList=dynamic_cast<SetListBlock*>(curr);
+        if(setList!=nullptr){
+            renameVariableReferencesInFloat(setList->index,oldName,newName);
+            renameVariableReferencesInFloat(setList->value,oldName,newName);
+        }
+        ControlCodeBlock* control=dynamic_cast<ControlCodeBlock*>(curr);
+        if(control!=nullptr){
+            renameVariableReferencesInFloat(control->condition,oldName,newName);
+            renameVariableReferencesInCode(control->inside,oldName,newName);
+        }
+        CustomCallBlock* customCall=dynamic_cast<CustomCallBlock*>(curr);
+        if(customCall!=nullptr){
+            renameVariableReferencesInFloat(customCall->value,oldName,newName);
+        }
+        curr=curr->next;
+    }
+}
+
+void renameListReferencesInCode(CodeBlock* head,const QString& oldName,const QString& newName){
+    CodeBlock* curr=head;
+    while(curr!=nullptr){
+        FloatCodeBlock* floatCode=dynamic_cast<FloatCodeBlock*>(curr);
+        if(floatCode!=nullptr){
+            renameListReferencesInFloat(floatCode->value,oldName,newName);
+        }
+        OutputBlock* output=dynamic_cast<OutputBlock*>(curr);
+        if(output!=nullptr){
+            renameListReferencesInFloat(output->value,oldName,newName);
+        }
+        SetVariableBlock* setVariable=dynamic_cast<SetVariableBlock*>(curr);
+        if(setVariable!=nullptr){
+            renameListReferencesInFloat(setVariable->value,oldName,newName);
+        }
+        PushListBlock* pushList=dynamic_cast<PushListBlock*>(curr);
+        if(pushList!=nullptr){
+            if(pushList->listName==oldName){
+                pushList->listName=newName;
+                pushList->listText->setPlainText(newName);
+                refreshEditedCodeName(pushList);
+            }
+            renameListReferencesInFloat(pushList->value,oldName,newName);
+        }
+        SetListBlock* setList=dynamic_cast<SetListBlock*>(curr);
+        if(setList!=nullptr){
+            if(setList->listName==oldName){
+                setList->listName=newName;
+                setList->listText->setPlainText(newName);
+                refreshEditedCodeName(setList);
+            }
+            renameListReferencesInFloat(setList->index,oldName,newName);
+            renameListReferencesInFloat(setList->value,oldName,newName);
+        }
+        ClearListBlock* clearList=dynamic_cast<ClearListBlock*>(curr);
+        if(clearList!=nullptr&&clearList->listName==oldName){
+            clearList->listName=newName;
+            clearList->listText->setPlainText(newName);
+            refreshEditedCodeName(clearList);
+        }
+        ControlCodeBlock* control=dynamic_cast<ControlCodeBlock*>(curr);
+        if(control!=nullptr){
+            renameListReferencesInFloat(control->condition,oldName,newName);
+            renameListReferencesInCode(control->inside,oldName,newName);
+        }
+        CustomCallBlock* customCall=dynamic_cast<CustomCallBlock*>(curr);
+        if(customCall!=nullptr){
+            renameListReferencesInFloat(customCall->value,oldName,newName);
+        }
+        curr=curr->next;
+    }
+}
+
+void renameVariableEverywhere(const QString& oldName,const QString& newName){
+    for(CodeBlock* root:workspaceCodeRootsFromScene()){
+        renameVariableReferencesInCode(root,oldName,newName);
+    }
+    for(FloatBlock* root:workspaceFloatRootsFromScene()){
+        renameVariableReferencesInFloat(root,oldName,newName);
+    }
+    refreshAllControlLayouts();
+    refreshVariableToolbox();
+    saveUndoCheckpoint();
+}
+
+void renameListEverywhere(const QString& oldName,const QString& newName){
+    for(CodeBlock* root:workspaceCodeRootsFromScene()){
+        renameListReferencesInCode(root,oldName,newName);
+    }
+    for(FloatBlock* root:workspaceFloatRootsFromScene()){
+        renameListReferencesInFloat(root,oldName,newName);
+    }
+    refreshAllControlLayouts();
+    refreshVariableToolbox();
+    saveUndoCheckpoint();
+}
+
+void requestRenameVariable(const QString& oldName){
+    bool ok=false;
+    QString newName=QInputDialog::getText(nullptr,"改变名称","输入名称",
+        QLineEdit::Normal,oldName,&ok);
+    if(!ok){
+        return;
+    }
+    if(!renameRuntimeVariable(oldName,newName)){
+        return;
+    }
+    if(newName==oldName){
+        return;
+    }
+    renameVariableEverywhere(oldName,newName);
+}
+
+void requestRenameList(const QString& oldName){
+    bool ok=false;
+    QString newName=QInputDialog::getText(nullptr,"改变名称","输入名称",
+        QLineEdit::Normal,oldName,&ok);
+    if(!ok){
+        return;
+    }
+    if(!renameRuntimeList(oldName,newName)){
+        return;
+    }
+    if(newName==oldName){
+        return;
+    }
+    renameListEverywhere(oldName,newName);
+}
+
 void showCodeContextMenu(CodeBlock* block,QPointF scenePos){
     clearContextMenu();
     if(block==nullptr||block->isbase){
@@ -3748,7 +4164,26 @@ void showCodeContextMenu(CodeBlock* block,QPointF scenePos){
 
 void showFloatContextMenu(FloatBlock* block,QPointF scenePos){
     clearContextMenu();
-    if(block==nullptr||block->isbase){
+    if(block==nullptr){
+        return;
+    }
+    if(block->isbase){
+        VariableBlock* variable=dynamic_cast<VariableBlock*>(block);
+        if(variable!=nullptr&&canRenameVariableName(variable->variableName)){
+            QString oldName=variable->variableName;
+            addContextMenuButton("改名",scenePos,[oldName](){
+                requestRenameVariable(oldName);
+            });
+            return;
+        }
+        if(block->type==-2){
+            QString listName=block->text->toPlainText();
+            if(canRenameListName(listName)){
+                addContextMenuButton("改名",scenePos,[listName](){
+                    requestRenameList(listName);
+                });
+            }
+        }
         return;
     }
     addContextMenuButton("复制",scenePos,[block](){
@@ -4309,9 +4744,12 @@ void refreshVariableToolbox(){
     }
     int y=variableToolboxStartY;
     for(const auto& item:runtimeState.variables()){
-        VariableBlock* block=new VariableBlock(QString::fromStdString(item.first),true);
+        QString name=QString::fromStdString(item.first);
+        VariableBlock* block=new VariableBlock(name,true);
         setFloatBlockStagePos(block,scrollToolbox,QPointF(20,y));
         block->setZValue(10);
+        block->setAcceptedMouseButtons(canRenameVariableName(name)?
+            (Qt::LeftButton|Qt::RightButton):Qt::LeftButton);
         appScene->addItem(block);
         floatBlocks.push_back(block);
         variableBaseBlocks.push_back(block);
@@ -4322,11 +4760,14 @@ void refreshVariableToolbox(){
         y+=variableSetBaseBlock->wid+toolboxCodeBlockGap;
     }
     for(const auto& item:runtimeState.lists()){
+        QString name=QString::fromStdString(item.first);
         FloatBlock* labelBlock=new FloatBlock(-2,true);
-        labelBlock->text->setPlainText(QString::fromStdString(item.first));
+        labelBlock->text->setPlainText(name);
         labelBlock->refreshSize();
         labelBlock->setBrush(listColor());
         labelBlock->setMovable(false);
+        labelBlock->setAcceptedMouseButtons(canRenameListName(name)?
+            Qt::RightButton:Qt::NoButton);
         setFloatBlockStagePos(labelBlock,scrollToolbox,QPointF(20,y));
         labelBlock->setZValue(10);
         appScene->addItem(labelBlock);
@@ -4415,6 +4856,13 @@ void deleteCodeBlock(CodeBlock* block){
         codeBlocks.end()
     );
     eraseCodeEmbeddedFloatRecords(block);
+    if(block->shadow!=nullptr){
+        if(block->shadow->scene()!=nullptr){
+            block->shadow->scene()->removeItem(block->shadow);
+        }
+        delete block->shadow;
+        block->shadow=nullptr;
+    }
     if(block->scene()!=nullptr){
         block->scene()->removeItem(block);
     }
@@ -5539,8 +5987,8 @@ void CodeBlock::mouseReleaseEvent(QGraphicsSceneMouseEvent* event){
             currentStartBlock->ismoving=false;
         }
         refreshAllControlLayouts();
-        setCodeTreeZValue(this,10);
-        rememberCodeTreeStagePos(this,scrollWorkspace);
+        CodeBlock* zRoot=raiseCodeTreeAboveWorkspace(this);
+        rememberCodeTreeStagePos(zRoot,scrollWorkspace);
         scene()->removeItem(shadow);
         ungrabMouse();
         saveUndoCheckpoint();
@@ -5660,6 +6108,7 @@ void startLevelTestRun(){
 }
 
 void ui::resetLevelConfig(){
+    clearDataLockedNames();
     level::resetActiveLevel(screensize,screensize);
     level::setActiveRobotStart(5,5,0);
 }
@@ -5709,6 +6158,7 @@ void ui::setDataOutputCases(const std::vector<level::DataTestCase>& cases){
         ui::resetLevelConfig();
     }
     level::setActiveDataOutputCases(cases);
+    lockDataCaseNames(cases);
     if(cases.empty()){
         return;
     }
@@ -6359,6 +6809,7 @@ void MainWindow::onStartButtonClicked()
     level::configureActiveLevel(levelNumber,levelType);
     runtimeState.clearAll();
     level::prepareActiveTestCase(0,runtimeState);
+    lockCurrentDataRuntimeNames();
     init();
     stageExpanded=false;
     if(view!=nullptr){
