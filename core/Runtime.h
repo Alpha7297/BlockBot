@@ -86,6 +86,7 @@ public:
     void reset(Node firstBlock);
     bool running() const;
     Node currentNode() const;
+    bool waitingOn(Node node) const;
     bool step(const BlockReader& readBlock,RobotActions& actions);
     bool didConsumeActionStep() const;
     void executeOne(int blockType,double floatValue,RobotActions& actions) const;

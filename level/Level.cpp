@@ -224,10 +224,6 @@ int LevelTest::caseCount() const{
     return 1;
 }
 
-int LevelTest::testIntervalMs() const{
-    return MapTestIntervalMs;
-}
-
 void LevelTest::prepareCase(int,core::RuntimeState&) const{
 }
 
@@ -251,10 +247,6 @@ void DataOutputTest::addCase(const DataTestCase& testCase){
 
 int DataOutputTest::caseCount() const{
     return std::max(1,static_cast<int>(cases.size()));
-}
-
-int DataOutputTest::testIntervalMs() const{
-    return DataOutputTestIntervalMs;
 }
 
 void DataOutputTest::prepareCase(int index,core::RuntimeState& runtime) const{
@@ -282,34 +274,34 @@ void DataOutputTest::prepareCase(int index,core::RuntimeState& runtime) const{
 
 TestResult DataOutputTest::checkCase(int index,const TestContext& context) const{
     if(index<0||index>=static_cast<int>(cases.size())){
-        return {false,"Test failed: data test case index is out of range."};
+        return {false,"测试失败，索引超过上限"};
     }
     if(context.runtime==nullptr){
-        return {false,"Test failed: runtime state is missing."};
+        return {false,"关卡信息错误，请练习游戏开发者"};
     }
     const double eps=1e-8;
     const DataTestCase& testCase=cases[index];
     for(const auto& item:testCase.expectedVariables){
         double value=0.0;
         if(!context.runtime->getVariable(item.first,&value)){
-            return {false,"Test failed: expected output variable \""+item.first+"\" does not exist."};
+            return {false,"测试失败，答案 \""+item.first+"\" 不存在。"};
         }
         if(std::abs(value-item.second)>eps){
             std::ostringstream stream;
-            stream<<"Test case "<<(index+1)<<" failed: variable \""<<item.first
-                  <<"\" is "<<value<<", expected "<<item.second<<".";
+            stream<<"测试样例"<<(index+1)<<"失败，变量 \""<<item.first
+                  <<"\"值为"<<value<<", 正确值为"<<item.second<<".";
             return {false,stream.str()};
         }
     }
     for(const auto& item:testCase.expectedLists){
         int actualSize=context.runtime->listSize(item.first);
         if(actualSize<0){
-            return {false,"Test failed: expected output list \""+item.first+"\" does not exist."};
+            return {false,"测试失败，需要的列表 \""+item.first+"\"不存在"};
         }
         if(actualSize!=static_cast<int>(item.second.size())){
             std::ostringstream stream;
-            stream<<"Test case "<<(index+1)<<" failed: list \""<<item.first
-                  <<"\" size is "<<actualSize<<", expected "<<item.second.size()<<".";
+            stream<<"测试样例"<<(index+1)<<"失败:列表 \""<<item.first
+                  <<"\" 大小是 "<<actualSize<<", 正确答案大小是"<<item.second.size()<<".";
             return {false,stream.str()};
         }
         for(int i=0;i<actualSize;i++){
@@ -317,14 +309,14 @@ TestResult DataOutputTest::checkCase(int index,const TestContext& context) const
             context.runtime->getListValue(item.first,i,&value);
             if(std::abs(value-item.second[i])>eps){
                 std::ostringstream stream;
-                stream<<"Test case "<<(index+1)<<" failed: list \""<<item.first
-                      <<"\"["<<i<<"] is "<<value<<", expected "<<item.second[i]<<".";
+                stream<<"测试样例"<<(index+1)<<" 失败:列表 \""<<item.first
+                      <<"\"["<<i<<"] is "<<value<<", 正确值是 "<<item.second[i]<<".";
                 return {false,stream.str()};
             }
         }
     }
     std::ostringstream stream;
-    stream<<"Test case "<<(index+1)<<" passed.";
+    stream<<"测试样例"<<(index+1)<<"通过";
     return {true,stream.str()};
 }
 
@@ -419,10 +411,6 @@ int LevelConfig::testCaseCount() const{
     return test==nullptr?1:test->caseCount();
 }
 
-int LevelConfig::testIntervalMs() const{
-    return test==nullptr?40:test->testIntervalMs();
-}
-
 void LevelConfig::prepareTestCase(int index,core::RuntimeState& runtime) const{
     if(test!=nullptr){
         test->prepareCase(index,runtime);
@@ -473,16 +461,20 @@ int activeTestCaseCount(){
     return currentLevel.testCaseCount();
 }
 
-int activeTestIntervalMs(){
-    return currentLevel.testIntervalMs();
-}
-
 void prepareActiveTestCase(int index,core::RuntimeState& runtime){
     currentLevel.prepareTestCase(index,runtime);
 }
 
 TestResult testActiveLevelCase(int index,const TestContext& context){
     return currentLevel.runTestCase(index,context);
+}
+
+int testContextSteps(const TestContext& context){
+    return context.steps;
+}
+
+int testContextTime(const TestContext& context){
+    return context.time;
 }
 
 int activeLevelNumber(){

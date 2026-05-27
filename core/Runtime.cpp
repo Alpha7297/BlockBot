@@ -239,6 +239,10 @@ BlockExecutor::Node BlockExecutor::currentNode() const{
     return current;
 }
 
+bool BlockExecutor::waitingOn(Node node) const{
+    return waiting!=nullptr&&waiting==node;
+}
+
 bool BlockExecutor::didConsumeActionStep() const{
     return lastStepConsumedActionStep;
 }
@@ -288,6 +292,7 @@ bool BlockExecutor::step(const BlockReader& readBlock,RobotActions& actions){
         return true;
     }
     if(block.type==4){
+        lastStepConsumedActionStep=true;
         if(waiting!=current){
             waiting=current;
             waitRemaining=std::floor(std::max(0.0,block.value));

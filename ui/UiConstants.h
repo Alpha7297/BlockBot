@@ -38,5 +38,5 @@ inline constexpr qreal sliderZ=100010;
 inline constexpr qreal topUiZ=100020;
 inline constexpr qreal draggingZ=1000000000;
 inline constexpr qreal absorbHighlightZ=1000000100;
-
+inline constexpr int levelTestStepLimit=9999;
 #endif
