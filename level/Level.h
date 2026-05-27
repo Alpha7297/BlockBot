@@ -16,6 +16,8 @@ inline constexpr int CellWall=1;
 inline constexpr int CellTrap=2;
 inline constexpr int CellEnd=3;
 inline constexpr int CellStart=4;
+inline constexpr int CellSpikeUp=5;
+inline constexpr int CellSpikeDown=6;
 
 enum class LevelType{
     Map,
@@ -125,6 +127,7 @@ int testContextTime(const TestContext& context);
 int activeLevelNumber();
 LevelType activeLevelType();
 LevelType defaultLevelTypeForNumber(int levelNumber);
+void fresh(int levelNumber,int time);
 void configureActiveLevel(int levelNumber,LevelType type);
 
 }

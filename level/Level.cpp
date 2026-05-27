@@ -30,6 +30,10 @@ void fillBorderWalls(LevelConfig& level,int size){
     }
 }
 
+int mapSizeForLevel(int levelNumber){
+    return levelNumber==9?40:10;
+}
+
 DataTestCase makeLevel6Case(const std::vector<double>& time,const std::vector<double>& pos,int n){
     DataTestCase testCase;
     testCase.inputVariables["n"]=n;
@@ -147,10 +151,27 @@ DataTestCase makeLevel8Case(int seed){
 }
 
 void configureMapLevel(int levelNumber){
-    constexpr int size=40;
+    int size=mapSizeForLevel(levelNumber);
     resetActiveLevel(size,size);
     fillBorderWalls(currentLevel,size);
-    currentLevel.setReachPositionGoal(10,10);
+    int defaultGoal=std::min(10,size-2);
+    currentLevel.setReachPositionGoal(defaultGoal,defaultGoal);
+    if(levelNumber==1){
+        currentLevel.setReachPositionGoal(7,5);
+        currentLevel.setRobotStart(3,3,3);
+        currentLevel.setMapCell(7,5,level::CellEnd);
+    }
+    if(levelNumber==2){
+        currentLevel.setRobotStart(3,5,3);
+        currentLevel.setReachPositionGoal(8,5);
+        for(int i=1;i<9;i++){
+            for(int j=1;j<9;j++){
+                currentLevel.setMapCell(i,j,CellSpikeUp);
+            }
+        }
+        currentLevel.setMapCell(3,5,CellEmpty);
+        currentLevel.setMapCell(8,5,CellEnd);
+    }
 }
 
 void configureDataOutputLevel(int levelNumber){
@@ -233,11 +254,11 @@ ReachPositionTest::ReachPositionTest(int targetX,int targetY):
 
 TestResult ReachPositionTest::checkCase(int,const TestContext& context) const{
     if(context.robot.x==x&&context.robot.y==y){
-        return {true,"Test passed: robot reached the target position."};
+        return {true,"测试通过，机器人到达指定位置"};
     }
     std::ostringstream stream;
-    stream<<"Test failed: robot is at ("<<context.robot.x<<", "<<context.robot.y
-          <<"), expected ("<<x<<", "<<y<<").";
+    stream<<"测试失败，机器人在 ("<<context.robot.x<<", "<<context.robot.y
+          <<"), 而最终地点在 ("<<x<<", "<<y<<").";
     return {false,stream.str()};
 }
 
@@ -488,6 +509,21 @@ LevelType activeLevelType(){
 LevelType defaultLevelTypeForNumber(int levelNumber){
     levelNumber=std::max(MinLevelNumber,std::min(levelNumber,TotalLevelCount));
     return levelNumber>=6&&levelNumber<=8?LevelType::DataOutput:LevelType::Map;
+}
+
+void fresh(int levelNumber,int time){
+    if(levelNumber==2){
+        for(int i=1;i<9;i++){
+            for(int j=1;j<9;j++){
+                int cell=currentLevel.mapCell(i,j);
+                if(cell!=CellSpikeUp&&cell!=CellSpikeDown){
+                    continue;
+                }
+                currentLevel.setMapCell(i,j,time%20<10?CellSpikeUp:CellSpikeDown);
+            }
+        }
+    }
+    return;
 }
 
 void configureActiveLevel(int levelNumber,LevelType type){

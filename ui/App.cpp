@@ -99,9 +99,17 @@ void recordRuntimeStepUse(){
     }
 }
 
+void syncMapDataFromActiveLevel();
+void updateStageGeometry();
+
 void recordRuntimeTimeUse(){
     if(runtimeCountersActive){
         levelTestTimeCount++;
+        if(level::activeLevelType()==level::LevelType::Map){
+            level::fresh(level::activeLevelNumber(),levelTestTimeCount);
+            syncMapDataFromActiveLevel();
+            updateStageGeometry();
+        }
     }
 }
 
@@ -1925,6 +1933,29 @@ const T min(const T a,const T b){
 
 extern int mapdata[screensize][screensize];
 
+int currentMapWidth(){
+    int width=static_cast<int>(level::activeLevel().map().size());
+    if(width<=0){
+        width=screensize;
+    }
+    return std::max(1,std::min(width,screensize));
+}
+
+int currentMapHeight(){
+    int height=0;
+    for(const auto& column:level::activeLevel().map()){
+        height=std::max(height,static_cast<int>(column.size()));
+    }
+    if(height<=0){
+        height=screensize;
+    }
+    return std::max(1,std::min(height,screensize));
+}
+
+int currentMapSide(){
+    return std::max(currentMapWidth(),currentMapHeight());
+}
+
 class Robot:public QGraphicsPixmapItem{
 public:
     int gridx;
@@ -2009,7 +2040,7 @@ public:
         if(direction==3){
             newy-=sign;
         }
-        if(newx<0||newx>=screensize||newy<0||newy>=screensize){
+        if(newx<0||newx>=currentMapWidth()||newy<0||newy>=currentMapHeight()){
             return;
         }
         int cell=mapdata[newx][newy];
@@ -2051,7 +2082,7 @@ int frontMapType(){
     else if(player->direction==3){
         y--;
     }
-    if(x<0||x>=screensize||y<0||y>=screensize){
+    if(x<0||x>=currentMapWidth()||y<0||y>=currentMapHeight()){
         return -1;
     }
     return mapdata[x][y];
@@ -2403,7 +2434,7 @@ QPoint stageDisplayOrigin(){
 }
 
 int stageDisplayCellSize(){
-    return stageDisplaySize()/screensize;
+    return stageDisplaySize()/currentMapSide();
 }
 
 QRectF informationRect(){
@@ -2470,6 +2501,8 @@ void updateStageGeometry(){
     QPoint origin=stageDisplayOrigin();
     int size=stageDisplaySize();
     int cellSize=stageDisplayCellSize();
+    int mapWidth=currentMapWidth();
+    int mapHeight=currentMapHeight();
     qreal baseZ=stageExpanded?panelMaskZ+100010:0;
 
     stage->setRect(origin.x(),origin.y(),size,size);
@@ -2477,8 +2510,14 @@ void updateStageGeometry(){
 
     QPixmap floorPixmap=loadImageAsset("floor.png");
     QPixmap boxPixmap=loadImageAsset("box.png");
+    QPixmap targetPixmap=loadImageAsset("target.png");
+    QPixmap spike1Pixmap=loadImageAsset("spike1.png");
+    QPixmap spike2Pixmap=loadImageAsset("spike2.png");
     QBrush floorBrush(Qt::gray);
     QBrush boxBrush(QColor(126,76,36));
+    QBrush targetBrush(QColor(178,48,48));
+    QBrush spike1Brush(QColor(132,132,132));
+    QBrush spike2Brush(QColor(86,86,86));
     if(!floorPixmap.isNull()){
         floorBrush=QBrush(floorPixmap.scaled(
             cellSize,
@@ -2495,17 +2534,55 @@ void updateStageGeometry(){
             Qt::SmoothTransformation
         ));
     }
+    if(!targetPixmap.isNull()){
+        targetBrush=QBrush(targetPixmap.scaled(
+            cellSize,
+            cellSize,
+            Qt::IgnoreAspectRatio,
+            Qt::SmoothTransformation
+        ));
+    }
+    if(!spike1Pixmap.isNull()){
+        spike1Brush=QBrush(spike1Pixmap.scaled(
+            cellSize,
+            cellSize,
+            Qt::IgnoreAspectRatio,
+            Qt::SmoothTransformation
+        ));
+    }
+    if(!spike2Pixmap.isNull()){
+        spike2Brush=QBrush(spike2Pixmap.scaled(
+            cellSize,
+            cellSize,
+            Qt::IgnoreAspectRatio,
+            Qt::SmoothTransformation
+        ));
+    }
     for(int i=0;i<screensize;i++){
         for(int j=0;j<screensize;j++){
             if(squares[i][j]==nullptr){
                 continue;
             }
+            if(i>=mapWidth||j>=mapHeight){
+                squares[i][j]->setVisible(false);
+                continue;
+            }
+            squares[i][j]->setVisible(true);
             squares[i][j]->setRect(0,0,cellSize,cellSize);
             if(mapdata[i][j]==level::CellWall){
                 squares[i][j]->setBrush(boxBrush);
             }
             else if(mapdata[i][j]==level::CellTrap){
                 squares[i][j]->setBrush(QColor(178,48,48));
+            }
+            else if(mapdata[i][j]==level::CellEnd){
+                squares[i][j]->setBrush(targetBrush);
+            }
+            else if(mapdata[i][j]==level::CellSpikeUp){
+                squares[i][j]->setBrush(spike1Brush);
+            }
+            else if(mapdata[i][j]==level::CellSpikeDown){
+                squares[i][j]->setBrush(spike2Brush);
             }
             else{
                 squares[i][j]->setBrush(floorBrush);
@@ -6127,9 +6204,11 @@ void CodeBlock::mouseReleaseEvent(QGraphicsSceneMouseEvent* event){
 
 level::TestContext currentLevelTestContext(){
     level::TestContext context;
-    context.map.assign(screensize,std::vector<int>(screensize,0));
-    for(int i=0;i<screensize;i++){
-        for(int j=0;j<screensize;j++){
+    int mapWidth=currentMapWidth();
+    int mapHeight=currentMapHeight();
+    context.map.assign(mapWidth,std::vector<int>(mapHeight,0));
+    for(int i=0;i<mapWidth;i++){
+        for(int j=0;j<mapHeight;j++){
             context.map[i][j]=mapdata[i][j];
         }
     }
@@ -6239,11 +6318,11 @@ void ui::resetLevelConfig(){
 }
 
 void ui::setLevelCell(int x,int y,int type){
-    if(x<0||x>=screensize||y<0||y>=screensize){
-        return;
-    }
     if(level::activeLevel().map().empty()){
         ui::resetLevelConfig();
+    }
+    if(x<0||x>=currentMapWidth()||y<0||y>=currentMapHeight()){
+        return;
     }
     level::setActiveMapCell(x,y,type);
 }
@@ -6252,8 +6331,8 @@ void ui::setRobotStart(int x,int y,int direction){
     if(level::activeLevel().map().empty()){
         ui::resetLevelConfig();
     }
-    x=std::max(0,std::min(x,screensize-1));
-    y=std::max(0,std::min(y,screensize-1));
+    x=std::max(0,std::min(x,currentMapWidth()-1));
+    y=std::max(0,std::min(y,currentMapHeight()-1));
     level::setActiveRobotStart(x,y,direction);
 }
 
@@ -6316,9 +6395,24 @@ void init(){
     if(level::activeLevel().map().empty()){
         ui::resetLevelConfig();
     }
+    syncMapDataFromActiveLevel();
+}
+
+void syncMapDataFromActiveLevel(){
     const level::LevelConfig& config=level::activeLevel();
     for(int i=0;i<screensize;i++){
         for(int j=0;j<screensize;j++){
+            mapdata[i][j]=level::CellEmpty;
+        }
+    }
+    int mapWidth=currentMapWidth();
+    int mapHeight=currentMapHeight();
+    int configWidth=static_cast<int>(config.map().size());
+    for(int i=0;i<screensize;i++){
+        for(int j=0;j<screensize;j++){
+            if(i>=mapWidth||j>=mapHeight||i>=configWidth){
+                continue;
+            }
             mapdata[i][j]=config.mapCell(i,j);
         }
     }
@@ -6326,8 +6420,8 @@ void init(){
 
 void resetRobot(){
     level::RobotState start=level::activeLevel().robotStart();
-    player->gridx=std::max(0,std::min(start.x,screensize-1));
-    player->gridy=std::max(0,std::min(start.y,screensize-1));
+    player->gridx=std::max(0,std::min(start.x,currentMapWidth()-1));
+    player->gridy=std::max(0,std::min(start.y,currentMapHeight()-1));
     player->direction=((start.direction%4)+4)%4;
     player->SyncCell(stageDisplayCellSize(),stageDisplayOrigin());
 }
@@ -6460,6 +6554,8 @@ void drawStage(QGraphicsScene& scene){
 
     QPoint stageOrigin=stageDisplayOrigin();
     int stageSize=stageDisplaySize();
+    int mapWidth=currentMapWidth();
+    int mapHeight=currentMapHeight();
     stage=scene.addRect(stageOrigin.x(),stageOrigin.y(),stageSize,stageSize);
     stage->setBrush(Qt::white);
     stage->setPen(Qt::NoPen);
@@ -6467,8 +6563,14 @@ void drawStage(QGraphicsScene& scene){
     int cellSize=stageDisplayCellSize();
     QPixmap floorPixmap=loadImageAsset("floor.png");
     QPixmap boxPixmap=loadImageAsset("box.png");
+    QPixmap targetPixmap=loadImageAsset("target.png");
+    QPixmap spike1Pixmap=loadImageAsset("spike1.png");
+    QPixmap spike2Pixmap=loadImageAsset("spike2.png");
     QBrush floorBrush(Qt::gray);
     QBrush boxBrush(QColor(126,76,36));
+    QBrush targetBrush(QColor(178,48,48));
+    QBrush spike1Brush(QColor(132,132,132));
+    QBrush spike2Brush(QColor(86,86,86));
     if(!floorPixmap.isNull()){
         floorBrush=QBrush(floorPixmap.scaled(
             cellSize,
@@ -6485,14 +6587,50 @@ void drawStage(QGraphicsScene& scene){
             Qt::SmoothTransformation
         ));
     }
+    if(!targetPixmap.isNull()){
+        targetBrush=QBrush(targetPixmap.scaled(
+            cellSize,
+            cellSize,
+            Qt::IgnoreAspectRatio,
+            Qt::SmoothTransformation
+        ));
+    }
+    if(!spike1Pixmap.isNull()){
+        spike1Brush=QBrush(spike1Pixmap.scaled(
+            cellSize,
+            cellSize,
+            Qt::IgnoreAspectRatio,
+            Qt::SmoothTransformation
+        ));
+    }
+    if(!spike2Pixmap.isNull()){
+        spike2Brush=QBrush(spike2Pixmap.scaled(
+            cellSize,
+            cellSize,
+            Qt::IgnoreAspectRatio,
+            Qt::SmoothTransformation
+        ));
+    }
     for(int i=0;i<screensize;i++){
         for(int j=0;j<screensize;j++){
             squares[i][j]=scene.addRect(0,0,cellSize,cellSize);
-            if(mapdata[i][j]==level::CellWall){
+            if(i>=mapWidth||j>=mapHeight){
+                squares[i][j]->setVisible(false);
+            }
+            else if(mapdata[i][j]==level::CellWall){
                 squares[i][j]->setBrush(boxBrush);
             }
             else if(mapdata[i][j]==level::CellTrap){
                 squares[i][j]->setBrush(QColor(178,48,48));
+            }
+            else if(mapdata[i][j]==level::CellEnd){
+                squares[i][j]->setBrush(targetBrush);
+            }
+            else if(mapdata[i][j]==level::CellSpikeUp){
+                squares[i][j]->setBrush(spike1Brush);
+            }
+            else if(mapdata[i][j]==level::CellSpikeDown){
+                squares[i][j]->setBrush(spike2Brush);
             }
             else{
                 squares[i][j]->setBrush(floorBrush);
