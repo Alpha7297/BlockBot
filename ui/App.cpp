@@ -34,7 +34,6 @@
 #include <QFileDialog>
 #include <QCloseEvent>
 #include <QMainWindow>
-#include <QPushButton>
 #include <QPixmap>
 #include <algorithm>
 #include <cmath>
@@ -70,6 +69,7 @@ int levelTestCaseIndex=0;
 int levelTestCaseTotal=1;
 bool runtimeCountersActive=false;
 bool stageExpanded=false;
+bool editorExitToDesktopRequested=false;
 bool contextMenuButtonPressed=false;
 vector<QString> undoCheckpoints;
 int undoCheckpointId=0;
@@ -170,10 +170,18 @@ QPixmap loadImageAsset(const QString& fileName){
          <<QCoreApplication::applicationDirPath()
          <<QDir(QCoreApplication::applicationDirPath()).absoluteFilePath("..")
          <<QDir(QCoreApplication::applicationDirPath()).absoluteFilePath("../..");
+    QStringList imagePaths;
+    imagePaths<<QString("images/%1").arg(fileName)
+              <<QString("images/bars/%1").arg(fileName)
+              <<QString("images/floor/%1").arg(fileName)
+              <<QString("images/icons/%1").arg(fileName)
+              <<QString("images/background/%1").arg(fileName);
     for(const QString& root:roots){
-        QString path=QDir(root).filePath(QString("images/%1").arg(fileName));
-        if(QFileInfo::exists(path)){
-            return QPixmap(path);
+        for(const QString& relativePath:imagePaths){
+            QString path=QDir(root).filePath(relativePath);
+            if(QFileInfo::exists(path)){
+                return QPixmap(path);
+            }
         }
     }
     return QPixmap();
@@ -2734,7 +2742,17 @@ AppGraphicsView::AppGraphicsView(QGraphicsScene* scene):QGraphicsView(scene)
         timerPtr->start(runtimeIntervalForCodeBlock(runningBlock));
     });
     exitButton->onClick=[this](){
-        this->close();
+        editorExitToDesktopRequested=false;
+        if(timerPtr){
+            timerPtr->stop();
+        }
+        programRunning=false;
+        levelTestRunning=false;
+        runtimeCountersActive=false;
+        runtimeStopRequested=true;
+        QTimer::singleShot(0,this,[this](){
+            close();
+        });
     };
     scene->setSceneRect(0,0,appWidth,appHeight);
     setAlignment(Qt::AlignLeft|Qt::AlignTop);
@@ -2746,9 +2764,10 @@ AppGraphicsView::AppGraphicsView(QGraphicsScene* scene):QGraphicsView(scene)
 
 void AppGraphicsView::closeEvent(QCloseEvent* event){
     clearWorkspaceAndCacheOnExit();
-    if(onClosed){
+    if(!editorExitToDesktopRequested&&onClosed){
         onClosed();
     }
+    editorExitToDesktopRequested=false;
     QGraphicsView::closeEvent(event);
 }
 
@@ -7094,14 +7113,24 @@ void LevelChoosePage::onStartButtonClicked()
     {
         levelNumber=Slender->property("levelNumber").toInt();
     }
+    startLevel(levelNumber);
+}
+
+void LevelChoosePage::startLevel(int levelNumber)
+{
+    if(levelNumber<level::MinLevelNumber||levelNumber>level::TotalLevelCount){
+        return;
+    }
+    editorExitToDesktopRequested=false;
     level::LevelType levelType=level::defaultLevelTypeForNumber(levelNumber);
     level::configureActiveLevel(levelNumber,levelType);
     runtimeState.clearAll();
     level::prepareActiveTestCase(0,runtimeState);
     lockCurrentDataRuntimeNames();
-    init();
+    ::init();
     stageExpanded=false;
     if(view!=nullptr){
+        view->onClosed=nullptr;
         view->close();
         view->deleteLater();
         view=nullptr;
@@ -7111,7 +7140,17 @@ void LevelChoosePage::onStartButtonClicked()
     view = new AppGraphicsView(scene);
     view->onClosed=[this]()
     {
-        this->show();
+        AppGraphicsView* closedView=view;
+        QGraphicsScene* closedScene=scene;
+        view=nullptr;
+        scene=nullptr;
+        if(closedView!=nullptr){
+            closedView->deleteLater();
+        }
+        if(closedScene!=nullptr){
+            closedScene->deleteLater();
+        }
+        this->close();
     };
     this->hide();
     view->show();
@@ -7119,6 +7158,7 @@ void LevelChoosePage::onStartButtonClicked()
 void MainWindow::onStartButtonClicked()
 {
     int levelNumber=-1;
+    editorExitToDesktopRequested=false;
     level::LevelType levelType=level::LevelType::SandBox;
     level::configureActiveLevel(levelNumber,levelType);
     runtimeState.clearAll();
@@ -7126,6 +7166,7 @@ void MainWindow::onStartButtonClicked()
     init();
     stageExpanded=false;
     if(view!=nullptr){
+        view->onClosed=nullptr;
         view->close();
         view->deleteLater();
         view=nullptr;
@@ -7135,6 +7176,16 @@ void MainWindow::onStartButtonClicked()
     view = new AppGraphicsView(scene);
     view->onClosed=[this]()
     {
+        AppGraphicsView* closedView=view;
+        QGraphicsScene* closedScene=scene;
+        view=nullptr;
+        scene=nullptr;
+        if(closedView!=nullptr){
+            closedView->deleteLater();
+        }
+        if(closedScene!=nullptr){
+            closedScene->deleteLater();
+        }
         this->show();
     };
     this->hide();

@@ -1,32 +1,43 @@
 <RCC>
     <qresource prefix="/">
-        <file>background/background.png</file>
-        <file>background/level.png</file>
-        <file>background/levelmode.png</file>
-        <file>background/MainWindowBackground.png</file>
-        <file>background/pipe1.png</file>
-        <file>background/pipeC.png</file>
-        <file>background/sandboxmode.png</file>
-        <file>images/box.png</file>
-        <file>images/create_custom.png</file>
-        <file>images/create_list.png</file>
-        <file>images/create_variable.png</file>
-        <file>images/exit.png</file>
-        <file>images/floor.png</file>
-        <file>images/information.png</file>
-        <file>images/larger.png</file>
-        <file>images/levelButton.png</file>
-        <file>images/logo-flatten.png</file>
-        <file>images/open.png</file>
-        <file>images/run.png</file>
-        <file>images/sandboxButton.png</file>
-        <file>images/save.png</file>
-        <file>images/slider.png</file>
-        <file>images/smaller.png</file>
-        <file>images/spike1.png</file>
-        <file>images/spike2.png</file>
-        <file>images/stop.png</file>
-        <file>images/title_bar.png</file>
+        <file>images/background/background.png</file>
+        <file>images/background/level__current.png</file>
+        <file>images/background/level__gray.png</file>
+        <file>images/background/level__normal.png</file>
+        <file>images/bars/create_custom.png</file>
+        <file>images/bars/create_list.png</file>
+        <file>images/bars/create_variable.png</file>
+        <file>images/bars/exit.png</file>
+        <file>images/bars/information.png</file>
+        <file>images/bars/levelmode.png</file>
+        <file>images/bars/logo.png</file>
+        <file>images/bars/logo-flatten.png</file>
+        <file>images/bars/run.png</file>
+        <file>images/bars/sandboxmode.png</file>
+        <file>images/bars/stop.png</file>
+        <file>images/bars/title_bar.png</file>
+        <file>images/floor/antenna.png</file>
+        <file>images/floor/antenna2.png</file>
+        <file>images/floor/box.png</file>
+        <file>images/floor/floor.png</file>
+        <file>images/floor/light1.png</file>
+        <file>images/floor/light2.png</file>
+        <file>images/floor/light3.png</file>
+        <file>images/floor/liquid.png</file>
+        <file>images/floor/scope.png</file>
+        <file>images/floor/spike1.png</file>
+        <file>images/floor/spike2.png</file>
+        <file>images/floor/target.png</file>
+        <file>images/floor/valve.png</file>
+        <file>images/icons/larger.png</file>
+        <file>images/icons/level.png</file>
+        <file>images/icons/open.png</file>
+        <file>images/icons/pipe1.png</file>
+        <file>images/icons/pipeC.png</file>
+        <file>images/icons/return.png</file>
+        <file>images/icons/save.png</file>
+        <file>images/icons/slider.png</file>
+        <file>images/icons/smaller.png</file>
         <file>painting/back1.png</file>
         <file>painting/echo.png</file>
         <file>painting/left1.png</file>
@@ -36,12 +47,5 @@
         <file>painting/right1.png</file>
         <file>painting/robot0.png</file>
         <file>painting/straight1.png</file>
-        <file>process</file>
-        <file>background/chooseLevelPage.png</file>
-        <file>images/btn_back.png</file>
-        <file>images/icon_lock.png</file>
-        <file>images/level__current.png</file>
-        <file>images/level__gray.png</file>
-        <file>images/level__normal.png</file>
     </qresource>
 </RCC>

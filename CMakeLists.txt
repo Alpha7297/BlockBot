@@ -10,12 +10,13 @@ qt_standard_project_setup()
 
 qt_add_executable(BlockBot
     main.cpp
-    tale.cpp
-    tale.h
     ui/App.cpp
     ui/App.h
     ui/AppGraphicsView.h
+    ui/MainWindow.cpp
     ui/MainWindow.h
+    ui/levelchoosepage.cpp
+    ui/levelchoosepage.h
     ui/UiConstants.h
     ui/Widgets.h
     message/Message.cpp
@@ -35,13 +36,11 @@ qt_add_executable(BlockBot
 
 target_link_libraries(BlockBot PRIVATE Qt6::Widgets)
 
-set(CMAKE_AUTORCC ON)
 add_executable(test_calc
     test.cpp
     core/Block.cpp
     core/Ops.cpp
     core/Value.cpp
-    resource.qrc
 )
 
 add_custom_target(run_test
