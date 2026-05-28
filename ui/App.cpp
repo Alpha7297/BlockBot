@@ -69,16 +69,12 @@ int levelTestTimeCount=0;
 int levelTestCaseIndex=0;
 int levelTestCaseTotal=1;
 bool runtimeCountersActive=false;
-bool suppressRuntimeFloatStepCount=false;
 bool stageExpanded=false;
 bool contextMenuButtonPressed=false;
 vector<QString> undoCheckpoints;
 int undoCheckpointId=0;
 bool restoringUndo=false;
 bool suppressCustomReferenceRemoval=false;
-
-constexpr int levelTestIntervalMs=40;
-constexpr int levelTestStepLimit=10000;
 
 class CodeBlock;
 class FloatBlock;
@@ -103,16 +99,22 @@ void recordRuntimeStepUse(){
     }
 }
 
+void syncMapDataFromActiveLevel();
+void updateStageGeometry();
+
 void recordRuntimeTimeUse(){
     if(runtimeCountersActive){
         levelTestTimeCount++;
+        if(level::activeLevelType()==level::LevelType::Map){
+            level::fresh(level::activeLevelNumber(),levelTestTimeCount);
+            syncMapDataFromActiveLevel();
+            updateStageGeometry();
+        }
     }
 }
 
-void recordFloatValueUse(){
-    if(!suppressRuntimeFloatStepCount){
-        recordRuntimeStepUse();
-    }
+void recordFloatOperatorUse(){
+    recordRuntimeStepUse();
 }
 void refreshFloatAncestors(FloatBlock* block);
 void refreshAllControlLayouts();
@@ -129,6 +131,7 @@ bool isContextMenuItem(QGraphicsItem* item);
 bool isWorkspaceContentItem(QGraphicsItem* item);
 CodeBlock* codeBlockAtScenePoint(QGraphicsScene* scene,QPointF scenePoint);
 FloatBlock* floatBlockAtScenePoint(QGraphicsScene* scene,QPointF scenePoint);
+int runtimeIntervalForCodeBlock(CodeBlock* block);
 void clearUndoCache();
 void saveUndoCheckpoint();
 void undoLastCheckpoint();
@@ -569,7 +572,6 @@ public:
         return false;
     }
     virtual double getValue() const{
-        recordFloatValueUse();
         return data;
     }
     virtual void editValue(){
@@ -645,7 +647,6 @@ public:
     }
 
     double getValue() const override{
-        recordFloatValueUse();
         double value=0.0;
         std::string name=variableName.toStdString();
         if(!runtimeState.getVariable(name,&value)){
@@ -717,7 +718,7 @@ public:
         return true;
     }
     double getValue() const override{
-        recordFloatValueUse();
+        recordFloatOperatorUse();
         double val=slot->getValue();
         if(type==0){
             return checkedDoubleResult(std::sin(val),"sin");
@@ -818,7 +819,7 @@ public:
         return true;
     }
     double getValue() const override{
-        recordFloatValueUse();
+        recordFloatOperatorUse();
         double a=left->getValue();
         double b=right->getValue();
         if(type==0){
@@ -1202,7 +1203,6 @@ public:
     }
 
     double getValue() const override{
-        recordFloatValueUse();
         std::string name=listName.toStdString();
         if(!runtimeState.hasList(name)){
             QByteArray bytes=listName.toUtf8();
@@ -1304,7 +1304,6 @@ public:
     }
 
     double getValue() const override{
-        recordFloatValueUse();
         std::string name=listName.toStdString();
         int size=runtimeState.listSize(name);
         if(size<0){
@@ -1721,7 +1720,6 @@ public:
     }
 
     double getValue() const override{
-        recordFloatValueUse();
         return customParameterValue(customName);
     }
 
@@ -1935,6 +1933,29 @@ const T min(const T a,const T b){
 
 extern int mapdata[screensize][screensize];
 
+int currentMapWidth(){
+    int width=static_cast<int>(level::activeLevel().map().size());
+    if(width<=0){
+        width=screensize;
+    }
+    return std::max(1,std::min(width,screensize));
+}
+
+int currentMapHeight(){
+    int height=0;
+    for(const auto& column:level::activeLevel().map()){
+        height=std::max(height,static_cast<int>(column.size()));
+    }
+    if(height<=0){
+        height=screensize;
+    }
+    return std::max(1,std::min(height,screensize));
+}
+
+int currentMapSide(){
+    return std::max(currentMapWidth(),currentMapHeight());
+}
+
 class Robot:public QGraphicsPixmapItem{
 public:
     int gridx;
@@ -2019,7 +2040,7 @@ public:
         if(direction==3){
             newy-=sign;
         }
-        if(newx<0||newx>=screensize||newy<0||newy>=screensize){
+        if(newx<0||newx>=currentMapWidth()||newy<0||newy>=currentMapHeight()){
             return;
         }
         int cell=mapdata[newx][newy];
@@ -2061,7 +2082,7 @@ int frontMapType(){
     else if(player->direction==3){
         y--;
     }
-    if(x<0||x>=screensize||y<0||y>=screensize){
+    if(x<0||x>=currentMapWidth()||y<0||y>=currentMapHeight()){
         return -1;
     }
     return mapdata[x][y];
@@ -2080,7 +2101,6 @@ public:
     }
 
     double getValue() const override{
-        recordFloatValueUse();
         if(player==nullptr){
             return 0.0;
         }
@@ -2112,7 +2132,6 @@ public:
     }
 
     double getValue() const override{
-        recordFloatValueUse();
         return frontMapType();
     }
 
@@ -2289,6 +2308,59 @@ int variableToolboxStartY=0;
 std::set<std::string> dataLockedVariableNames;
 std::set<std::string> dataLockedListNames;
 
+void resetSceneGlobals(){
+    appScene=nullptr;
+    stage=nullptr;
+    toolboxBackground=nullptr;
+    workspaceBackground=nullptr;
+    for(int i=0;i<screensize;i++){
+        for(int j=0;j<screensize;j++){
+            squares[i][j]=nullptr;
+        }
+    }
+    runButton=nullptr;
+    fastRunButton=nullptr;
+    runTextButton=nullptr;
+    activeRunButton=nullptr;
+    testButton=nullptr;
+    fullscreenButton=nullptr;
+    shrinkStageButton=nullptr;
+    informationImage=nullptr;
+    informationFallbackBox=nullptr;
+    fullscreenBackdrop=nullptr;
+    testStatusText=nullptr;
+    timeStatusText=nullptr;
+    createVariableButton=nullptr;
+    createListButton=nullptr;
+    createCustomBlockButton=nullptr;
+    exitButton=nullptr;
+    toolboxSlider=nullptr;
+    workspaceSlider=nullptr;
+    codeBlocks.clear();
+    baseCodeBlocks.clear();
+    floatBlocks.clear();
+    variableBaseBlocks.clear();
+    listLabelBaseBlocks.clear();
+    listFloatBaseBlocks.clear();
+    listCodeBaseBlocks.clear();
+    customCallBaseBlocks.clear();
+    customHatBlocks.clear();
+    customParameterStacks.clear();
+    variableSetBaseBlock=nullptr;
+    currentStartBlock=nullptr;
+    runningBlock=nullptr;
+    contextMenuButtons.clear();
+    toolboxScrollY=0;
+    workspaceScrollY=0;
+    toolboxMaxScrollY=0;
+    variableToolboxStartY=0;
+    maxZ=10;
+    stageExpanded=false;
+    contextMenuButtonPressed=false;
+    restoringUndo=false;
+    suppressCustomReferenceRemoval=false;
+}
+
 void clearDataLockedNames(){
     dataLockedVariableNames.clear();
     dataLockedListNames.clear();
@@ -2362,7 +2434,7 @@ QPoint stageDisplayOrigin(){
 }
 
 int stageDisplayCellSize(){
-    return stageDisplaySize()/screensize;
+    return stageDisplaySize()/currentMapSide();
 }
 
 QRectF informationRect(){
@@ -2429,6 +2501,8 @@ void updateStageGeometry(){
     QPoint origin=stageDisplayOrigin();
     int size=stageDisplaySize();
     int cellSize=stageDisplayCellSize();
+    int mapWidth=currentMapWidth();
+    int mapHeight=currentMapHeight();
     qreal baseZ=stageExpanded?panelMaskZ+100010:0;
 
     stage->setRect(origin.x(),origin.y(),size,size);
@@ -2436,8 +2510,14 @@ void updateStageGeometry(){
 
     QPixmap floorPixmap=loadImageAsset("floor.png");
     QPixmap boxPixmap=loadImageAsset("box.png");
+    QPixmap targetPixmap=loadImageAsset("target.png");
+    QPixmap spike1Pixmap=loadImageAsset("spike1.png");
+    QPixmap spike2Pixmap=loadImageAsset("spike2.png");
     QBrush floorBrush(Qt::gray);
     QBrush boxBrush(QColor(126,76,36));
+    QBrush targetBrush(QColor(178,48,48));
+    QBrush spike1Brush(QColor(132,132,132));
+    QBrush spike2Brush(QColor(86,86,86));
     if(!floorPixmap.isNull()){
         floorBrush=QBrush(floorPixmap.scaled(
             cellSize,
@@ -2454,17 +2534,55 @@ void updateStageGeometry(){
             Qt::SmoothTransformation
         ));
     }
+    if(!targetPixmap.isNull()){
+        targetBrush=QBrush(targetPixmap.scaled(
+            cellSize,
+            cellSize,
+            Qt::IgnoreAspectRatio,
+            Qt::SmoothTransformation
+        ));
+    }
+    if(!spike1Pixmap.isNull()){
+        spike1Brush=QBrush(spike1Pixmap.scaled(
+            cellSize,
+            cellSize,
+            Qt::IgnoreAspectRatio,
+            Qt::SmoothTransformation
+        ));
+    }
+    if(!spike2Pixmap.isNull()){
+        spike2Brush=QBrush(spike2Pixmap.scaled(
+            cellSize,
+            cellSize,
+            Qt::IgnoreAspectRatio,
+            Qt::SmoothTransformation
+        ));
+    }
     for(int i=0;i<screensize;i++){
         for(int j=0;j<screensize;j++){
             if(squares[i][j]==nullptr){
                 continue;
             }
+            if(i>=mapWidth||j>=mapHeight){
+                squares[i][j]->setVisible(false);
+                continue;
+            }
+            squares[i][j]->setVisible(true);
             squares[i][j]->setRect(0,0,cellSize,cellSize);
             if(mapdata[i][j]==level::CellWall){
                 squares[i][j]->setBrush(boxBrush);
             }
             else if(mapdata[i][j]==level::CellTrap){
                 squares[i][j]->setBrush(QColor(178,48,48));
+            }
+            else if(mapdata[i][j]==level::CellEnd){
+                squares[i][j]->setBrush(targetBrush);
+            }
+            else if(mapdata[i][j]==level::CellSpikeUp){
+                squares[i][j]->setBrush(spike1Brush);
+            }
+            else if(mapdata[i][j]==level::CellSpikeDown){
+                squares[i][j]->setBrush(spike2Brush);
             }
             else{
                 squares[i][j]->setBrush(floorBrush);
@@ -2526,6 +2644,7 @@ void resetRunButtons();
 core::BlockExecutor::BlockSnapshot readRuntimeBlock(core::BlockExecutor::Node node);
 AppGraphicsView::AppGraphicsView(QGraphicsScene* scene):QGraphicsView(scene)
 {
+    resetSceneGlobals();
     appScene=scene;
     QGraphicsRectItem* background=scene->addRect(-10000,-10000,20000,20000);
     background->setBrush(appBackgroundColor());
@@ -2539,12 +2658,18 @@ AppGraphicsView::AppGraphicsView(QGraphicsScene* scene):QGraphicsView(scene)
 
     timerPtr=new QTimer(this);
     executorPtr=new core::BlockExecutor();
+    QTimer* ownedTimer=timerPtr;
+    core::BlockExecutor* ownedExecutor=executorPtr;
     RobotActionAdapter* robotActions=new RobotActionAdapter(player);
-    QObject::connect(this,&QObject::destroyed,this,[robotActions](){
+    QObject::connect(this,&QObject::destroyed,this,[robotActions,ownedTimer,ownedExecutor](){
         delete robotActions;
-        delete executorPtr;
-        executorPtr=nullptr;
-        timerPtr=nullptr;
+        delete ownedExecutor;
+        if(executorPtr==ownedExecutor){
+            executorPtr=nullptr;
+        }
+        if(timerPtr==ownedTimer){
+            timerPtr=nullptr;
+        }
     });
     QObject::connect(timerPtr,&QTimer::timeout,this,[robotActions](){
         if(executorPtr==nullptr||timerPtr==nullptr){
@@ -2568,13 +2693,11 @@ AppGraphicsView::AppGraphicsView(QGraphicsScene* scene):QGraphicsView(scene)
         }
         updateTestStatusText();
         if(levelTestRunning){
-            if(levelTestStepCount>levelTestStepLimit){
+            if(levelTestStepCount>=levelTestStepLimit){
                 player->SyncCell(stageDisplayCellSize(),stageDisplayOrigin());
-                double seconds=levelTestStepLimit*level::activeTestIntervalMs()/1000.0;
                 finishLevelTest(true,
-                    QString("测试失败，执行 %1 次 %2 秒，已超时")
-                        .arg(levelTestStepLimit)
-                        .arg(seconds,0,'g',4));
+                    QString("测试失败，执行 %1 次，已超时")
+                        .arg(levelTestStepLimit));
                 return;
             }
         }
@@ -2606,7 +2729,9 @@ AppGraphicsView::AppGraphicsView(QGraphicsScene* scene):QGraphicsView(scene)
             programRunning=false;
             runtimeCountersActive=false;
             resetRunButtons();
+            return;
         }
+        timerPtr->start(runtimeIntervalForCodeBlock(runningBlock));
     });
     exitButton->onClick=[this](){
         this->close();
@@ -2705,11 +2830,13 @@ void syncControlInside(ControlCodeBlock* control);
 ControlCodeBlock* findInsideOwner(CodeBlock* block);
 void syncScrollArea(int area);
 void syncCodeChainFrom(CodeBlock* head,QPointF startPos);
+int codeChainHeight(CodeBlock* head);
 void rememberCodeTreeStagePos(CodeBlock* head,int area);
 void rememberFloatBlockStagePos(FloatBlock* block,int area);
 void stopProgram();
 void resetRobot();
 void resetRunButtons();
+void setRunTextButtonRunning();
 void updateTestStatusText();
 void beginLevelTestCase(int index);
 void startLevelTestRun();
@@ -2720,6 +2847,8 @@ void setInsertedOperatorInteractivity(FloatBlock* block);
 void setCodeTreeZValue(CodeBlock* block,qreal z);
 void setFloatTreeZValue(FloatBlock* block,qreal z);
 void resetFloatTreeZValue(FloatBlock* block);
+CodeBlock* raiseCodeTreeAboveWorkspace(CodeBlock* block);
+FloatBlock* raiseFloatTreeAboveWorkspace(FloatBlock* block);
 void replaceFloatExpressionWithValue(FloatBlock* root);
 void refreshFloatAncestors(FloatBlock* block);
 FloatBlock* rootFloatBlock(FloatBlock* block);
@@ -2735,6 +2864,25 @@ bool inWorkspace(FloatBlock* block){
 
 QRectF workspaceRect(){
     return QRectF(workspaceX,workspaceY,workspaceWidth,workspaceHeight);
+}
+
+qreal workspaceMaxScrollY(){
+    return workspaceHeight*10;
+}
+
+QRectF workspaceTotalStageRect(){
+    return QRectF(0,0,workspaceWidth,workspaceHeight+workspaceMaxScrollY());
+}
+
+QRectF sceneRectToWorkspaceStageRect(const QRectF& rect){
+    return QRectF(
+        sceneToStagePos(scrollWorkspace,rect.topLeft()),
+        sceneToStagePos(scrollWorkspace,rect.bottomRight())
+    ).normalized();
+}
+
+bool inWorkspaceTotal(const QRectF& rect){
+    return workspaceTotalStageRect().contains(sceneRectToWorkspaceStageRect(rect));
 }
 
 bool outsideWorkspaceHorizontal(const QRectF& rect){
@@ -2942,7 +3090,7 @@ void copyCodeContext(CodeBlock* block){
         return;
     }
     addCodeTreeToScene(copy);
-    QPointF targetPos=source->pos()+QPointF(source->len+40,0);
+    QPointF targetPos=source->pos()+QPointF(0,codeChainHeight(source)+20);
     syncCodeChainFrom(copy,targetPos);
     setCodeTreeZValue(copy,10);
     if(outsideWorkspaceHorizontal(codeTreeSceneRect(copy))){
@@ -2951,7 +3099,8 @@ void copyCodeContext(CodeBlock* block){
         refreshAllControlLayouts();
         return;
     }
-    rememberCodeTreeStagePos(copy,scrollWorkspace);
+    CodeBlock* zRoot=raiseCodeTreeAboveWorkspace(copy);
+    rememberCodeTreeStagePos(zRoot,scrollWorkspace);
     refreshAllControlLayouts();
     saveUndoCheckpoint();
 }
@@ -2983,7 +3132,7 @@ void copyFloatContext(FloatBlock* block){
     copy->setParentItem(nullptr);
     floatBlocks.push_back(copy);
     appScene->addItem(copy);
-    copy->setPos(block->scenePos()+QPointF(block->len+30,0));
+    copy->setPos(block->scenePos()+QPointF(0,block->sceneBoundingRect().height()+20));
     copy->scrollArea=scrollWorkspace;
     resetFloatTreeZValue(copy);
     setInsertedOperatorInteractivity(copy);
@@ -2992,7 +3141,8 @@ void copyFloatContext(FloatBlock* block){
         deleteFloatBlock(copy);
         return;
     }
-    rememberFloatBlockStagePos(copy,scrollWorkspace);
+    FloatBlock* zRoot=raiseFloatTreeAboveWorkspace(copy);
+    rememberFloatBlockStagePos(zRoot,scrollWorkspace);
     saveUndoCheckpoint();
 }
 
@@ -3127,6 +3277,62 @@ CodeBlock* raiseCodeTreeAboveWorkspace(CodeBlock* block){
     }
     qreal z=std::min(workspaceTopZExcludingCodeTree(root)+20,panelMaskZ-1000);
     setCodeTreeZValue(root,z);
+    return root;
+}
+
+bool floatTreeContains(FloatBlock* root,FloatBlock* target){
+    if(root==nullptr||target==nullptr){
+        return false;
+    }
+    if(root==target){
+        return true;
+    }
+    UnaryOpBlock* unary=dynamic_cast<UnaryOpBlock*>(root);
+    if(unary!=nullptr){
+        return floatTreeContains(unary->slot,target);
+    }
+    BinaryOpBlock* binary=dynamic_cast<BinaryOpBlock*>(root);
+    if(binary!=nullptr){
+        return floatTreeContains(binary->left,target)||floatTreeContains(binary->right,target);
+    }
+    ListGetBlock* listGet=dynamic_cast<ListGetBlock*>(root);
+    if(listGet!=nullptr){
+        return floatTreeContains(listGet->index,target);
+    }
+    return false;
+}
+
+qreal workspaceTopZExcludingFloatTree(FloatBlock* excludedRoot){
+    qreal top=10;
+    auto considerCode=[&](CodeBlock* block){
+        if(block==nullptr||block->isbase||block->scrollArea!=scrollWorkspace||
+           block->dragging||block->ismoving){
+            return;
+        }
+        top=std::max(top,block->zValue());
+    };
+    for(CodeBlock* block:codeBlocks){
+        considerCode(block);
+    }
+    considerCode(currentStartBlock);
+    for(FloatBlock* block:floatBlocks){
+        if(block==nullptr||block->isbase||block->parentItem()!=nullptr||
+           block->scrollArea!=scrollWorkspace||block->dragging||
+           floatTreeContains(excludedRoot,block)){
+            continue;
+        }
+        top=std::max(top,block->zValue());
+    }
+    return top;
+}
+
+FloatBlock* raiseFloatTreeAboveWorkspace(FloatBlock* block){
+    FloatBlock* root=rootFloatBlock(block);
+    if(root==nullptr){
+        return block;
+    }
+    qreal z=std::min(workspaceTopZExcludingFloatTree(root)+20,panelMaskZ-1000);
+    setFloatTreeZValue(root,z);
     return root;
 }
 
@@ -3629,10 +3835,8 @@ void clearWorkspaceForUndo(){
 void clearWorkspaceAndCacheOnExit(){
     stopProgram();
     clearWorkspaceForUndo();
-    rebuildCustomCallToolbox();
-    refreshVariableToolbox();
-    refreshAllControlLayouts();
     clearUndoCache();
+    resetSceneGlobals();
 }
 
 void refreshVariableToolbox();
@@ -4386,11 +4590,7 @@ double codeBlockFloatValue(CodeBlock* block){
     }
     ControlCodeBlock* controlBlock=dynamic_cast<ControlCodeBlock*>(block);
     if(controlBlock!=nullptr&&controlBlock->condition!=nullptr){
-        bool previousSuppress=suppressRuntimeFloatStepCount;
-        suppressRuntimeFloatStepCount=true;
-        double value=controlBlock->condition->getValue();
-        suppressRuntimeFloatStepCount=previousSuppress;
-        return value;
+        return controlBlock->condition->getValue();
     }
     return 0.0;
 }
@@ -4404,9 +4604,12 @@ core::BlockExecutor::BlockSnapshot readRuntimeBlock(core::BlockExecutor::Node no
     recordRuntimeStepUse();
     snapshot.type=block->type;
     runtimeSkipCurrentBlock=false;
-    snapshot.value=codeBlockFloatValue(block);
-    if(runtimeSkipCurrentBlock){
-        snapshot.type=-999;
+    bool waitingFrame=block->type==4&&executorPtr!=nullptr&&executorPtr->waitingOn(node);
+    if(!waitingFrame){
+        snapshot.value=codeBlockFloatValue(block);
+        if(runtimeSkipCurrentBlock){
+            snapshot.type=-999;
+        }
     }
     snapshot.next=block->next;
     SetVariableBlock* setBlock=dynamic_cast<SetVariableBlock*>(block);
@@ -5659,8 +5862,8 @@ void FloatBlock::mouseReleaseEvent(QGraphicsSceneMouseEvent* event){
             saveUndoCheckpoint();
             return;
         }
-        resetFloatTreeZValue(this);
-        rememberFloatBlockStagePos(this,scrollWorkspace);
+        FloatBlock* zRoot=raiseFloatTreeAboveWorkspace(this);
+        rememberFloatBlockStagePos(zRoot,scrollWorkspace);
         if(!moved&&!isbase&&!isOperator()){
             editValue();
             checkEditedFloatWorkspaceWidth(this);
@@ -5877,11 +6080,7 @@ void CodeBlock::mouseReleaseEvent(QGraphicsSceneMouseEvent* event){
             return;
         }
         bool hasAbsorbTarget=preTarget!=nullptr||nextTarget!=nullptr||insideTarget!=nullptr;
-        if(!isbase&&!hasAbsorbTarget&&outsideWorkspaceVertical(releaseRect)){
-            offsetCodeChain(this,clampVerticalDeltaToWorkspace(releaseRect));
-            shadow->setPos(pos());
-        }
-        if(!isbase&&!hasAbsorbTarget&&!inWorkspace(this)){
+        if(!isbase&&!hasAbsorbTarget&&!inWorkspaceTotal(releaseRect)){
             scene()->removeItem(shadow);
             deleteCodeChain(this);
             saveUndoCheckpoint();
@@ -6005,9 +6204,11 @@ void CodeBlock::mouseReleaseEvent(QGraphicsSceneMouseEvent* event){
 
 level::TestContext currentLevelTestContext(){
     level::TestContext context;
-    context.map.assign(screensize,std::vector<int>(screensize,0));
-    for(int i=0;i<screensize;i++){
-        for(int j=0;j<screensize;j++){
+    int mapWidth=currentMapWidth();
+    int mapHeight=currentMapHeight();
+    context.map.assign(mapWidth,std::vector<int>(mapHeight,0));
+    for(int i=0;i<mapWidth;i++){
+        for(int j=0;j<mapHeight;j++){
             context.map[i][j]=mapdata[i][j];
         }
     }
@@ -6017,6 +6218,8 @@ level::TestContext currentLevelTestContext(){
         context.robot.direction=player->direction;
     }
     context.runtime=&runtimeState;
+    context.steps=levelTestStepCount;
+    context.time=levelTestTimeCount;
     return context;
 }
 
@@ -6093,17 +6296,18 @@ void beginLevelTestCase(int index){
     }
     if(timerPtr!=nullptr){
         timerPtr->stop();
-        timerPtr->start(level::activeTestIntervalMs());
+        timerPtr->start(runtimeIntervalForCodeBlock(currentStartBlock->next));
     }
 }
 
 void startLevelTestRun(){
-    if(activeRunButton!=nullptr||levelTestRunning){
+    if(activeRunButton!=nullptr||levelTestRunning||programRunning){
         stopProgram();
     }
     levelTestRunning=true;
     levelTestCaseIndex=0;
     levelTestCaseTotal=std::max(1,level::activeTestCaseCount());
+    setRunTextButtonRunning();
     beginLevelTestCase(levelTestCaseIndex);
 }
 
@@ -6114,11 +6318,11 @@ void ui::resetLevelConfig(){
 }
 
 void ui::setLevelCell(int x,int y,int type){
-    if(x<0||x>=screensize||y<0||y>=screensize){
-        return;
-    }
     if(level::activeLevel().map().empty()){
         ui::resetLevelConfig();
+    }
+    if(x<0||x>=currentMapWidth()||y<0||y>=currentMapHeight()){
+        return;
     }
     level::setActiveMapCell(x,y,type);
 }
@@ -6127,8 +6331,8 @@ void ui::setRobotStart(int x,int y,int direction){
     if(level::activeLevel().map().empty()){
         ui::resetLevelConfig();
     }
-    x=std::max(0,std::min(x,screensize-1));
-    y=std::max(0,std::min(y,screensize-1));
+    x=std::max(0,std::min(x,currentMapWidth()-1));
+    y=std::max(0,std::min(y,currentMapHeight()-1));
     level::setActiveRobotStart(x,y,direction);
 }
 
@@ -6191,9 +6395,24 @@ void init(){
     if(level::activeLevel().map().empty()){
         ui::resetLevelConfig();
     }
+    syncMapDataFromActiveLevel();
+}
+
+void syncMapDataFromActiveLevel(){
     const level::LevelConfig& config=level::activeLevel();
     for(int i=0;i<screensize;i++){
         for(int j=0;j<screensize;j++){
+            mapdata[i][j]=level::CellEmpty;
+        }
+    }
+    int mapWidth=currentMapWidth();
+    int mapHeight=currentMapHeight();
+    int configWidth=static_cast<int>(config.map().size());
+    for(int i=0;i<screensize;i++){
+        for(int j=0;j<screensize;j++){
+            if(i>=mapWidth||j>=mapHeight||i>=configWidth){
+                continue;
+            }
             mapdata[i][j]=config.mapCell(i,j);
         }
     }
@@ -6201,8 +6420,8 @@ void init(){
 
 void resetRobot(){
     level::RobotState start=level::activeLevel().robotStart();
-    player->gridx=std::max(0,std::min(start.x,screensize-1));
-    player->gridy=std::max(0,std::min(start.y,screensize-1));
+    player->gridx=std::max(0,std::min(start.x,currentMapWidth()-1));
+    player->gridy=std::max(0,std::min(start.y,currentMapHeight()-1));
     player->direction=((start.direction%4)+4)%4;
     player->SyncCell(stageDisplayCellSize(),stageDisplayOrigin());
 }
@@ -6220,6 +6439,32 @@ void resetRunButtons(){
         fastRunButton->setLightningShape();
     }
     activeRunButton=nullptr;
+}
+
+bool isRuntimeActionBlockType(int blockType){
+    return blockType==0||blockType==1||blockType==3||blockType==4;
+}
+
+int runtimeIntervalForBlockType(int blockType){
+    return isRuntimeActionBlockType(blockType)
+        ? level::RuntimeActionBlockIntervalMs
+        : level::RuntimeCodeBlockIntervalMs;
+}
+
+int runtimeIntervalForCodeBlock(CodeBlock* block){
+    if(block==nullptr){
+        return level::RuntimeCodeBlockIntervalMs;
+    }
+    return runtimeIntervalForBlockType(block->type);
+}
+
+void setRunTextButtonRunning(){
+    if(runTextButton==nullptr){
+        return;
+    }
+    runTextButton->text->setPlainText(QString::fromUtf8("\350\277\220\350\241\214\344\270\255"));
+    runTextButton->refreshShape();
+    runTextButton->setFixedSize(150,scaledAssetHeight("run.png",150,40));
 }
 
 void stopProgram(){
@@ -6278,7 +6523,7 @@ void startProgram(Button* button,int intervalMs){
     }
     if(timerPtr!=nullptr){
         timerPtr->stop();
-        timerPtr->start(intervalMs);
+        timerPtr->start(runtimeIntervalForCodeBlock(currentStartBlock->next));
     }
 }
 
@@ -6309,6 +6554,8 @@ void drawStage(QGraphicsScene& scene){
 
     QPoint stageOrigin=stageDisplayOrigin();
     int stageSize=stageDisplaySize();
+    int mapWidth=currentMapWidth();
+    int mapHeight=currentMapHeight();
     stage=scene.addRect(stageOrigin.x(),stageOrigin.y(),stageSize,stageSize);
     stage->setBrush(Qt::white);
     stage->setPen(Qt::NoPen);
@@ -6316,8 +6563,14 @@ void drawStage(QGraphicsScene& scene){
     int cellSize=stageDisplayCellSize();
     QPixmap floorPixmap=loadImageAsset("floor.png");
     QPixmap boxPixmap=loadImageAsset("box.png");
+    QPixmap targetPixmap=loadImageAsset("target.png");
+    QPixmap spike1Pixmap=loadImageAsset("spike1.png");
+    QPixmap spike2Pixmap=loadImageAsset("spike2.png");
     QBrush floorBrush(Qt::gray);
     QBrush boxBrush(QColor(126,76,36));
+    QBrush targetBrush(QColor(178,48,48));
+    QBrush spike1Brush(QColor(132,132,132));
+    QBrush spike2Brush(QColor(86,86,86));
     if(!floorPixmap.isNull()){
         floorBrush=QBrush(floorPixmap.scaled(
             cellSize,
@@ -6334,14 +6587,50 @@ void drawStage(QGraphicsScene& scene){
             Qt::SmoothTransformation
         ));
     }
+    if(!targetPixmap.isNull()){
+        targetBrush=QBrush(targetPixmap.scaled(
+            cellSize,
+            cellSize,
+            Qt::IgnoreAspectRatio,
+            Qt::SmoothTransformation
+        ));
+    }
+    if(!spike1Pixmap.isNull()){
+        spike1Brush=QBrush(spike1Pixmap.scaled(
+            cellSize,
+            cellSize,
+            Qt::IgnoreAspectRatio,
+            Qt::SmoothTransformation
+        ));
+    }
+    if(!spike2Pixmap.isNull()){
+        spike2Brush=QBrush(spike2Pixmap.scaled(
+            cellSize,
+            cellSize,
+            Qt::IgnoreAspectRatio,
+            Qt::SmoothTransformation
+        ));
+    }
     for(int i=0;i<screensize;i++){
         for(int j=0;j<screensize;j++){
             squares[i][j]=scene.addRect(0,0,cellSize,cellSize);
-            if(mapdata[i][j]==level::CellWall){
+            if(i>=mapWidth||j>=mapHeight){
+                squares[i][j]->setVisible(false);
+            }
+            else if(mapdata[i][j]==level::CellWall){
                 squares[i][j]->setBrush(boxBrush);
             }
             else if(mapdata[i][j]==level::CellTrap){
                 squares[i][j]->setBrush(QColor(178,48,48));
+            }
+            else if(mapdata[i][j]==level::CellEnd){
+                squares[i][j]->setBrush(targetBrush);
+            }
+            else if(mapdata[i][j]==level::CellSpikeUp){
+                squares[i][j]->setBrush(spike1Brush);
+            }
+            else if(mapdata[i][j]==level::CellSpikeDown){
+                squares[i][j]->setBrush(spike2Brush);
             }
             else{
                 squares[i][j]->setBrush(floorBrush);
@@ -6363,7 +6652,7 @@ void drawStage(QGraphicsScene& scene){
     runTextButton->setTexture("run.png");
     runTextButton->setZValue(20);
     runTextButton->onClick=[](){
-        startProgram(nullptr,300);
+        startLevelTestRun();
     };
     scene.addItem(runTextButton);
 
@@ -6387,8 +6676,8 @@ void drawStage(QGraphicsScene& scene){
     fullscreenButton->setZValue(20);
     fullscreenButton->onClick=[](){
         setStageExpanded(true);
-        if(!programRunning){
-            startProgram(nullptr,300);
+        if(!programRunning&&!levelTestRunning){
+            startLevelTestRun();
         }
     };
     scene.addItem(fullscreenButton);
@@ -6791,7 +7080,7 @@ void drawWorkspace(QGraphicsScene& scene){
         workspaceSlider->setPen(Qt::NoPen);
     }
     workspaceSlider->onChanged=[](qreal value){
-        workspaceScrollY=value*workspaceHeight;
+        workspaceScrollY=value*workspaceMaxScrollY();
         syncScrollArea(scrollWorkspace);
     };
     scene.addItem(workspaceSlider);

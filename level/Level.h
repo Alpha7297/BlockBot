@@ -11,9 +11,13 @@
 
 namespace level{
 
-inline constexpr int CellEmpty = 0;
-inline constexpr int CellWall = 1;
-inline constexpr int CellTrap = 2;
+inline constexpr int CellEmpty=0;
+inline constexpr int CellWall=1;
+inline constexpr int CellTrap=2;
+inline constexpr int CellEnd=3;
+inline constexpr int CellStart=4;
+inline constexpr int CellSpikeUp=5;
+inline constexpr int CellSpikeDown=6;
 
 enum class LevelType{
     Map,
@@ -31,6 +35,8 @@ struct TestContext{
     std::vector<std::vector<int>> map;
     RobotState robot;
     const core::RuntimeState* runtime = nullptr;
+    int steps = 0;
+    int time = 0;
 };
 
 struct TestResult{
@@ -49,7 +55,6 @@ class LevelTest{
 public:
     virtual ~LevelTest() = default;
     virtual int caseCount() const;
-    virtual int testIntervalMs() const;
     virtual void prepareCase(int index,core::RuntimeState& runtime) const;
     virtual TestResult checkCase(int index,const TestContext& context) const = 0;
 };
@@ -68,7 +73,6 @@ class DataOutputTest:public LevelTest{
 public:
     void addCase(const DataTestCase& testCase);
     int caseCount() const override;
-    int testIntervalMs() const override;
     void prepareCase(int index,core::RuntimeState& runtime) const override;
     TestResult checkCase(int index,const TestContext& context) const override;
 
@@ -98,7 +102,6 @@ public:
     void setReachPositionGoal(int x,int y);
     void setDataOutputCases(const std::vector<DataTestCase>& cases);
     int testCaseCount() const;
-    int testIntervalMs() const;
     void prepareTestCase(int index,core::RuntimeState& runtime) const;
     TestResult runTestCase(int index,const TestContext& context) const;
 
@@ -118,12 +121,14 @@ void disableActiveBlock(const std::string& blockName);
 void setActiveReachPositionGoal(int x,int y);
 void setActiveDataOutputCases(const std::vector<DataTestCase>& cases);
 int activeTestCaseCount();
-int activeTestIntervalMs();
 void prepareActiveTestCase(int index,core::RuntimeState& runtime);
 TestResult testActiveLevelCase(int index,const TestContext& context);
+int testContextSteps(const TestContext& context);
+int testContextTime(const TestContext& context);
 int activeLevelNumber();
 LevelType activeLevelType();
 LevelType defaultLevelTypeForNumber(int levelNumber);
+void fresh(int levelNumber,int time);
 void configureActiveLevel(int levelNumber,LevelType type);
 void configureSandBoxLevel();
 }
