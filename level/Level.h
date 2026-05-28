@@ -17,7 +17,8 @@ inline constexpr int CellTrap = 2;
 
 enum class LevelType{
     Map,
-    DataOutput
+    DataOutput,
+    SandBox
 };
 
 struct RobotState{
@@ -124,7 +125,7 @@ int activeLevelNumber();
 LevelType activeLevelType();
 LevelType defaultLevelTypeForNumber(int levelNumber);
 void configureActiveLevel(int levelNumber,LevelType type);
-
+void configureSandBoxLevel();
 }
 
 #endif

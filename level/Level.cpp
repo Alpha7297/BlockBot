@@ -495,9 +495,18 @@ LevelType activeLevelType(){
 
 LevelType defaultLevelTypeForNumber(int levelNumber){
     levelNumber=std::max(MinLevelNumber,std::min(levelNumber,TotalLevelCount));
-    return levelNumber>=6&&levelNumber<=8?LevelType::DataOutput:LevelType::Map;
+    if(levelNumber>=6&&levelNumber<=8)return LevelType::DataOutput;
+    else if(levelNumber>=0)return LevelType::Map;
+    else return LevelType::SandBox;
 }
+void configureSandBoxLevel()
+{
 
+    constexpr int size=40;
+    resetActiveLevel(size,size);
+    fillBorderWalls(currentLevel,size);
+    currentLevel.setReachPositionGoal(-1,-1);
+}
 void configureActiveLevel(int levelNumber,LevelType type){
     levelNumber=std::max(MinLevelNumber,std::min(levelNumber,TotalLevelCount));
     currentLevelNumber=levelNumber;
@@ -506,7 +515,8 @@ void configureActiveLevel(int levelNumber,LevelType type){
         configureDataOutputLevel(levelNumber);
         return;
     }
-    configureMapLevel(levelNumber);
+    else if(type==LevelType::Map)configureMapLevel(levelNumber);
+    else configureSandBoxLevel();
 }
 
 }

@@ -6797,13 +6797,13 @@ void drawWorkspace(QGraphicsScene& scene){
     scene.addItem(workspaceSlider);
     addPanelMasks(scene,panelRect);
 }
-void MainWindow::onStartButtonClicked()
+void LevelChoosePage::onStartButtonClicked()
 {
-    bool ok=false;
-    int levelNumber=QInputDialog::getInt(this,"选择关卡","关卡",
-        level::MinLevelNumber,level::MinLevelNumber,level::TotalLevelCount,1,&ok);
-    if(!ok){
-        return;
+    QObject* Slender=sender();
+    int levelNumber=-1;
+    if(Slender)
+    {
+        levelNumber=Slender->property("levelNumber").toInt();
     }
     level::LevelType levelType=level::defaultLevelTypeForNumber(levelNumber);
     level::configureActiveLevel(levelNumber,levelType);
@@ -6827,13 +6827,31 @@ void MainWindow::onStartButtonClicked()
     this->hide();
     view->show();
 }
-MainWindow:: MainWindow(QWidget *parent) : QMainWindow(parent) {
-    startBtn = new QPushButton("开始", this);
-    QVBoxLayout *layout = new QVBoxLayout(this);
-    layout->addWidget(startBtn);
-
-    connect(startBtn, &QPushButton::clicked, this, &MainWindow::onStartButtonClicked);
+void MainWindow::onStartButtonClicked()
+{
+    int levelNumber=-1;
+    level::LevelType levelType=level::LevelType::SandBox;
+    level::configureActiveLevel(levelNumber,levelType);
+    runtimeState.clearAll();
+    level::prepareActiveTestCase(0,runtimeState);
+    init();
+    stageExpanded=false;
+    if(view!=nullptr){
+        view->close();
+        view->deleteLater();
+        view=nullptr;
+        scene=nullptr;
+    }
+    scene = new QGraphicsScene(this);
+    view = new AppGraphicsView(scene);
+    view->onClosed=[this]()
+    {
+        this->show();
+    };
+    this->hide();
+    view->show();
 }
+
 int ui::runApp(int argc,char* argv[]){
     init();
     QApplication app(argc,argv);

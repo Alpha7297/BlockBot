@@ -1,0 +1,47 @@
+<RCC>
+    <qresource prefix="/">
+        <file>background/background.png</file>
+        <file>background/level.png</file>
+        <file>background/levelmode.png</file>
+        <file>background/MainWindowBackground.png</file>
+        <file>background/pipe1.png</file>
+        <file>background/pipeC.png</file>
+        <file>background/sandboxmode.png</file>
+        <file>images/box.png</file>
+        <file>images/create_custom.png</file>
+        <file>images/create_list.png</file>
+        <file>images/create_variable.png</file>
+        <file>images/exit.png</file>
+        <file>images/floor.png</file>
+        <file>images/information.png</file>
+        <file>images/larger.png</file>
+        <file>images/levelButton.png</file>
+        <file>images/logo-flatten.png</file>
+        <file>images/open.png</file>
+        <file>images/run.png</file>
+        <file>images/sandboxButton.png</file>
+        <file>images/save.png</file>
+        <file>images/slider.png</file>
+        <file>images/smaller.png</file>
+        <file>images/spike1.png</file>
+        <file>images/spike2.png</file>
+        <file>images/stop.png</file>
+        <file>images/title_bar.png</file>
+        <file>painting/back1.png</file>
+        <file>painting/echo.png</file>
+        <file>painting/left1.png</file>
+        <file>painting/logo.png</file>
+        <file>painting/mother.png</file>
+        <file>painting/old_robot.png</file>
+        <file>painting/right1.png</file>
+        <file>painting/robot0.png</file>
+        <file>painting/straight1.png</file>
+        <file>process</file>
+        <file>background/chooseLevelPage.png</file>
+        <file>images/btn_back.png</file>
+        <file>images/icon_lock.png</file>
+        <file>images/level__current.png</file>
+        <file>images/level__gray.png</file>
+        <file>images/level__normal.png</file>
+    </qresource>
+</RCC>
