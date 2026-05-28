@@ -64,9 +64,7 @@ void LevelChoosePage::init()
             qss = QString(
                       "QPushButton {"
                       "    border: none;"
-                      "    background-image: url(:/images/icon_lock.png), url(:/images/level_%1_gray.png);"
-                      "    background-repeat: no-repeat, no-repeat;"
-                      "    background-position: bottom right, center;" // 锁放在右下角，缩略图居中
+                      "    background-image: url(:/images/level_%1_gray.png);"
                       "}"
                       ).arg("");//(levelNum);
 
