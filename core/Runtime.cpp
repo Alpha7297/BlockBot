@@ -113,6 +113,16 @@ bool RuntimeState::setListValue(const std::string& name,int index,double value){
     return true;
 }
 
+bool RuntimeState::removeListValue(const std::string& name,int index){
+    auto it=floatLists.find(name);
+    if(it==floatLists.end()||listReadOnly(name)||
+       index<0||index>=static_cast<int>(it->second.size())){
+        return false;
+    }
+    it->second.erase(it->second.begin()+index);
+    return true;
+}
+
 bool RuntimeState::clearList(const std::string& name){
     auto it=floatLists.find(name);
     if(it==floatLists.end()||listReadOnly(name)){
@@ -209,6 +219,9 @@ void RobotActions::pushList(const std::string&,double){
 }
 
 void RobotActions::setListValue(const std::string&,double,double){
+}
+
+void RobotActions::removeListValue(const std::string&,double){
 }
 
 void RobotActions::clearList(const std::string&){
@@ -325,6 +338,11 @@ bool BlockExecutor::step(const BlockReader& readBlock,RobotActions& actions){
     }
     if(block.type==10){
         actions.clearList(block.listName);
+        current=block.next;
+        return true;
+    }
+    if(block.type==13){
+        actions.removeListValue(block.listName,block.indexValue);
         current=block.next;
         return true;
     }

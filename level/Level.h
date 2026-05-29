@@ -17,7 +17,13 @@ inline constexpr int CellEnd=3;
 inline constexpr int CellStart=4;
 inline constexpr int CellSpikeUp=5;
 inline constexpr int CellSpikeDown=6;
-
+inline constexpr int CellLightG=7;
+inline constexpr int CellLightR=8;
+inline constexpr int CellLightOff=9;
+inline constexpr int CellScope1=10;
+inline constexpr int CellScope2=11;
+inline constexpr int CellScope3=12;
+inline constexpr int CellScope4=13;
 enum class LevelType{
     Map,
     DataOutput,
