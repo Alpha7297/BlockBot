@@ -12,7 +12,11 @@ public:
     explicit LevelChoosePage(QWidget *parent = nullptr);
     ~LevelChoosePage() override
     {
-        delete view;
+        if(view!=nullptr){
+            view->onClosed=nullptr;
+            delete view;
+        }
+        delete scene;
     }
     void loadProcess();
     void saveProcess();

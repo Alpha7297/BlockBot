@@ -12,7 +12,6 @@ namespace level{
 
 inline constexpr int CellEmpty=0;
 inline constexpr int CellWall=1;
-inline constexpr int CellTrap=2;
 inline constexpr int CellEnd=3;
 inline constexpr int CellStart=4;
 inline constexpr int CellSpikeUp=5;
@@ -24,13 +23,14 @@ inline constexpr int CellScope1=10;
 inline constexpr int CellScope2=11;
 inline constexpr int CellScope3=12;
 inline constexpr int CellScope4=13;
-inline constexpr int CellBeam=14;
+inline constexpr int CellBeam1=14;
 inline constexpr int CellLiquid=15;
 inline constexpr int CellPlate=16;
 inline constexpr int CellValve=17;
 inline constexpr int CellAntenna=18;
 inline constexpr int CellAntenna2=19;
 inline constexpr int CellLightOff=20;
+inline constexpr int CellBeam2=21;
 enum class LevelType{
     Map,
     DataOutput,

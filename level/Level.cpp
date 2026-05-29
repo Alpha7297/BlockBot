@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <fstream>
 #include <limits>
 #include <random>
 #include <sstream>
@@ -37,13 +38,108 @@ void fillBorderWalls(LevelConfig& level,int size){
 }
 
 int mapSizeForLevel(int levelNumber){
-    if(levelNumber==1||levelNumber==4){
+    if(levelNumber==1){
         return 10;
     }
-    if(levelNumber==2||levelNumber==3){
+    if(levelNumber==2||levelNumber==3||levelNumber==4){
         return 20;
     }
     return 40;
+}
+
+std::vector<std::vector<int>> readMapFile(const std::string& fileName,int width,int height){
+    const std::vector<std::string> candidates={
+        fileName,
+        "../"+fileName,
+        "../../"+fileName
+    };
+    for(const std::string& path:candidates){
+        std::ifstream file(path);
+        if(!file.is_open()){
+            continue;
+        }
+        std::vector<std::vector<int>> rows;
+        std::string line;
+        while(std::getline(file,line)){
+            std::istringstream stream(line);
+            std::vector<int> row;
+            int value=0;
+            while(stream>>value){
+                row.push_back(value);
+            }
+            if(!row.empty()){
+                rows.push_back(row);
+            }
+        }
+        if(static_cast<int>(rows.size())!=height){
+            qDebug()<<"Map file has wrong row count:"<<path.c_str();
+            continue;
+        }
+        bool valid=true;
+        for(const auto& row:rows){
+            if(static_cast<int>(row.size())!=width){
+                valid=false;
+                break;
+            }
+        }
+        if(!valid){
+            qDebug()<<"Map file has wrong column count:"<<path.c_str();
+            continue;
+        }
+        return rows;
+    }
+    qDebug()<<"Failed to load map file:"<<fileName.c_str();
+    return {};
+}
+
+int level3CellFromRaw(int raw){
+    if(raw==1){
+        return CellWall;
+    }
+    if(raw==0){
+        return CellSpikeUp;
+    }
+    if(raw==2){
+        return CellLightR;
+    }
+    if(raw==3){
+        return CellEnd;
+    }
+    return CellEmpty;
+}
+
+void setLevel3LightCell(int gridIndex,int cellType){
+    if(gridIndex<0||gridIndex>=9){
+        return;
+    }
+    int gridx=gridIndex%3;
+    int gridy=gridIndex/3;
+    int baseX=1+gridx*6;
+    int baseY=1+gridy*6;
+    if(gridy==1){
+        baseX=5+(2-gridx)*6;
+    }
+    currentLevel.setMapCell(baseX,baseY,cellType);
+    currentLevel.setMapCell(baseX+1,baseY,cellType);
+    currentLevel.setMapCell(baseX,baseY+1,cellType);
+    currentLevel.setMapCell(baseX+1,baseY+1,cellType);
+}
+
+int level4CellFromRaw(int raw){
+    if(raw==1){
+        return CellWall;
+    }
+    if(raw==3){
+        return CellScope1;
+    }
+    if(raw==4){
+        return CellEnd;
+    }
+    return CellEmpty;
+}
+
+bool isScopeCell(int cell){
+    return cell==CellScope1||cell==CellScope2||cell==CellScope3||cell==CellScope4;
 }
 
 DataTestCase makeLevel6Case(const std::vector<double>& time,const std::vector<double>& pos,int n){
@@ -186,29 +282,59 @@ void configureMapLevel(int levelNumber){
     }
     if(levelNumber==3){
         currentLevel.setRobotStart(1,1,0);
-        currentLevel.setReachPositionGoal(19,19);
-        for(int i=1;i<19;i++){
-            for(int j=1;j<19;j++){
-                currentLevel.setMapCell(i,j,CellSpikeDown);
-            }
-        }
-        for(int i=0;i<3;i++){
-            for(int j=0;j<3;j++){
-                int x=i*6+1,y=j*6+1;
-                currentLevel.setMapCell(x,y,CellLightG);
-                currentLevel.setMapCell(x+1,y,CellLightG);
-                currentLevel.setMapCell(x,y+1,CellLightG);
-                currentLevel.setMapCell(x+1,y+1,CellLightG);
+        currentLevel.setReachPositionGoal(18,18);
+        const std::vector<std::vector<int>> rawMap=readMapFile("level/level3.txt",20,20);
+        if(!rawMap.empty()){
+            for(int y=0;y<20;y++){
+                for(int x=0;x<20;x++){
+                    currentLevel.setMapCell(x,y,level3CellFromRaw(rawMap[y][x]));
+                }
             }
         }
         currentLevel.setMapCell(18,18,CellEnd);
+        DataTestCase c;
+        c.inputLists["light"]={0,0,0,0,0,0,0,0,0};
+        currentLevel.setInputCases({c});
     }
     if(levelNumber==4){
-        //1 2 3 4对应上下左右
-        currentLevel.setMapCell(3,2,CellScope3);
-        currentLevel.setMapCell(6,2,CellScope1);
-        currentLevel.setMapCell(3,6,CellScope3);
-        currentLevel.setMapCell(6,6,CellScope3);
+        const std::vector<std::vector<int>> rawMap=readMapFile("level/level4.txt",20,20);
+        if(!rawMap.empty()){
+            for(int y=0;y<20;y++){
+                for(int x=0;x<20;x++){
+                    int raw=rawMap[y][x];
+                    currentLevel.setMapCell(x,y,level4CellFromRaw(raw));
+                    if(raw==2){
+                        currentLevel.setRobotStart(x,y,3);
+                    }
+                    else if(raw==4){
+                        currentLevel.setReachPositionGoal(x,y);
+                    }
+                }
+            }
+            for(int x=0;x<20;x++){
+                for(int y=0;y<20;y++){
+                    int scopeCell=currentLevel.mapCell(x,y);
+                    int dx=0,dy=0;
+                    if(scopeCell==CellScope1) dy=-1;
+                    else if(scopeCell==CellScope2) dy=1;
+                    else if(scopeCell==CellScope3) dx=-1;
+                    else if(scopeCell==CellScope4) dx=1;
+                    else continue;
+                    int beamCell=dx==0?CellBeam2:CellBeam1;
+                    int beamX=x+dx;
+                    int beamY=y+dy;
+                    while(beamX>=0&&beamY>=0&&beamX<20&&beamY<20){
+                        int cell=currentLevel.mapCell(beamX,beamY);
+                        if(cell==CellWall||isScopeCell(cell)) break;
+                        if(cell!=CellEnd){
+                            currentLevel.setMapCell(beamX,beamY,beamCell);
+                        }
+                        beamX+=dx;
+                        beamY+=dy;
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -563,7 +689,98 @@ FreshResult fresh(const TestContext& context){
             return {false,true,"测试失败：机器人被激活的尖刺击中。"};
         }
     }
+    if(currentLevelNumber==3){
+        int xx=context.robot.x,yy=context.robot.y;
+        std::vector<double> value;
+        for(int i=0;i<9;i++){
+            double v;
+            context.runtime->getListValue("light",i,&v);
+            value.push_back(v);
+        }
+        int gridx=(xx-1)/6;
+        int gridy=(yy-1)/6;
+        int basex=gridx*6+1;
+        int basey=gridy*6+1;
+        int currGrid=gridx+gridy*3;
+        int time=context.time;
+        if(value[currGrid]==0){
+            if(time%200>10*(currGrid+1)){
+                value[currGrid]=1;
+                context.runtime->forceSetList("light",value,true);
+                setLevel3LightCell(currGrid,CellLightG);
+                for(int i=0;i<6;i++){
+                    for(int j=0;j<6;j++){
+                        if(currentLevel.mapCell(i+basex,j+basey)==CellSpikeUp){
+                            currentLevel.setMapCell(i+basex,j+basey,CellSpikeDown);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    if(currentLevelNumber==4){
+        std::vector<std::pair<int,int>> scopes;
+        for(int x=0;x<20;x++){
+            for(int y=0;y<20;y++){
+                int cell=currentLevel.mapCell(x,y);
+                if(cell==CellBeam1||cell==CellBeam2){
+                    currentLevel.setMapCell(x,y,CellEmpty);
+                }
+                if(cell==CellScope1){
+                    currentLevel.setMapCell(x,y,CellScope4);
+                    scopes.push_back({x,y});
+                }
+                else if(cell==CellScope4){
+                    currentLevel.setMapCell(x,y,CellScope2);
+                    scopes.push_back({x,y});
+                }
+                else if(cell==CellScope2){
+                    currentLevel.setMapCell(x,y,CellScope3);
+                    scopes.push_back({x,y});
+                }
+                else if(cell==CellScope3){
+                    currentLevel.setMapCell(x,y,CellScope1);
+                    scopes.push_back({x,y});
+                }
+            }
+        }
+        bool robotHit=false;
+        for(const auto& scope:scopes){
+            int scopeCell=currentLevel.mapCell(scope.first,scope.second);
+            int dx=0,dy=0;
+            if(scopeCell==CellScope1) dy=-1;
+            else if(scopeCell==CellScope2) dy=1;
+            else if(scopeCell==CellScope3) dx=-1;
+            else if(scopeCell==CellScope4) dx=1;
+            int beamCell=dx==0?CellBeam2:CellBeam1;
+            int x=scope.first+dx;
+            int y=scope.second+dy;
+            while(x>=0&&y>=0&&x<20&&y<20){
+                int cell=currentLevel.mapCell(x,y);
+                if(cell==CellWall||isScopeCell(cell)){
+                    break;
+                }
+                if(context.robot.x==x&&context.robot.y==y){
+                    robotHit=true;
+                }
+                if(cell!=CellEnd){
+                    currentLevel.setMapCell(x,y,beamCell);
+                }
+                x+=dx;
+                y+=dy;
+            }
+        }
+        if(robotHit){
+            return {false,true,"测试失败：机器人被旋转光束击中。"};
+        }
+    }
     int robotCell=currentLevel.mapCell(context.robot.x,context.robot.y);
+    if(robotCell==CellSpikeUp){
+        return {false,true,"测试失败：机器人被激活的尖刺击中。"};
+    }
+    if(robotCell==CellBeam1||robotCell==CellBeam2){
+        return {false,true,"测试失败：机器人被旋转光束击中。"};
+    }
     if(robotCell==CellEnd){
         return {true,false,""};
     }

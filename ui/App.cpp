@@ -30,6 +30,7 @@
 #include <QLineEdit>
 #include <QMouseEvent>
 #include <QTextDocument>
+#include <QTransform>
 #include <QWheelEvent>
 #include <QFileDialog>
 #include <QCloseEvent>
@@ -125,6 +126,9 @@ bool buildRuntimeCodeSnapshot();
 void ensureBuiltInRuntimeVariables();
 void syncMapDataFromActiveLevel();
 void updateStageGeometry();
+void stopProgram();
+void installRuntimeCancelFilter();
+void resetActiveLevelForRun();
 
 void recordRuntimeTimeUse(){
     if(runtimeCountersActive){
@@ -2191,11 +2195,6 @@ public:
         }
         gridx=newx;
         gridy=newy;
-        if(cell==level::CellTrap){
-            levelTestFailed=true;
-            runtimeStopRequested=true;
-            return;
-        }
     }
     void SyncCell(int cellSize,QPoint offset){
         setPos(gridx*cellSize+offset.x(),gridy*cellSize+offset.y());
@@ -2419,6 +2418,9 @@ public:
     }
 
     void showMessage(const std::string& text,double value) override{
+        if(runtimeStopRequested){
+            return;
+        }
         QString output=QString("%1 %2")
             .arg(QString::fromStdString(text))
             .arg(QString::number(value,'g',6));
@@ -2678,6 +2680,20 @@ QBrush scaledCellBrush(const QString& fileName,const QBrush& fallback,int cellSi
     ));
 }
 
+QBrush rotatedCellBrush(const QString& fileName,const QBrush& fallback,int cellSize,int degrees){
+    QPixmap pixmap=loadImageAsset(fileName);
+    if(pixmap.isNull()){
+        return fallback;
+    }
+    QPixmap rotated=pixmap.transformed(QTransform().rotate(degrees),Qt::SmoothTransformation);
+    return QBrush(rotated.scaled(
+        cellSize,
+        cellSize,
+        Qt::IgnoreAspectRatio,
+        Qt::SmoothTransformation
+    ));
+}
+
 std::map<int,QBrush> buildCellBrushes(int cellSize){
     static std::map<int,std::map<int,QBrush>> cache;
     auto cached=cache.find(cellSize);
@@ -2687,7 +2703,6 @@ std::map<int,QBrush> buildCellBrushes(int cellSize){
     std::map<int,QBrush> brushes;
     brushes[level::CellEmpty]=scaledCellBrush("floor.png",QBrush(Qt::gray),cellSize);
     brushes[level::CellWall]=scaledCellBrush("box.png",QBrush(QColor(126,76,36)),cellSize);
-    brushes[level::CellTrap]=scaledCellBrush("liquid.png",QBrush(QColor(178,48,48)),cellSize);
     brushes[level::CellEnd]=scaledCellBrush("target.png",QBrush(QColor(178,48,48)),cellSize);
     brushes[level::CellSpikeUp]=scaledCellBrush("spike1.png",QBrush(QColor(132,132,132)),cellSize);
     brushes[level::CellSpikeDown]=scaledCellBrush("spike2.png",QBrush(QColor(86,86,86)),cellSize);
@@ -2696,11 +2711,12 @@ std::map<int,QBrush> buildCellBrushes(int cellSize){
     brushes[level::CellLightR]=scaledCellBrush("light3.png",brushes[level::CellEmpty],cellSize);
     brushes[level::CellLightY]=scaledCellBrush("light4.png",brushes[level::CellEmpty],cellSize);
     brushes[level::CellScope1]=scaledCellBrush("scope.png",brushes[level::CellEmpty],cellSize);
-    brushes[level::CellScope2]=brushes[level::CellScope1];
-    brushes[level::CellScope3]=brushes[level::CellScope1];
-    brushes[level::CellScope4]=brushes[level::CellScope1];
-    brushes[level::CellBeam]=scaledCellBrush("beam.png",brushes[level::CellEmpty],cellSize);
-    brushes[level::CellLiquid]=brushes[level::CellTrap];
+    brushes[level::CellScope2]=rotatedCellBrush("scope.png",brushes[level::CellEmpty],cellSize,180);
+    brushes[level::CellScope3]=rotatedCellBrush("scope.png",brushes[level::CellEmpty],cellSize,270);
+    brushes[level::CellScope4]=rotatedCellBrush("scope.png",brushes[level::CellEmpty],cellSize,90);
+    brushes[level::CellBeam1]=scaledCellBrush("beam.png",brushes[level::CellEmpty],cellSize);
+    brushes[level::CellBeam2]=rotatedCellBrush("beam.png",brushes[level::CellEmpty],cellSize,90);
+    brushes[level::CellLiquid]=brushes[level::CellSpikeUp];
     brushes[level::CellPlate]=scaledCellBrush("plate.png",brushes[level::CellEmpty],cellSize);
     brushes[level::CellValve]=scaledCellBrush("valve.png",brushes[level::CellEmpty],cellSize);
     brushes[level::CellAntenna]=scaledCellBrush("antenna.png",brushes[level::CellEmpty],cellSize);
@@ -2802,6 +2818,7 @@ void resetRunButtons();
 core::BlockExecutor::BlockSnapshot readRuntimeBlock(core::BlockExecutor::Node node);
 AppGraphicsView::AppGraphicsView(QGraphicsScene* scene):QGraphicsView(scene)
 {
+    installRuntimeCancelFilter();
     resetSceneGlobals();
     appScene=scene;
     QGraphicsRectItem* background=scene->addRect(-10000,-10000,20000,20000);
@@ -2963,6 +2980,12 @@ void AppGraphicsView::mousePressEvent(QMouseEvent* event){
     QGraphicsView::mousePressEvent(event);
 }
 void AppGraphicsView::keyPressEvent(QKeyEvent* event){
+    if(event->key()==Qt::Key_C&&(event->modifiers()&Qt::ControlModifier)&&
+       (programRunning||levelTestRunning||runtimeCountersActive)){
+        stopProgram();
+        event->accept();
+        return;
+    }
     if(event->key()==Qt::Key_Z&&(event->modifiers()&Qt::ControlModifier)){
         undoLastCheckpoint();
         event->accept();
@@ -3026,6 +3049,38 @@ void refreshFloatAncestors(FloatBlock* block);
 FloatBlock* rootFloatBlock(FloatBlock* block);
 void eraseFloatTreeRecords(FloatBlock* block);
 void eraseCodeEmbeddedFloatRecords(CodeBlock* block);
+
+class RuntimeCancelFilter:public QObject{
+public:
+    explicit RuntimeCancelFilter(QObject* parent=nullptr):QObject(parent){}
+
+protected:
+    bool eventFilter(QObject* object,QEvent* event) override{
+        if(event->type()==QEvent::KeyPress){
+            QKeyEvent* keyEvent=static_cast<QKeyEvent*>(event);
+            if(keyEvent->key()==Qt::Key_C&&(keyEvent->modifiers()&Qt::ControlModifier)&&
+               (programRunning||levelTestRunning||runtimeCountersActive)){
+                stopProgram();
+                QWidget* modal=QApplication::activeModalWidget();
+                if(modal!=nullptr){
+                    modal->close();
+                }
+                keyEvent->accept();
+                return true;
+            }
+        }
+        return QObject::eventFilter(object,event);
+    }
+};
+
+void installRuntimeCancelFilter(){
+    static RuntimeCancelFilter* filter=nullptr;
+    if(filter==nullptr&&QApplication::instance()!=nullptr){
+        filter=new RuntimeCancelFilter(QApplication::instance());
+        QApplication::instance()->installEventFilter(filter);
+    }
+}
+
 bool inWorkspace(CodeBlock* block){
     return workspaceRect().contains(block->sceneBoundingRect());
 }
@@ -6684,6 +6739,7 @@ void beginLevelTestCase(int index){
         return;
     }
     programRunning=true;
+    resetActiveLevelForRun();
     resetRobot();
     runtimeState.resetAll();
     level::prepareActiveTestCase(index,runtimeState);
@@ -6828,6 +6884,12 @@ void syncMapDataFromActiveLevel(){
     }
 }
 
+void resetActiveLevelForRun(){
+    level::configureActiveLevel(level::activeLevelNumber(),level::activeLevelType());
+    syncMapDataFromActiveLevel();
+    updateStageGeometry();
+}
+
 void resetRobot(){
     level::RobotState start=level::activeLevel().robotStart();
     player->gridx=std::max(0,std::min(start.x,currentMapWidth()-1));
@@ -6919,6 +6981,7 @@ void startProgram(Button* button,int intervalMs){
         resetRunButtons();
         return;
     }
+    resetActiveLevelForRun();
     resetRobot();
     runtimeState.resetAll();
     level::prepareActiveTestCase(0,runtimeState);
@@ -7493,10 +7556,10 @@ void LevelChoosePage::startLevel(int levelNumber)
         view->onClosed=nullptr;
         QGraphicsScene* oldScene=scene;
         view->close();
-        view->deleteLater();
+        delete view;
         view=nullptr;
         if(oldScene!=nullptr){
-            oldScene->deleteLater();
+            delete oldScene;
         }
         scene=nullptr;
     }
@@ -7514,7 +7577,11 @@ void LevelChoosePage::startLevel(int levelNumber)
         if(closedScene!=nullptr){
             closedScene->deleteLater();
         }
-        this->close();
+        QTimer::singleShot(0,this,[this](){
+            loadProcess();
+            show();
+            raise();
+        });
     };
     this->hide();
     view->show();

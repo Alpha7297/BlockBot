@@ -41,7 +41,7 @@ constexpr qreal SliderKnobWidth=60;
 constexpr qreal SliderKnobHeight=30;
 
 constexpr std::array<int,7> LengthValues={1,2,5,10,20,50,100};
-constexpr std::array<int,8> SpeedValues={1,5,10,20,30,40,50,90};
+constexpr std::array<int,8> SpeedValues={1,5,10,20,50,100,200,500};
 
 template<size_t N>
 int nearestValueIndex(const std::array<int,N>& values,int value){
@@ -185,14 +185,8 @@ void addDiscreteSlider(QGraphicsScene* scene,const QString& label,
 }
 
 QString speedText(int value){
-    QString prefix=QString("(%1ms)").arg(value);
-    if(value<=10){
-        return prefix+QString::fromUtf8("快速");
-    }
-    if(value<=40){
-        return prefix+QString::fromUtf8("中速");
-    }
-    return prefix+QString::fromUtf8("龟速");
+    QString prefix=QString("%1ms").arg(value);
+    return prefix;
 }
 
 }

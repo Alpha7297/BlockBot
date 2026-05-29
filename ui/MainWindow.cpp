@@ -69,15 +69,21 @@ void MainWindow::onLevelButtonClicked()
 {
     if(levelChoosePage==nullptr)
     {
-        levelChoosePage=new LevelChoosePage();
+        levelChoosePage=new LevelChoosePage(this);
+        levelChoosePage->setWindowFlags(Qt::Widget);
+        levelChoosePage->setGeometry(0,0,width(),height());
         connect(levelChoosePage,&LevelChoosePage::pageClosed,this,&MainWindow::onChooseLevelPageClosed);
     }
     levelChoosePage->loadProcess();
-    this->hide();
+    if(centralWidget()!=nullptr){
+        centralWidget()->hide();
+    }
     levelChoosePage->show();
-    //this->show();
+    levelChoosePage->raise();
 }
 void MainWindow::onChooseLevelPageClosed()
 {
-    this->show();
+    if(centralWidget()!=nullptr){
+        centralWidget()->show();
+    }
 }

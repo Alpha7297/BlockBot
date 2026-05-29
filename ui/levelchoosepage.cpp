@@ -70,6 +70,11 @@ LevelChoosePage::LevelChoosePage(QWidget *parent):QDialog(parent){
 
 void LevelChoosePage::init()
 {
+    for(QWidget* child:findChildren<QWidget*>(QString(),Qt::FindDirectChildrenOnly)){
+        delete child;
+    }
+    levels.clear();
+
     const int levelButtonHeight=100,levelButtonWidth=150,pageHeight=800,pageWidth=1200,topMargin=150,widthGap=75,heightGap=50;
     this->setFixedSize(pageWidth, pageHeight); // 假设背景图是这个尺寸
     this->setStyleSheet(QString("QDialog { border-image: url(%1) 0 0 0 0 stretch stretch; }").arg(loadAsset("images/background/background.png")));

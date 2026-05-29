@@ -68,7 +68,6 @@ CMakeLists.txt.user*
 
 # Python byte code
 *.pyc
-*.py
 
 # Binaries
 # --------
@@ -94,3 +93,4 @@ __pycache__/
 origin_images/
 cleared_originimages/
 prompt.md
+clear_background.py
