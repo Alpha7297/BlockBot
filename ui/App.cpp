@@ -67,6 +67,7 @@ int levelTestStepCount=0;
 int levelTestTimeCount=0;
 int levelTestCaseIndex=0;
 int levelTestCaseTotal=1;
+int levelNumberNow;
 bool runtimeCountersActive=false;
 bool stageExpanded=false;
 bool editorExitToDesktopRequested=false;
@@ -6356,6 +6357,7 @@ void finishLevelTest(bool forcedFail,const QString& message){
         levelTestRunning=false;
         resetRunButtons();
         updateTestStatusText();
+        LevelChoosePage::upgradeLevelUnlocked(levelNumberNow+1);
         QMessageBox::information(nullptr,"测试结果",
             QString("所有 %1 个测试样例都已通过").arg(levelTestCaseTotal));
         return;
@@ -7192,6 +7194,7 @@ void LevelChoosePage::onStartButtonClicked()
     {
         levelNumber=Slender->property("levelNumber").toInt();
     }
+    levelNumberNow=levelNumber;
     startLevel(levelNumber);
 }
 

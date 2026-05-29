@@ -37,11 +37,6 @@ QString levelSaveFilePath(){
     QDir().mkpath(dir);
     return QDir(dir).filePath("level.json");
 }
-
-
-QColor levelTextColor(int levelNum,int currentLevel){
-    return levelNum>currentLevel?QColor(137,146,154):QColor(247,251,255);
-}
 bool writeLevelSave(int currentLevel){
     QFile file(levelSaveFilePath());
     if(!file.open(QIODevice::WriteOnly|QIODevice::Text)){
@@ -52,7 +47,22 @@ bool writeLevelSave(int currentLevel){
     file.write(QJsonDocument(object).toJson(QJsonDocument::Compact));
     return true;
 }
-
+int loadLevel(){
+    QFile file(levelSaveFilePath());
+    if(!file.exists())return -1;
+    if(file.open(QIODevice::ReadOnly|QIODevice::Text)){
+        QJsonParseError error;
+        const QJsonDocument document=QJsonDocument::fromJson(file.readAll(),&error);
+        if(error.error==QJsonParseError::NoError&&document.isObject()){
+            return document.object().value("level").toInt(1);
+        }else{
+            return -1;
+        }
+    }else{
+        return -1;
+    }
+    return -1;
+}
 }
 
 LevelChoosePage::LevelChoosePage(QWidget *parent):QDialog(parent){
@@ -188,12 +198,14 @@ void LevelChoosePage::loadProcess(){
 }
 void LevelChoosePage::saveProcess()
 {
-    std::ofstream outFile(":/process");
-    if(!outFile.is_open())
+    if(!writeLevelSave(unlockedLevel))
     {
-        message::otherError("进度文件无法打开");
+        message::otherError("进度文件保存失败");
         return;
     }
-    outFile<<unlockedLevel;
-    outFile.close();
+}
+void LevelChoosePage::upgradeLevelUnlocked(int levelNumber)
+{
+    int levelNow=loadLevel();
+    if(levelNumber>levelNow)writeLevelSave(levelNumber);
 }

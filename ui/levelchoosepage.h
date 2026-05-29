@@ -20,6 +20,7 @@ public:
     int unlockedLevel=0;
     int totalLevels=9;
     void startLevel(int levelNumber);
+    static void upgradeLevelUnlocked(int levelNumber);
 signals:
     void pageClosed();
 private slots:
@@ -35,5 +36,4 @@ protected:
         QDialog::closeEvent(event);
     }
 };
-
 #endif // LEVELCHOOSEPAGE_H
