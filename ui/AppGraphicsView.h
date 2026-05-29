@@ -27,6 +27,6 @@ inline QString loadAsset(const QString& fileName){
             return path;
         }
     }
-    return QString();
+    return fileName;
 }
 #endif // APPGRAPHICSVIEW_H

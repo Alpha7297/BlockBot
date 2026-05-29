@@ -1,132 +1,189 @@
 #include "levelchoosepage.h"
 #include "fstream"
+#include "../level/LevelConstants.h"
 #include"../message/Message.h"
 #include <QCoreApplication>
 #include <QDialog>
 #include <QDir>
 #include <QFileInfo>
+#include <QGraphicsPixmapItem>
+#include <QGraphicsRectItem>
+#include <QGraphicsScene>
+#include <QGraphicsSceneMouseEvent>
+#include <QGraphicsTextItem>
+#include <QGraphicsView>
+#include <QFrame>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonParseError>
+#include <QPalette>
+#include <QPixmap>
+#include <QPoint>
+#include <QStandardPaths>
+#include <QTransform>
+#include <QBrush>
+#include <QFont>
+#include <QPen>
+#include <QLabel>
+#include <algorithm>
 
 namespace{
-QString assetPath(const QString& relativePath){
-    QStringList roots;
-    roots<<QDir::currentPath()
-         <<QCoreApplication::applicationDirPath()
-         <<QDir(QCoreApplication::applicationDirPath()).absoluteFilePath("..")
-         <<QDir(QCoreApplication::applicationDirPath()).absoluteFilePath("../..");
-    for(const QString& root:roots){
-        QString path=QDir(root).filePath(relativePath);
-        if(QFileInfo::exists(path)){
-            return QDir::fromNativeSeparators(path);
-        }
+
+QString levelSaveFilePath(){
+    QString dir=QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    if(dir.isEmpty()){
+        dir=QCoreApplication::applicationDirPath();
     }
-    return QDir::fromNativeSeparators(QDir::current().absoluteFilePath(relativePath));
+    QDir().mkpath(dir);
+    return QDir(dir).filePath("level.json");
 }
 
-QString styleUrl(const QString& relativePath){
-    return "url(\"" + assetPath(relativePath) + "\")";
+
+QColor levelTextColor(int levelNum,int currentLevel){
+    return levelNum>currentLevel?QColor(137,146,154):QColor(247,251,255);
 }
+bool writeLevelSave(int currentLevel){
+    QFile file(levelSaveFilePath());
+    if(!file.open(QIODevice::WriteOnly|QIODevice::Text)){
+        return false;
+    }
+    QJsonObject object;
+    object["level"]=currentLevel;
+    file.write(QJsonDocument(object).toJson(QJsonDocument::Compact));
+    return true;
+}
+
+}
+
+LevelChoosePage::LevelChoosePage(QWidget *parent):QDialog(parent){
 }
 
 void LevelChoosePage::init()
 {
-    qDeleteAll(findChildren<QPushButton*>(QString(),Qt::FindDirectChildrenOnly));
+    const int levelButtonHeight=100,levelButtonWidth=150,pageHeight=768,pageWidth=1365,topMargin=100,widthGap=75,heightGap=50;
+    this->setFixedSize(pageWidth, pageHeight); // 假设背景图是这个尺寸
+    this->setStyleSheet(QString("QDialog { border-image: url(%1) 0 0 0 0 stretch stretch; }").arg(loadAsset("images/background/background.png")));
 
-    // 1. 固定窗口大小，铺上你的机械工厂背景图
-    this->setFixedSize(1280, 720); // 假设背景图是这个尺寸
-    this->setStyleSheet("QDialog { background-image: " + styleUrl("images/background/background.png") + "; }");
-
-
-    // 2. 精准测量的关卡按钮坐标 (X, Y) —— 匹配你背景图上正方形框的位置
-    // 1~5 从左往右，6~9 从右往左（蛇形）
-    QPoint levelPositions[] = {
-        QPoint(50,  280),  // 关卡 1
-        QPoint(240, 295),  // 关卡 2
-        QPoint(410, 295),  // 关卡 3
-        QPoint(580, 295),  // 关卡 4
-        QPoint(750, 295),  // 关卡 5
-        QPoint(690, 580),  // 关卡 6 (注意：下面这一排往左走)
-        QPoint(470, 580),  // 关卡 7
-        QPoint(270, 580),  // 关卡 8
-        QPoint(50,  580)   // 关卡 9
+    QPoint levelPositions[] = {//精准测量的关卡按钮坐标 (X, Y)
+        QPoint((-levelButtonWidth+pageWidth)/2-levelButtonWidth-widthGap,  topMargin),  // 关卡 1
+        QPoint((-levelButtonWidth+pageWidth)/2,      topMargin),  // 关卡 2
+        QPoint((-levelButtonWidth+pageWidth)/2+levelButtonWidth+widthGap,  topMargin),  // 关卡 3
+        QPoint((-levelButtonWidth+pageWidth)/2+levelButtonWidth+widthGap,  topMargin+levelButtonHeight+heightGap),  // 关卡 4
+        QPoint((-levelButtonWidth+pageWidth)/2,      topMargin+levelButtonHeight+heightGap),  // 关卡 5
+        QPoint((-levelButtonWidth+pageWidth)/2-levelButtonWidth-widthGap,  topMargin+levelButtonHeight+heightGap),  // 关卡 6
+        QPoint((-levelButtonWidth+pageWidth)/2-levelButtonWidth-widthGap,  topMargin+levelButtonHeight*2+heightGap*2),  // 关卡 7
+        QPoint((-levelButtonWidth+pageWidth)/2,      topMargin+levelButtonHeight*2+heightGap*2),  // 关卡 8
+        QPoint((-levelButtonWidth+pageWidth)/2+levelButtonWidth+widthGap,  topMargin+levelButtonHeight*2+heightGap*2)   // 关卡 9
     };
-    int totalLevels = 9; // 根据你图片中显示，共有9关
-    std::vector<QPushButton*>levels;
+    totalLevels = 9; //共有9关
     levels.resize(totalLevels);
-
-    // 3. 批量生成并配置按钮
+    // 批量生成并配置按钮
     for (int i = 0; i < totalLevels; ++i) {
-        int levelNum = i + 1; // 关卡编号从 1 开始
+        int levelNum = i + 1;
 
-        levels[i] = new QPushButton(this);
+        if(levels[i]==nullptr)levels[i] = new QPushButton(this);//QString::number(levelNum),this);
         levels[i]->setProperty("levelNumber", levelNum);
         levels[i]->setCursor(Qt::PointingHandCursor);
-        levels[i]->setFixedSize(145, 145); // 普通灰色金属框大小
-
-        // 搬移到背景图对应的管道口位置
-        levels[i]->move(levelPositions[i]);
-
-        // 4. ✨ 核心核心：根据 unlockedLevel 判断关卡状态并上色 ✨
+        levels[i]->setFixedSize(levelButtonWidth, levelButtonHeight); // 普通灰色金属框大小
+        levels[i]->move(levelPositions[i]);// 搬移到背景图对应的管道口位置
+        // 根据 unlockedLevel 判断关卡状态并上色
+        QString templateURL;
         QString qss;
         if (levelNum < unlockedLevel) {
             // 【状态 A：已通关】显示正常缩略图
-            qss = QString(
-                      "QPushButton {"
-                      "    border: none;"
-                      "    background-image: " + styleUrl("images/background/level_%1_normal.png") + ";"
-                      "}"
-                      ).arg("");//levelNum);
+            templateURL=loadAsset(QString("images/background/level_%1_normal.png").arg(""));//levelNum);
         }
         else if (levelNum == unlockedLevel) {
             // 【状态 B：当前正在挑战的关卡】显示高亮红框（或者根据图片，给按钮套上亮色皮肤）
-            qss = QString(
-                      "QPushButton {"
-                      "    border: none;"
-                      "    background-image: " + styleUrl("images/background/level_%1_current.png") + ";" // 或者是带红色呼吸灯效果的图
-                      "}"
-                      ).arg("");//levelNum);
+            templateURL=loadAsset(QString("images/background/level_%1_current.png").arg(""));//levelNum);
         }
         else {
             // 【状态 C：未解锁】置灰，并且在右下角带一把锁
-            // 巧妙利用 QSS 的多背景叠加技术：底层是置灰的缩略图，顶层是一把锁的 PNG
-            qss = QString(
-                      "QPushButton {"
-                      "    border: none;"
-                      "    background-image: " + styleUrl("images/background/level_%1_gray.png") + ";"
-                      "}"
-                      ).arg("");//(levelNum);
-
-            // 未解锁的按钮，禁用点击事件
+            templateURL=loadAsset(QString("images/background/level_%1_gray.png").arg(""));//levelNum);
             levels[i]->setEnabled(false);
         }
+        levels[i]->setStyleSheet("QPushButton { border: none; background: transparent; }");
+        // 创建一个独立的 QLabel 塞进按钮里，用来精准控制图片的大小
+        QLabel* imgLabel = new QLabel(levels[i]);
+        const int widthBorder=15,heightBorder=10;
+        imgLabel->setGeometry(widthBorder, heightBorder, levelButtonWidth-widthBorder*2, levelButtonHeight-heightBorder*2);
+        imgLabel->setStyleSheet(QString(
+            "QLabel {"
+            "    border: none;"
+            "    border-image: url(%1) 0 0 0 0 stretch stretch;" // 在这里拉伸，但大小被限制在了 80x80
+            "}"
+            ).arg(templateURL));
+        imgLabel->setAttribute(Qt::WA_TransparentForMouseEvents);//允许鼠标事件穿透 QLabel
+        // 2. 创建一个 Label 叠在上面（负责第二层：中图，支持自动拉伸）
+        QLabel* borderLabel = new QLabel(levels[i]);
+        borderLabel->setGeometry(0, 0, levelButtonWidth, levelButtonHeight);
+        borderLabel->setStyleSheet(QString("QLabel{border-image:url(%1);}").arg(loadAsset("images/icons/level.png")));
+        borderLabel->setAttribute(Qt::WA_TransparentForMouseEvents); // 点击穿透，不挡住按钮点击
 
-        levels[i]->setStyleSheet(qss);
-
-        // 5. 统一绑定点击信号
+        // 3. 创建一个 Label 叠在最上面（负责第三层：文字）
+        QLabel* textLabel = new QLabel(QString::number(levelNum), levels[i]);
+        textLabel->setGeometry(0, 0, levelButtonWidth, levelButtonHeight);
+        textLabel->setAlignment(Qt::AlignCenter); // 绝对居中
+        textLabel->setStyleSheet("QLabel{color: white; font-size: 30px; font-weight: bold;}");
+        textLabel->setAttribute(Qt::WA_TransparentForMouseEvents); // 点击穿透
+        //统一绑定点击信号
         connect(levels[i], &QPushButton::clicked, this, &LevelChoosePage::onStartButtonClicked);
         levels[i]->show();
     }
-
-    // 6. 顺手加一个左上角的返回按钮
+    //加上连接管子
+    QPoint tubePositions[] = {//精准测量的关卡按钮坐标 (X, Y)
+        QPoint((+levelButtonWidth+pageWidth)/2-levelButtonWidth-widthGap-12,  topMargin+levelButtonHeight/2-12),
+        QPoint((+levelButtonWidth+pageWidth)/2-levelButtonWidth-widthGap-12,  topMargin+levelButtonHeight/2+levelButtonHeight+heightGap-12),
+        QPoint((+levelButtonWidth+pageWidth)/2-levelButtonWidth-widthGap-12,  topMargin+levelButtonHeight/2+levelButtonHeight*2+heightGap*2-12),
+        QPoint((+levelButtonWidth+pageWidth)/2-12,      topMargin+levelButtonHeight/2-12),
+        QPoint((+levelButtonWidth+pageWidth)/2-12,      topMargin+levelButtonHeight/2+levelButtonHeight+heightGap-12),
+        QPoint((+levelButtonWidth+pageWidth)/2-12,      topMargin+levelButtonHeight/2+levelButtonHeight*2+heightGap*2-12)
+    };
+    for(int i=0;i<6;i++)
+    {
+        QLabel* tubeLabel = new QLabel(this);
+        tubeLabel->move(tubePositions[i]);
+        tubeLabel->setFixedSize(widthGap+24, 30);
+        tubeLabel->setStyleSheet(QString("QLabel{border:none;border-image:url(%1);}").arg(loadAsset("images/icons/pipe1.png")));
+        tubeLabel->show();
+    }
+    QLabel* tubeLabel = new QLabel(this);
+    tubeLabel->move(QPoint((+levelButtonWidth+pageWidth)/2+levelButtonWidth+widthGap-10,topMargin+levelButtonHeight/2-12));
+    tubeLabel->setFixedSize(60, levelButtonHeight+heightGap+24);
+    tubeLabel->setStyleSheet(QString("QLabel{border:none;border-image:url(%1);}").arg(loadAsset("images/icons/pipeC.png")));
+    tubeLabel->show();
+    tubeLabel = new QLabel(this);
+    tubeLabel->move(QPoint((-levelButtonWidth+pageWidth)/2-levelButtonWidth-widthGap-50,topMargin+levelButtonHeight/2+levelButtonHeight+heightGap-12));
+    tubeLabel->setFixedSize(60, levelButtonHeight+heightGap+24);
+    tubeLabel->setStyleSheet(QString("QLabel{border:none;border-image:url(%1);}").arg(loadAsset("images/icons/pipeCr.png")));
+    tubeLabel->show();
+    // 加一个左上角的返回按钮
     QPushButton* backBtn = new QPushButton(this);
     backBtn->setGeometry(15, 15, 80, 80); // 根据左上角黄色箭头的尺寸
     backBtn->setCursor(Qt::PointingHandCursor);
-    backBtn->setStyleSheet("QPushButton { border: none; background-image: " + styleUrl("images/icons/return.png") + "; }");
+    backBtn->setStyleSheet(QString("QPushButton { border: none; border-image: url(%1) 0 0 0 0 stretch stretch; }").arg(loadAsset("images/icons/return.png")));
     connect(backBtn, &QPushButton::clicked, this, &LevelChoosePage::close);
 }
-LevelChoosePage::LevelChoosePage(QWidget *parent ):QDialog(parent)
-{
-    //init();
-}
-void LevelChoosePage::loadProcess()
-{
-    std::ifstream inFile(":/process");
-    if(!inFile.is_open())
-    {
-        //message::otherError("进度文件损坏");
-        unlockedLevel=1;
+void LevelChoosePage::loadProcess(){
+    unlockedLevel=1;
+    QFile file(levelSaveFilePath());
+    bool needsRewrite=!file.exists();
+    if(file.open(QIODevice::ReadOnly|QIODevice::Text)){
+        QJsonParseError error;
+        const QJsonDocument document=QJsonDocument::fromJson(file.readAll(),&error);
+        if(error.error==QJsonParseError::NoError&&document.isObject()){
+            unlockedLevel=document.object().value("level").toInt(1);
+        }else{
+            needsRewrite=true;
+        }
+    }else{
+        needsRewrite=true;
     }
-    else inFile>>unlockedLevel;
-    inFile.close();
+    unlockedLevel=std::max(level::MinLevelNumber,
+                             std::min(unlockedLevel,level::TotalLevelCount));
+    if(needsRewrite){
+        writeLevelSave(unlockedLevel);
+    }
     init();
 }
 void LevelChoosePage::saveProcess()

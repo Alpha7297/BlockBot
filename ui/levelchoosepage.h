@@ -17,8 +17,9 @@ public:
     void loadProcess();
     void saveProcess();
     void init();
-    void startLevel(int levelNumber);
     int unlockedLevel=0;
+    int totalLevels=9;
+    void startLevel(int levelNumber);
 signals:
     void pageClosed();
 private slots:
@@ -26,6 +27,7 @@ private slots:
 private:
     AppGraphicsView *view=nullptr;
     QGraphicsScene *scene=nullptr;
+    std::vector<QPushButton*>levels;
 protected:
     void closeEvent(QCloseEvent *event)override
     {

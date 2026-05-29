@@ -1,82 +1,68 @@
 #include "MainWindow.h"
 #include"levelchoosepage.h"
-#include <QCoreApplication>
-#include <QDir>
-#include <QFileInfo>
-#include <QIcon>
 #include <QVBoxLayout>
+#include <QLabel>
 #include"../message/Message.h"
-
-namespace{
-QString assetPath(const QString& relativePath){
-    QStringList roots;
-    roots<<QDir::currentPath()
-         <<QCoreApplication::applicationDirPath()
-         <<QDir(QCoreApplication::applicationDirPath()).absoluteFilePath("..")
-         <<QDir(QCoreApplication::applicationDirPath()).absoluteFilePath("../..");
-    for(const QString& root:roots){
-        QString path=QDir(root).filePath(relativePath);
-        if(QFileInfo::exists(path)){
-            return QDir::fromNativeSeparators(path);
-        }
-    }
-    return QDir::fromNativeSeparators(QDir::current().absoluteFilePath(relativePath));
-}
-}
-
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     this->setFixedSize(1365, 768);
-
-    // 2. 设置主窗口背景图
-    QPixmap background(assetPath("images/background/background.png")); // 你的游戏背景图路径
+    QPixmap background(loadAsset("images/background/background.png")); // 你的游戏背景图路径
     QPalette palette;
     palette.setBrush(QPalette::Window, background.scaled(this->size(), Qt::IgnoreAspectRatio, Qt::SmoothTransformation));
     this->setPalette(palette);
-
-    // 3. 创建中央核心区域并应用垂直布局
-    QWidget *centralWidget = new QWidget(this);
+    QWidget *centralWidget = new QWidget(this);// 创建中央核心区域并应用垂直布局
     this->setCentralWidget(centralWidget);
     QVBoxLayout *layout = new QVBoxLayout(centralWidget);
+    //添加顶部的“大弹簧”
+    layout->addStretch(2); // 数字代表比例，可以根据 Logo 的高度微调
+    QLabel *logo=new QLabel(this);
+    logo->setFixedSize(480, 180);
+    logo->setStyleSheet(QString(
+        "QLabel {"
+        "    border: none;" // 去掉默认边框
+        "    border-image: url(%1) 0 0 0 0 stretch stretch;" // 正常状态贴图
+        "    background-repeat: no-repeat;"
+        "    background-position: center;"
+        "}"
+        ).arg(loadAsset("images/bars/logo.png")));
+    layout->addWidget(logo, 0, Qt::AlignCenter); // 强制按钮在水平方向居中
+    layout->addSpacing(40);// 稍微留一点logo和按钮的间距
 
-    // 4. 关键：添加顶部的“大弹簧”，把按钮往下推，腾出地方放 Logo
-    layout->addStretch(4); // 数字代表比例，可以根据 Logo 的高度微调
-
-    // 5. 创建“关卡模式”按钮并美化
-    levelBtn = new QPushButton(this);
+    levelBtn = new QPushButton("关卡模式",this);//创建“关卡模式”按钮并美化
     levelBtn->setFixedSize(360, 90); // 严格匹配你按钮切片的宽高
     levelBtn->setCursor(Qt::PointingHandCursor); // 鼠标移上去变成小手
-    levelBtn->setStyleSheet(
+    levelBtn->setStyleSheet(QString(
         "QPushButton {"
+        "    color: #FFFFFF;"                // 文字颜色（白色）
+        "    font-family: 'Microsoft YaHei';" // 字体（微软雅黑）
+        "    font-size: 18px;"               // 字体大小
+        "    font-weight: bold;"             // 字体加粗
         "    border: none;" // 去掉默认边框
-        "    background: transparent;" // 正常状态贴图
+        "    border-image: url(%1) 0 0 0 0 stretch stretch;" // 正常状态贴图
+        "    background-repeat: no-repeat;"
+        "    background-position: center;"
         "}"
-        );
-    levelBtn->setIcon(QIcon(assetPath("images/bars/levelmode.png")));
-    levelBtn->setIconSize(levelBtn->size());
+        ).arg(loadAsset("images/bars/levelmode.png")));
     layout->addWidget(levelBtn, 0, Qt::AlignCenter); // 强制按钮在水平方向居中
+    layout->addSpacing(20);// 稍微留一点两个按钮之间的间距
 
-    // 6. 稍微留一点两个按钮之间的间距
-    layout->addSpacing(20);
-
-    // 7. 创建“沙盒模式”按钮并美化
-    startBtn = new QPushButton(this);
+    startBtn = new QPushButton("沙盒模式",this);    // 创建“沙盒模式”按钮并美化
     startBtn->setFixedSize(360, 90);
     startBtn->setCursor(Qt::PointingHandCursor);
-    startBtn->setStyleSheet(
+    startBtn->setStyleSheet(QString(
         "QPushButton {"
+        "    color: #FFFFFF;"                // 文字颜色（白色）
+        "    font-family: 'Microsoft YaHei';" // 字体（微软雅黑）
+        "    font-size: 18px;"               // 字体大小
+        "    font-weight: bold;"             // 字体加粗
         "    border: none;"
-        "    background: transparent;"
+        "    border-image: url(%1) 0 0 0 0 stretch stretch;"
+        "    background-repeat: no-repeat;"
+        "    background-position: center;"
         "}"
-        );
-    startBtn->setIcon(QIcon(assetPath("images/bars/sandboxmode.png")));
-    startBtn->setIconSize(startBtn->size());
+        ).arg(loadAsset("images/bars/sandboxmode.png")));
     layout->addWidget(startBtn, 0, Qt::AlignCenter); // 强制垂直居中
-
-    // 8. 底部再加一个弹簧，顶住按钮，配合顶部的弹簧把按钮集群锁在黄金上下位置
-    layout->addStretch(3);
-
-    // 9. 连接信号
-    connect(levelBtn, &QPushButton::clicked, this, &MainWindow::onLevelButtonClicked);
+    layout->addStretch(3);// 底部再加一个弹簧，顶住按钮，配合顶部的弹簧把按钮集群锁在黄金上下位置
+    connect(levelBtn, &QPushButton::clicked, this, &MainWindow::onLevelButtonClicked);    // 9. 连接信号
     connect(startBtn, &QPushButton::clicked, this, &MainWindow::onStartButtonClicked);
 }
 void MainWindow::onLevelButtonClicked()
