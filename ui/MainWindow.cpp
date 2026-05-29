@@ -4,7 +4,7 @@
 #include <QLabel>
 #include"../message/Message.h"
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
-    this->setFixedSize(1365, 768);
+    this->setFixedSize(1200, 800);
     QPixmap background(loadAsset("images/background/background.png")); // 你的游戏背景图路径
     QPalette palette;
     palette.setBrush(QPalette::Window, background.scaled(this->size(), Qt::IgnoreAspectRatio, Qt::SmoothTransformation));
@@ -15,7 +15,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     //添加顶部的“大弹簧”
     layout->addStretch(2); // 数字代表比例，可以根据 Logo 的高度微调
     QLabel *logo=new QLabel(this);
-    logo->setFixedSize(480, 180);
+    logo->setFixedSize(480, 160);
     logo->setStyleSheet(QString(
         "QLabel {"
         "    border: none;" // 去掉默认边框
