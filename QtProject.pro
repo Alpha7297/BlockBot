@@ -13,7 +13,6 @@ SOURCES += \
     level/Level.cpp \
     message/Message.cpp \
     ui/App.cpp\
-    tale.cpp \
     ui/MainWindow.cpp \
     ui/levelchoosepage.cpp
 HEADERS += \
@@ -29,8 +28,5 @@ HEADERS += \
     ui/MainWindow.h \
     ui/UiConstants.h \
     ui/Widgets.h\
-    tale.h \
     ui/levelchoosepage.h
 
-RESOURCES += \
-    resource.qrc
