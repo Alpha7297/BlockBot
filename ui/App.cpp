@@ -3853,7 +3853,14 @@ void clearWorkspaceForUndo(){
 
 void clearWorkspaceAndCacheOnExit(){
     stopProgram();
-    clearWorkspaceForUndo();
+    runtimeState.clearAll();
+    clearDataLockedNames();
+    if(appScene!=nullptr){
+        if(player!=nullptr&&player->scene()==appScene){
+            appScene->removeItem(player);
+        }
+        appScene->clear();
+    }
     clearUndoCache();
     resetSceneGlobals();
 }
@@ -7131,9 +7138,13 @@ void LevelChoosePage::startLevel(int levelNumber)
     stageExpanded=false;
     if(view!=nullptr){
         view->onClosed=nullptr;
+        QGraphicsScene* oldScene=scene;
         view->close();
         view->deleteLater();
         view=nullptr;
+        if(oldScene!=nullptr){
+            oldScene->deleteLater();
+        }
         scene=nullptr;
     }
     scene = new QGraphicsScene(this);
@@ -7167,9 +7178,13 @@ void MainWindow::onStartButtonClicked()
     stageExpanded=false;
     if(view!=nullptr){
         view->onClosed=nullptr;
+        QGraphicsScene* oldScene=scene;
         view->close();
         view->deleteLater();
         view=nullptr;
+        if(oldScene!=nullptr){
+            oldScene->deleteLater();
+        }
         scene=nullptr;
     }
     scene = new QGraphicsScene(this);
