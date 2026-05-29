@@ -1,9 +1,8 @@
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 #include<QMainWindow>
+#include<QPushButton>
 #include<QGraphicsScene>
-#include<QGraphicsView>
-#include<QPointer>
 #include "AppGraphicsView.h"
 #include"levelchoosepage.h"
 class MainWindow : public QMainWindow
@@ -20,10 +19,10 @@ private slots:
     void onLevelButtonClicked();
     void onChooseLevelPageClosed();
 private:
-    QPointer<QGraphicsView> menuView=nullptr;
-    QPointer<QGraphicsScene> menuScene=nullptr;
-    QPointer<AppGraphicsView> view=nullptr;
-    QPointer<QGraphicsScene> scene=nullptr;
-    QPointer<LevelChoosePage> levelChoosePage=nullptr;
+    QPushButton *startBtn;
+    QPushButton *levelBtn;
+    AppGraphicsView *view=nullptr;
+    QGraphicsScene *scene=nullptr;
+    LevelChoosePage *levelChoosePage=nullptr;
 };
 #endif // MAINWINDOW_H

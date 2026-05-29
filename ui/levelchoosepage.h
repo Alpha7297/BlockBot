@@ -2,9 +2,8 @@
 #define LEVELCHOOSEPAGE_H
 
 #include<QDialog>
+#include<QPushButton>
 #include<QGraphicsScene>
-#include<QGraphicsView>
-#include<QPointer>
 #include "AppGraphicsView.h"
 class LevelChoosePage : public QDialog
 {
@@ -18,17 +17,17 @@ public:
     void loadProcess();
     void saveProcess();
     void init();
-    void startLevel(int levelNumber);
     int unlockedLevel=0;
+    int totalLevels=9;
+    void startLevel(int levelNumber);
 signals:
     void pageClosed();
 private slots:
     void onStartButtonClicked();
 private:
-    QPointer<QGraphicsView> chooseView=nullptr;
-    QPointer<QGraphicsScene> chooseScene=nullptr;
-    QPointer<AppGraphicsView> view=nullptr;
-    QPointer<QGraphicsScene> scene=nullptr;
+    AppGraphicsView *view=nullptr;
+    QGraphicsScene *scene=nullptr;
+    std::vector<QPushButton*>levels;
 protected:
     void closeEvent(QCloseEvent *event)override
     {

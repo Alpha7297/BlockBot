@@ -26,31 +26,10 @@
 #include <QBrush>
 #include <QFont>
 #include <QPen>
+#include <QLabel>
 #include <algorithm>
-#include <functional>
 
 namespace{
-
-constexpr int levelButtonWidth=150;
-constexpr int levelButtonHeight=100;
-constexpr int levelHorizontalGap=75;
-constexpr int levelVerticalGap=50;
-constexpr int levelTopMargin=100;
-
-QString assetPath(const QString& relativePath){
-    QStringList roots;
-    roots<<QDir::currentPath()
-         <<QCoreApplication::applicationDirPath()
-         <<QDir(QCoreApplication::applicationDirPath()).absoluteFilePath("..")
-         <<QDir(QCoreApplication::applicationDirPath()).absoluteFilePath("../..");
-    for(const QString& root:roots){
-        QString path=QDir(root).filePath(relativePath);
-        if(QFileInfo::exists(path)){
-            return QDir::fromNativeSeparators(path);
-        }
-    }
-    return relativePath;
-}
 
 QString levelSaveFilePath(){
     QString dir=QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
@@ -61,42 +40,10 @@ QString levelSaveFilePath(){
     return QDir(dir).filePath("level.json");
 }
 
-QRect levelFrameRectFor(const QPoint& levelPos){
-    return QRect(
-        levelPos.x()-17,
-        levelPos.y()-10,
-        183,
-        122
-    );
-}
-
-QColor levelBackgroundColor(int levelNum,int currentLevel){
-    if(levelNum<currentLevel){
-        return QColor(62,158,92,220);
-    }
-    if(levelNum==currentLevel){
-        return QColor(194,66,62,225);
-    }
-    return QColor(92,96,102,210);
-}
 
 QColor levelTextColor(int levelNum,int currentLevel){
     return levelNum>currentLevel?QColor(137,146,154):QColor(247,251,255);
 }
-
-void addFixedImage(QGraphicsScene* scene,const QString& relativePath,
-                   const QRect& rect,bool flipHorizontal=false){
-    QPixmap pixmap(assetPath(relativePath));
-    if(flipHorizontal&&!pixmap.isNull()){
-        pixmap=pixmap.transformed(QTransform().scale(-1,1));
-    }
-    if(!pixmap.isNull()){
-        pixmap=pixmap.scaled(rect.size(),Qt::IgnoreAspectRatio,Qt::SmoothTransformation);
-    }
-    QGraphicsPixmapItem* item=scene->addPixmap(pixmap);
-    item->setPos(rect.x(),rect.y());
-}
-
 bool writeLevelSave(int currentLevel){
     QFile file(levelSaveFilePath());
     if(!file.open(QIODevice::WriteOnly|QIODevice::Text)){
@@ -108,210 +55,116 @@ bool writeLevelSave(int currentLevel){
     return true;
 }
 
-class ClickablePixmapItem final:public QGraphicsPixmapItem{
-public:
-    std::function<void()> onClick;
-
-    explicit ClickablePixmapItem(const QPixmap& pixmap,
-                                 std::function<void()> clickHandler,
-                                 QGraphicsItem* parent=nullptr)
-        :QGraphicsPixmapItem(pixmap,parent),onClick(std::move(clickHandler)){
-        setAcceptedMouseButtons(Qt::LeftButton);
-    }
-
-protected:
-    void mousePressEvent(QGraphicsSceneMouseEvent* event) override{
-        if(event->button()==Qt::LeftButton&&onClick){
-            onClick();
-            event->accept();
-            return;
-        }
-        QGraphicsPixmapItem::mousePressEvent(event);
-    }
-
-    void mouseReleaseEvent(QGraphicsSceneMouseEvent* event) override{
-        if(event->button()==Qt::LeftButton){
-            event->accept();
-            return;
-        }
-        QGraphicsPixmapItem::mouseReleaseEvent(event);
-    }
-
-private:
-};
-
-class LevelClickItem final:public QGraphicsRectItem{
-public:
-    std::function<void()> onClick;
-
-    LevelClickItem(LevelChoosePage* page,int levelNum,int currentLevel,
-                   const QRect& rect,QGraphicsItem* parent=nullptr)
-        :QGraphicsRectItem(QRectF(rect),parent),
-          owner(page),
-          levelNumber(levelNum),
-          currentUnlockedLevel(currentLevel){
-        setBrush(Qt::NoBrush);
-        setPen(Qt::NoPen);
-        setAcceptedMouseButtons(Qt::LeftButton);
-
-        QFont font("Microsoft YaHei");
-        font.setPixelSize(52);
-        font.setWeight(QFont::Black);
-        textItem=new QGraphicsTextItem(QString::number(levelNumber),this);
-        textItem->setDefaultTextColor(levelTextColor(levelNumber,currentUnlockedLevel));
-        textItem->setFont(font);
-        textItem->setAcceptedMouseButtons(Qt::NoButton);
-        const QRectF textRect=textItem->boundingRect();
-        textItem->setPos(
-            rect.x()+(rect.width()-textRect.width())/2,
-            rect.y()+(rect.height()-textRect.height())/2-5
-        );
-    }
-
-protected:
-    void mousePressEvent(QGraphicsSceneMouseEvent* event) override{
-        if(event->button()==Qt::LeftButton){
-            if(onClick){
-                onClick();
-            }else if(levelNumber<=currentUnlockedLevel&&owner){
-                owner->startLevel(levelNumber);
-            }
-            event->accept();
-            return;
-        }
-        QGraphicsRectItem::mousePressEvent(event);
-    }
-
-    void mouseReleaseEvent(QGraphicsSceneMouseEvent* event) override{
-        if(event->button()==Qt::LeftButton){
-            event->accept();
-            return;
-        }
-        QGraphicsRectItem::mouseReleaseEvent(event);
-    }
-
-private:
-    LevelChoosePage* owner=nullptr;
-    int levelNumber=0;
-    int currentUnlockedLevel=0;
-    QGraphicsTextItem* textItem=nullptr;
-};
-
-void applyChooseBackground(QWidget* widget){
-    QPixmap background(assetPath("images/background/background.png"));
-    if(background.isNull()){
-        widget->setStyleSheet("background-color: #22262d;");
-        return;
-    }
-    QPalette palette;
-    palette.setBrush(QPalette::Window,background.scaled(
-        widget->size(),
-        Qt::IgnoreAspectRatio,
-        Qt::SmoothTransformation
-    ));
-    widget->setAutoFillBackground(true);
-    widget->setPalette(palette);
-}
-
 }
 
 LevelChoosePage::LevelChoosePage(QWidget *parent):QDialog(parent){
 }
 
-void LevelChoosePage::init(){
-    if(chooseView){
-        delete chooseView;
-        chooseView=nullptr;
-    }
-    if(chooseScene){
-        delete chooseScene;
-        chooseScene=nullptr;
-    }
+void LevelChoosePage::init()
+{
+    const int levelButtonHeight=100,levelButtonWidth=150,pageHeight=768,pageWidth=1365,topMargin=100,widthGap=75,heightGap=50;
+    this->setFixedSize(pageWidth, pageHeight); // 假设背景图是这个尺寸
+    this->setStyleSheet(QString("QDialog { border-image: url(%1) 0 0 0 0 stretch stretch; }").arg(loadAsset("images/background/background.png")));
 
-    setFixedSize(appWidth,appHeight);
-    applyChooseBackground(this);
-
-    chooseScene=new QGraphicsScene(this);
-    chooseScene->setSceneRect(0,0,appWidth,appHeight);
-    chooseView=new QGraphicsView(chooseScene,this);
-    chooseView->setGeometry(0,0,appWidth,appHeight);
-    chooseView->setFrameShape(QFrame::NoFrame);
-    chooseView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    chooseView->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    chooseView->setAlignment(Qt::AlignLeft|Qt::AlignTop);
-    chooseView->setStyleSheet("background: transparent;");
-    chooseView->show();
-
-    QPixmap backgroundPixmap(assetPath("images/background/background.png"));
-    if(!backgroundPixmap.isNull()){
-        chooseScene->addPixmap(backgroundPixmap.scaled(
-            QSize(appWidth,appHeight),
-            Qt::IgnoreAspectRatio,
-            Qt::SmoothTransformation
-        ));
-    }else{
-        chooseScene->setBackgroundBrush(QColor(34,38,44));
-    }
-
-    const int totalGridWidth=3*levelButtonWidth+2*levelHorizontalGap;
-    const int leftMargin=(appWidth-totalGridWidth)/2;
-    const QVector<QPoint> positions={
-        QPoint(leftMargin,levelTopMargin),
-        QPoint(leftMargin+levelButtonWidth+levelHorizontalGap,levelTopMargin),
-        QPoint(leftMargin+2*(levelButtonWidth+levelHorizontalGap),levelTopMargin),
-        QPoint(leftMargin+2*(levelButtonWidth+levelHorizontalGap),
-            levelTopMargin+levelButtonHeight+levelVerticalGap),
-        QPoint(leftMargin+levelButtonWidth+levelHorizontalGap,
-            levelTopMargin+levelButtonHeight+levelVerticalGap),
-        QPoint(leftMargin,levelTopMargin+levelButtonHeight+levelVerticalGap),
-        QPoint(leftMargin,levelTopMargin+2*(levelButtonHeight+levelVerticalGap)),
-        QPoint(leftMargin+levelButtonWidth+levelHorizontalGap,
-            levelTopMargin+2*(levelButtonHeight+levelVerticalGap)),
-        QPoint(leftMargin+2*(levelButtonWidth+levelHorizontalGap),
-            levelTopMargin+2*(levelButtonHeight+levelVerticalGap))
+    QPoint levelPositions[] = {//精准测量的关卡按钮坐标 (X, Y)
+        QPoint((-levelButtonWidth+pageWidth)/2-levelButtonWidth-widthGap,  topMargin),  // 关卡 1
+        QPoint((-levelButtonWidth+pageWidth)/2,      topMargin),  // 关卡 2
+        QPoint((-levelButtonWidth+pageWidth)/2+levelButtonWidth+widthGap,  topMargin),  // 关卡 3
+        QPoint((-levelButtonWidth+pageWidth)/2+levelButtonWidth+widthGap,  topMargin+levelButtonHeight+heightGap),  // 关卡 4
+        QPoint((-levelButtonWidth+pageWidth)/2,      topMargin+levelButtonHeight+heightGap),  // 关卡 5
+        QPoint((-levelButtonWidth+pageWidth)/2-levelButtonWidth-widthGap,  topMargin+levelButtonHeight+heightGap),  // 关卡 6
+        QPoint((-levelButtonWidth+pageWidth)/2-levelButtonWidth-widthGap,  topMargin+levelButtonHeight*2+heightGap*2),  // 关卡 7
+        QPoint((-levelButtonWidth+pageWidth)/2,      topMargin+levelButtonHeight*2+heightGap*2),  // 关卡 8
+        QPoint((-levelButtonWidth+pageWidth)/2+levelButtonWidth+widthGap,  topMargin+levelButtonHeight*2+heightGap*2)   // 关卡 9
     };
+    totalLevels = 9; //共有9关
+    levels.resize(totalLevels);
+    // 批量生成并配置按钮
+    for (int i = 0; i < totalLevels; ++i) {
+        int levelNum = i + 1;
 
-    for(int i=0;i<level::TotalLevelCount;i++){
-        int levelNum=i+1;
-        const QRect levelRect(
-            positions[i].x(),
-            positions[i].y(),
-            levelButtonWidth,
-            levelButtonHeight
-        );
-        const QRect frameRect=levelFrameRectFor(positions[i]);
-        chooseScene->addRect(
-            QRectF(levelRect),
-            Qt::NoPen,
-            QBrush(levelBackgroundColor(levelNum,unlockedLevel))
-        );
-        addFixedImage(chooseScene,"images/icons/level.png",frameRect);
+        if(levels[i]==nullptr)levels[i] = new QPushButton(this);//QString::number(levelNum),this);
+        levels[i]->setProperty("levelNumber", levelNum);
+        levels[i]->setCursor(Qt::PointingHandCursor);
+        levels[i]->setFixedSize(levelButtonWidth, levelButtonHeight); // 普通灰色金属框大小
+        levels[i]->move(levelPositions[i]);// 搬移到背景图对应的管道口位置
+        // 根据 unlockedLevel 判断关卡状态并上色
+        QString templateURL;
+        QString qss;
+        if (levelNum < unlockedLevel) {
+            // 【状态 A：已通关】显示正常缩略图
+            templateURL=loadAsset(QString("images/background/level_%1_normal.png").arg(""));//levelNum);
+        }
+        else if (levelNum == unlockedLevel) {
+            // 【状态 B：当前正在挑战的关卡】显示高亮红框（或者根据图片，给按钮套上亮色皮肤）
+            templateURL=loadAsset(QString("images/background/level_%1_current.png").arg(""));//levelNum);
+        }
+        else {
+            // 【状态 C：未解锁】置灰，并且在右下角带一把锁
+            templateURL=loadAsset(QString("images/background/level_%1_gray.png").arg(""));//levelNum);
+            levels[i]->setEnabled(false);
+        }
+        levels[i]->setStyleSheet("QPushButton { border: none; background: transparent; }");
+        // 创建一个独立的 QLabel 塞进按钮里，用来精准控制图片的大小
+        QLabel* imgLabel = new QLabel(levels[i]);
+        const int widthBorder=15,heightBorder=10;
+        imgLabel->setGeometry(widthBorder, heightBorder, levelButtonWidth-widthBorder*2, levelButtonHeight-heightBorder*2);
+        imgLabel->setStyleSheet(QString(
+            "QLabel {"
+            "    border: none;"
+            "    border-image: url(%1) 0 0 0 0 stretch stretch;" // 在这里拉伸，但大小被限制在了 80x80
+            "}"
+            ).arg(templateURL));
+        imgLabel->setAttribute(Qt::WA_TransparentForMouseEvents);//允许鼠标事件穿透 QLabel
+        // 2. 创建一个 Label 叠在上面（负责第二层：中图，支持自动拉伸）
+        QLabel* borderLabel = new QLabel(levels[i]);
+        borderLabel->setGeometry(0, 0, levelButtonWidth, levelButtonHeight);
+        borderLabel->setStyleSheet(QString("QLabel{border-image:url(%1);}").arg(loadAsset("images/icons/level.png")));
+        borderLabel->setAttribute(Qt::WA_TransparentForMouseEvents); // 点击穿透，不挡住按钮点击
 
-        auto* levelItem=new LevelClickItem(this,levelNum,unlockedLevel,levelRect);
-        levelItem->onClick=[this,levelNum](){
-            if(levelNum<=unlockedLevel){
-                startLevel(levelNum);
-            }
-        };
-        chooseScene->addItem(levelItem);
+        // 3. 创建一个 Label 叠在最上面（负责第三层：文字）
+        QLabel* textLabel = new QLabel(QString::number(levelNum), levels[i]);
+        textLabel->setGeometry(0, 0, levelButtonWidth, levelButtonHeight);
+        textLabel->setAlignment(Qt::AlignCenter); // 绝对居中
+        textLabel->setStyleSheet("QLabel{color: white; font-size: 30px; font-weight: bold;}");
+        textLabel->setAttribute(Qt::WA_TransparentForMouseEvents); // 点击穿透
+        //统一绑定点击信号
+        connect(levels[i], &QPushButton::clicked, this, &LevelChoosePage::onStartButtonClicked);
+        levels[i]->show();
     }
-
-    addFixedImage(chooseScene,"images/icons/pipe1.png",QRect(454,139,69,23));
-    addFixedImage(chooseScene,"images/icons/pipe1.png",QRect(679,139,69,23));
-    addFixedImage(chooseScene,"images/icons/pipe1.png",QRect(454,289,69,23));
-    addFixedImage(chooseScene,"images/icons/pipe1.png",QRect(679,289,69,23));
-    addFixedImage(chooseScene,"images/icons/pipe1.png",QRect(454,439,69,23));
-    addFixedImage(chooseScene,"images/icons/pipe1.png",QRect(679,439,69,23));
-    addFixedImage(chooseScene,"images/icons/pipeC.png",QRect(904,136,64,179));
-    addFixedImage(chooseScene,"images/icons/pipeC.png",QRect(232,286,64,179),true);
-
-    QPixmap returnPixmap(assetPath("images/icons/return.png"));
-    if(!returnPixmap.isNull()){
-        returnPixmap=returnPixmap.scaled(70,70,Qt::IgnoreAspectRatio,Qt::SmoothTransformation);
+    //加上连接管子
+    QPoint tubePositions[] = {//精准测量的关卡按钮坐标 (X, Y)
+        QPoint((+levelButtonWidth+pageWidth)/2-levelButtonWidth-widthGap-12,  topMargin+levelButtonHeight/2-12),
+        QPoint((+levelButtonWidth+pageWidth)/2-levelButtonWidth-widthGap-12,  topMargin+levelButtonHeight/2+levelButtonHeight+heightGap-12),
+        QPoint((+levelButtonWidth+pageWidth)/2-levelButtonWidth-widthGap-12,  topMargin+levelButtonHeight/2+levelButtonHeight*2+heightGap*2-12),
+        QPoint((+levelButtonWidth+pageWidth)/2-12,      topMargin+levelButtonHeight/2-12),
+        QPoint((+levelButtonWidth+pageWidth)/2-12,      topMargin+levelButtonHeight/2+levelButtonHeight+heightGap-12),
+        QPoint((+levelButtonWidth+pageWidth)/2-12,      topMargin+levelButtonHeight/2+levelButtonHeight*2+heightGap*2-12)
+    };
+    for(int i=0;i<6;i++)
+    {
+        QLabel* tubeLabel = new QLabel(this);
+        tubeLabel->move(tubePositions[i]);
+        tubeLabel->setFixedSize(widthGap+24, 30);
+        tubeLabel->setStyleSheet(QString("QLabel{border:none;border-image:url(%1);}").arg(loadAsset("images/icons/pipe1.png")));
+        tubeLabel->show();
     }
-    auto* backItem=new ClickablePixmapItem(returnPixmap,[this](){ close(); });
-    backItem->setPos(30,30);
-    chooseScene->addItem(backItem);
+    QLabel* tubeLabel = new QLabel(this);
+    tubeLabel->move(QPoint((+levelButtonWidth+pageWidth)/2+levelButtonWidth+widthGap-10,topMargin+levelButtonHeight/2-12));
+    tubeLabel->setFixedSize(60, levelButtonHeight+heightGap+24);
+    tubeLabel->setStyleSheet(QString("QLabel{border:none;border-image:url(%1);}").arg(loadAsset("images/icons/pipeC.png")));
+    tubeLabel->show();
+    tubeLabel = new QLabel(this);
+    tubeLabel->move(QPoint((-levelButtonWidth+pageWidth)/2-levelButtonWidth-widthGap-50,topMargin+levelButtonHeight/2+levelButtonHeight+heightGap-12));
+    tubeLabel->setFixedSize(60, levelButtonHeight+heightGap+24);
+    tubeLabel->setStyleSheet(QString("QLabel{border:none;border-image:url(%1);}").arg(loadAsset("images/icons/pipeCr.png")));
+    tubeLabel->show();
+    // 加一个左上角的返回按钮
+    QPushButton* backBtn = new QPushButton(this);
+    backBtn->setGeometry(15, 15, 80, 80); // 根据左上角黄色箭头的尺寸
+    backBtn->setCursor(Qt::PointingHandCursor);
+    backBtn->setStyleSheet(QString("QPushButton { border: none; border-image: url(%1) 0 0 0 0 stretch stretch; }").arg(loadAsset("images/icons/return.png")));
+    connect(backBtn, &QPushButton::clicked, this, &LevelChoosePage::close);
 }
 
 void LevelChoosePage::loadProcess(){
