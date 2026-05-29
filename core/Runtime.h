@@ -28,6 +28,7 @@ public:
     bool getListValue(const std::string& name,int index,double* value) const;
     bool pushList(const std::string& name,double value);
     bool setListValue(const std::string& name,int index,double value);
+    bool removeListValue(const std::string& name,int index);
     bool clearList(const std::string& name);
     bool forceSetList(const std::string& name,const std::vector<double>& values,bool readOnly=false);
     int listSize(const std::string& name) const;
@@ -58,6 +59,7 @@ public:
     virtual void setVariable(const std::string& name,double value);
     virtual void pushList(const std::string& name,double value);
     virtual void setListValue(const std::string& name,double index,double value);
+    virtual void removeListValue(const std::string& name,double index);
     virtual void clearList(const std::string& name);
     virtual void enterCustomBlock(const std::string& name,double value);
     virtual void leaveCustomBlock(const std::string& name);

@@ -3,8 +3,10 @@
 
 #include <algorithm>
 #include <cmath>
-#include <cstdlib>
+#include <limits>
+#include <random>
 #include <sstream>
+#include <QDebug>
 
 namespace level{
 
@@ -14,6 +16,10 @@ LevelConfig currentLevel;
 int currentLevelNumber=MinLevelNumber;
 LevelType currentLevelType=LevelType::Map;
 
+int randomInt(std::mt19937& rng,int minValue,int maxValue){
+    std::uniform_int_distribution<int> dist(minValue,maxValue);
+    return dist(rng);
+}
 
 int normalizedDirection(int direction){
     return ((direction%4)+4)%4;
@@ -31,10 +37,10 @@ void fillBorderWalls(LevelConfig& level,int size){
 }
 
 int mapSizeForLevel(int levelNumber){
-    if(levelNumber==1){
+    if(levelNumber==1||levelNumber==4){
         return 10;
     }
-    if(levelNumber==2||levelNumber==3||levelNumber==4){
+    if(levelNumber==2||levelNumber==3){
         return 20;
     }
     return 40;
@@ -71,10 +77,10 @@ DataTestCase makeGeneratedLevel6Case(int seed,int n){
     std::vector<double> pos;
     time.reserve(n);
     pos.reserve(n);
-    std::srand(seed);
+    std::mt19937 rng(seed);
     for(int i=0;i<n;i++){
-        int rawTime=std::rand()%1108-49;
-        int rawPos=std::rand()%470-29;
+        int rawTime=randomInt(rng,-49,1058);
+        int rawPos=randomInt(rng,-29,440);
         if(i%17==0){
             rawTime=-1;
         }
@@ -95,8 +101,8 @@ DataTestCase makeGeneratedLevel6Case(int seed,int n){
 
 DataTestCase makeLevel7Case(int seed){
     DataTestCase c;
-    std::srand(seed);
-    int origin=100000+std::rand()%900000;
+    std::mt19937 rng(seed);
+    int origin=randomInt(rng,100000,999999);
     c.expectedVariables["明文"]=origin;
     std::vector<int> numberlist;
     int value=origin;
@@ -116,18 +122,17 @@ DataTestCase makeLevel7Case(int seed){
 
 DataTestCase makeLevel8Case(int seed){
     DataTestCase c;
-    using std::rand;
-    std::srand(seed);
-    int n=rand()%1000+1;
+    std::mt19937 rng(seed);
+    int n=randomInt(rng,1,1000);
     c.inputVariables["n"]=n;
     std::vector<double> height;
     for(int i=0;i<n;i++){
-        height.push_back(rand()%100);
+        height.push_back(randomInt(rng,0,99));
     }
     c.inputLists["高度"]=height;
     std::vector<double> threshold;
     for(int i=0;i<n;i++){
-        threshold.push_back(rand()%5);
+        threshold.push_back(randomInt(rng,0,4));
     }
     c.inputLists["阈值"]=threshold;
     int left=0,right=n-1;
@@ -162,19 +167,48 @@ void configureMapLevel(int levelNumber){
     fillBorderWalls(currentLevel,size);
     if(levelNumber==1){
         currentLevel.setReachPositionGoal(7,5);
-        currentLevel.setRobotStart(3,3,3);
+        currentLevel.setRobotStart(3,3,0);
         currentLevel.setMapCell(7,5,level::CellEnd);
     }
     if(levelNumber==2){
-        currentLevel.setRobotStart(3,10,3);
+        currentLevel.setRobotStart(3,10,0);
         currentLevel.setReachPositionGoal(18,10);
         for(int i=1;i<19;i++){
             for(int j=1;j<19;j++){
                 currentLevel.setMapCell(i,j,CellSpikeUp);
             }
         }
+        for(int j=1;j<19;j++){
+            currentLevel.setMapCell(9,j,CellSpikeDown);
+        }
         currentLevel.setMapCell(3,10,CellEmpty);
         currentLevel.setMapCell(18,10,CellEnd);
+    }
+    if(levelNumber==3){
+        currentLevel.setRobotStart(1,1,0);
+        currentLevel.setReachPositionGoal(19,19);
+        for(int i=1;i<19;i++){
+            for(int j=1;j<19;j++){
+                currentLevel.setMapCell(i,j,CellSpikeDown);
+            }
+        }
+        for(int i=0;i<3;i++){
+            for(int j=0;j<3;j++){
+                int x=i*6+1,y=j*6+1;
+                currentLevel.setMapCell(x,y,CellLightG);
+                currentLevel.setMapCell(x+1,y,CellLightG);
+                currentLevel.setMapCell(x,y+1,CellLightG);
+                currentLevel.setMapCell(x+1,y+1,CellLightG);
+            }
+        }
+        currentLevel.setMapCell(18,18,CellEnd);
+    }
+    if(levelNumber==4){
+        //1 2 3 4对应上下左右
+        currentLevel.setMapCell(3,2,CellScope3);
+        currentLevel.setMapCell(6,2,CellScope1);
+        currentLevel.setMapCell(3,6,CellScope3);
+        currentLevel.setMapCell(6,6,CellScope3);
     }
 }
 
@@ -184,41 +218,19 @@ void configureDataOutputLevel(int levelNumber){
     fillBorderWalls(currentLevel,size);
     currentLevel.setRobotStart(5,5,0);
     std::vector<DataTestCase> cases;
+    std::mt19937 rng(13);
     if(levelNumber==6){
         cases.push_back(makeLevel6Case(
             {7,3},
             {41,284},
             2
         ));
-        cases.push_back(makeLevel6Case(
-            {-1,123,321,598,1001,1,1000,450,40,265},
-            {12,411,410,0,88,1,999,284,-1,120},
-            10
-        ));
-        cases.push_back(makeLevel6Case(
-            {1000,999,1,2,500,501,250,750},
-            {410,409,1,2,250,251,100,300},
-            8
-        ));
-        cases.push_back(makeLevel6Case(
-            {4,4,2,2,3,3,1,1},
-            {80,20,30,10,60,50,40,70},
-            8
-        ));
-        cases.push_back(makeLevel6Case(
-            {0,1001,-1,2000},
-            {1,2,3,4},
-            4
-        ));
-        cases.push_back(makeLevel6Case(
-            {10,20,30,40,50,60},
-            {-1,0,410,999,120,1},
-            6
-        ));
-        cases.push_back(makeGeneratedLevel6Case(7,50));
-        cases.push_back(makeGeneratedLevel6Case(19,120));
-        cases.push_back(makeGeneratedLevel6Case(31,500));
-        cases.push_back(makeGeneratedLevel6Case(43,1000));
+        for(int i=0;i<9;i++){
+            cases.push_back(makeGeneratedLevel6Case(
+                randomInt(rng,0,std::numeric_limits<int>::max()),
+                randomInt(rng,0,74)
+            ));
+        }
     }
     if(levelNumber==7){
         DataTestCase c1;
@@ -226,7 +238,7 @@ void configureDataOutputLevel(int levelNumber){
         c1.inputVariables["密码"]=529876;
         cases.push_back(c1);
         for(int i=0;i<9;i++){
-            cases.push_back(makeLevel7Case(i+13));
+            cases.push_back(makeLevel7Case(randomInt(rng,0,std::numeric_limits<int>::max())));
         }
     }
     if(levelNumber==8){
@@ -237,7 +249,7 @@ void configureDataOutputLevel(int levelNumber){
         c1.expectedLists["危险点"]={1,3};
         cases.push_back(c1);
         for(int i=0;i<9;i++){
-            cases.push_back(makeLevel8Case(i+13));
+            cases.push_back(makeLevel8Case(randomInt(rng,0,std::numeric_limits<int>::max())));
         }
     }
     currentLevel.setDataOutputCases(cases);
@@ -302,7 +314,7 @@ TestResult DataOutputTest::checkCase(int index,const TestContext& context) const
         return {false,"测试失败，索引超过上限"};
     }
     if(context.runtime==nullptr){
-        return {false,"关卡信息错误，请练习游戏开发者"};
+        return {false,"关卡信息错误，请联系游戏开发者"};
     }
     const double eps=1e-8;
     const DataTestCase& testCase=cases[index];
