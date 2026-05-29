@@ -31,7 +31,13 @@ void fillBorderWalls(LevelConfig& level,int size){
 }
 
 int mapSizeForLevel(int levelNumber){
-    return levelNumber==9?40:10;
+    if(levelNumber==1){
+        return 10;
+    }
+    if(levelNumber==2||levelNumber==3||levelNumber==4){
+        return 20;
+    }
+    return 40;
 }
 
 DataTestCase makeLevel6Case(const std::vector<double>& time,const std::vector<double>& pos,int n){
@@ -154,23 +160,21 @@ void configureMapLevel(int levelNumber){
     int size=mapSizeForLevel(levelNumber);
     resetActiveLevel(size,size);
     fillBorderWalls(currentLevel,size);
-    int defaultGoal=std::min(10,size-2);
-    currentLevel.setReachPositionGoal(defaultGoal,defaultGoal);
     if(levelNumber==1){
         currentLevel.setReachPositionGoal(7,5);
         currentLevel.setRobotStart(3,3,3);
         currentLevel.setMapCell(7,5,level::CellEnd);
     }
     if(levelNumber==2){
-        currentLevel.setRobotStart(3,5,3);
-        currentLevel.setReachPositionGoal(8,5);
-        for(int i=1;i<9;i++){
-            for(int j=1;j<9;j++){
+        currentLevel.setRobotStart(3,10,3);
+        currentLevel.setReachPositionGoal(18,10);
+        for(int i=1;i<19;i++){
+            for(int j=1;j<19;j++){
                 currentLevel.setMapCell(i,j,CellSpikeUp);
             }
         }
-        currentLevel.setMapCell(3,5,CellEmpty);
-        currentLevel.setMapCell(8,5,CellEnd);
+        currentLevel.setMapCell(3,10,CellEmpty);
+        currentLevel.setMapCell(18,10,CellEnd);
     }
 }
 
@@ -348,7 +352,7 @@ LevelConfig::LevelConfig(){
 void LevelConfig::reset(){
     mapData.clear();
     start=RobotState();
-    blocks.clear();
+    inputCases.clear();
     test.reset();
 }
 
@@ -396,22 +400,6 @@ RobotState LevelConfig::robotStart() const{
     return start;
 }
 
-void LevelConfig::enableBlock(const std::string& blockName){
-    blocks.insert(blockName);
-}
-
-void LevelConfig::disableBlock(const std::string& blockName){
-    blocks.erase(blockName);
-}
-
-bool LevelConfig::blockEnabled(const std::string& blockName) const{
-    return blocks.empty()||blocks.find(blockName)!=blocks.end();
-}
-
-const std::set<std::string>& LevelConfig::enabledBlocks() const{
-    return blocks;
-}
-
 void LevelConfig::setTest(std::unique_ptr<LevelTest> newTest){
     test=std::move(newTest);
 }
@@ -428,11 +416,29 @@ void LevelConfig::setDataOutputCases(const std::vector<DataTestCase>& cases){
     test=std::move(dataTest);
 }
 
+void LevelConfig::setInputCases(const std::vector<DataTestCase>& cases){
+    inputCases=cases;
+}
+
 int LevelConfig::testCaseCount() const{
-    return test==nullptr?1:test->caseCount();
+    int count=test==nullptr?1:test->caseCount();
+    if(!inputCases.empty()){
+        count=std::max(count,static_cast<int>(inputCases.size()));
+    }
+    return count;
 }
 
 void LevelConfig::prepareTestCase(int index,core::RuntimeState& runtime) const{
+    if(!inputCases.empty()){
+        int inputIndex=std::max(0,std::min(index,static_cast<int>(inputCases.size())-1));
+        const DataTestCase& inputCase=inputCases[inputIndex];
+        for(const auto& item:inputCase.inputVariables){
+            runtime.forceSetVariable(item.first,item.second,true);
+        }
+        for(const auto& item:inputCase.inputLists){
+            runtime.forceSetList(item.first,item.second,true);
+        }
+    }
     if(test!=nullptr){
         test->prepareCase(index,runtime);
     }
@@ -462,20 +468,16 @@ void setActiveRobotStart(int x,int y,int direction){
     currentLevel.setRobotStart(x,y,direction);
 }
 
-void enableActiveBlock(const std::string& blockName){
-    currentLevel.enableBlock(blockName);
-}
-
-void disableActiveBlock(const std::string& blockName){
-    currentLevel.disableBlock(blockName);
-}
-
 void setActiveReachPositionGoal(int x,int y){
     currentLevel.setReachPositionGoal(x,y);
 }
 
 void setActiveDataOutputCases(const std::vector<DataTestCase>& cases){
     currentLevel.setDataOutputCases(cases);
+}
+
+void setActiveInputCases(const std::vector<DataTestCase>& cases){
+    currentLevel.setInputCases(cases);
 }
 
 int activeTestCaseCount(){
@@ -520,10 +522,23 @@ void configureSandBoxLevel()
     fillBorderWalls(currentLevel,size);
     currentLevel.setReachPositionGoal(-1,-1);
 }
-void fresh(int levelNumber,int time){
-    if(levelNumber==2){
+TestResult fresh(const TestContext& context){
+    if(currentLevelNumber==2){
+        int time=context.time;
         for(int i=1;i<9;i++){
-            for(int j=1;j<9;j++){
+            for(int j=1;j<19;j++){
+                int cell=currentLevel.mapCell(i,j);
+                if(cell!=CellSpikeUp&&cell!=CellSpikeDown){
+                    continue;
+                }
+                currentLevel.setMapCell(i,j,time%20<15?CellSpikeUp:CellSpikeDown);
+            }
+        }
+        for(int j=1;j<19;j++){
+            currentLevel.setMapCell(9,j,CellSpikeDown);
+        }
+        for(int i=10;i<19;i++){
+            for(int j=1;j<19;j++){
                 int cell=currentLevel.mapCell(i,j);
                 if(cell!=CellSpikeUp&&cell!=CellSpikeDown){
                     continue;
@@ -531,8 +546,12 @@ void fresh(int levelNumber,int time){
                 currentLevel.setMapCell(i,j,time%20<10?CellSpikeUp:CellSpikeDown);
             }
         }
+        int robotCell=currentLevel.mapCell(context.robot.x,context.robot.y);
+        if(robotCell==CellSpikeUp){
+            return {false,"测试失败：机器人被激活的尖刺击中。"};
+        }
     }
-    return;
+    return {true,""};
 }
 
 void configureActiveLevel(int levelNumber,LevelType type){

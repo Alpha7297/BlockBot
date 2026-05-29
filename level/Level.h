@@ -5,7 +5,6 @@
 
 #include <memory>
 #include <map>
-#include <set>
 #include <string>
 #include <vector>
 
@@ -34,7 +33,7 @@ struct RobotState{
 struct TestContext{
     std::vector<std::vector<int>> map;
     RobotState robot;
-    const core::RuntimeState* runtime = nullptr;
+    core::RuntimeState* runtime = nullptr;
     int steps = 0;
     int time = 0;
 };
@@ -93,14 +92,10 @@ public:
     void setRobotStart(int x,int y,int direction);
     RobotState robotStart() const;
 
-    void enableBlock(const std::string& blockName);
-    void disableBlock(const std::string& blockName);
-    bool blockEnabled(const std::string& blockName) const;
-    const std::set<std::string>& enabledBlocks() const;
-
     void setTest(std::unique_ptr<LevelTest> newTest);
     void setReachPositionGoal(int x,int y);
     void setDataOutputCases(const std::vector<DataTestCase>& cases);
+    void setInputCases(const std::vector<DataTestCase>& cases);
     int testCaseCount() const;
     void prepareTestCase(int index,core::RuntimeState& runtime) const;
     TestResult runTestCase(int index,const TestContext& context) const;
@@ -108,7 +103,7 @@ public:
 private:
     std::vector<std::vector<int>> mapData;
     RobotState start;
-    std::set<std::string> blocks;
+    std::vector<DataTestCase> inputCases;
     std::unique_ptr<LevelTest> test;
 };
 
@@ -116,10 +111,9 @@ LevelConfig& activeLevel();
 void resetActiveLevel(int mapWidth,int mapHeight);
 void setActiveMapCell(int x,int y,int type);
 void setActiveRobotStart(int x,int y,int direction);
-void enableActiveBlock(const std::string& blockName);
-void disableActiveBlock(const std::string& blockName);
 void setActiveReachPositionGoal(int x,int y);
 void setActiveDataOutputCases(const std::vector<DataTestCase>& cases);
+void setActiveInputCases(const std::vector<DataTestCase>& cases);
 int activeTestCaseCount();
 void prepareActiveTestCase(int index,core::RuntimeState& runtime);
 TestResult testActiveLevelCase(int index,const TestContext& context);
@@ -128,7 +122,7 @@ int testContextTime(const TestContext& context);
 int activeLevelNumber();
 LevelType activeLevelType();
 LevelType defaultLevelTypeForNumber(int levelNumber);
-void fresh(int levelNumber,int time);
+TestResult fresh(const TestContext& context);
 void configureActiveLevel(int levelNumber,LevelType type);
 void configureSandBoxLevel();
 }

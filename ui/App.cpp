@@ -82,6 +82,7 @@ class ControlCodeBlock;
 class CustomHatBlock;
 class CustomCallBlock;
 class CustomParamBlock;
+class StartBlock;
 class VariableBlock;
 class RobotCoordBlock;
 class RobotFrontMapBlock;
@@ -93,12 +94,22 @@ class PushListBlock;
 class SetListBlock;
 class ClearListBlock;
 
+vector<CodeBlock*> runtimeCodeRoots;
+StartBlock* runtimeStartBlock=nullptr;
+std::map<QString,CustomHatBlock*> runtimeCustomHatBlocks;
+bool runtimeCodeSnapshotActive=false;
+
 void recordRuntimeStepUse(){
     if(runtimeCountersActive){
         levelTestStepCount++;
     }
 }
 
+level::TestContext currentLevelTestContext();
+void finishLevelTest(bool forcedFail,const QString& message);
+void clearRuntimeCodeSnapshot();
+bool buildRuntimeCodeSnapshot();
+void ensureBuiltInRuntimeVariables();
 void syncMapDataFromActiveLevel();
 void updateStageGeometry();
 
@@ -106,9 +117,14 @@ void recordRuntimeTimeUse(){
     if(runtimeCountersActive){
         levelTestTimeCount++;
         if(level::activeLevelType()==level::LevelType::Map){
-            level::fresh(level::activeLevelNumber(),levelTestTimeCount);
+            runtimeState.forceSetVariable("time",levelTestTimeCount,true);
+            level::TestResult freshResult=level::fresh(currentLevelTestContext());
             syncMapDataFromActiveLevel();
             updateStageGeometry();
+            if(!freshResult.passed){
+                finishLevelTest(true,QString::fromStdString(freshResult.message));
+                return;
+            }
         }
     }
 }
@@ -129,6 +145,7 @@ void showCodeContextMenu(CodeBlock* block,QPointF scenePos);
 void showFloatContextMenu(FloatBlock* block,QPointF scenePos);
 bool isContextMenuItem(QGraphicsItem* item);
 bool isWorkspaceContentItem(QGraphicsItem* item);
+vector<CodeBlock*> workspaceCodeRootsFromScene();
 CodeBlock* codeBlockAtScenePoint(QGraphicsScene* scene,QPointF scenePoint);
 FloatBlock* floatBlockAtScenePoint(QGraphicsScene* scene,QPointF scenePoint);
 int runtimeIntervalForCodeBlock(CodeBlock* block);
@@ -1762,25 +1779,12 @@ class CustomHatBlock:public CodeBlock{
 public:
     QString customName;
     QString parameterName;
-    ClickTextItem* parameterText;
-    QGraphicsRectItem* parameterFrame;
     CustomParamBlock* parameterBlock;
 
     CustomHatBlock(QString name,QString paramName="x",int base=false,QGraphicsItem* parent=nullptr):
         CodeBlock(-3,name,base,parent){
         customName=name;
         parameterName=paramName.trimmed();
-        parameterFrame=new QGraphicsRectItem(this);
-        parameterFrame->setBrush(QColor(220,220,220));
-        parameterFrame->setPen(QPen(Qt::black,1.5));
-        parameterFrame->setAcceptedMouseButtons(Qt::NoButton);
-        parameterFrame->setZValue(1);
-        parameterText=new ClickTextItem(this);
-        parameterText->setDefaultTextColor(Qt::black);
-        parameterText->document()->setDocumentMargin(0);
-        parameterText->setPlainText(parameterName);
-        parameterText->setZValue(2);
-        parameterText->setAcceptedMouseButtons(Qt::NoButton);
         parameterBlock=parameterName.isEmpty()?nullptr:
             new CustomParamBlock(customName,parameterName,true,this);
         setBrush(customBlockColor());
@@ -1795,8 +1799,6 @@ public:
         qreal textWidth=text->boundingRect().width();
         qreal textHeight=text->boundingRect().height();
         if(!hasParameter()){
-            parameterFrame->hide();
-            parameterText->hide();
             if(parameterBlock!=nullptr){
                 parameterBlock->hide();
             }
@@ -1814,28 +1816,17 @@ public:
             shadow->setPolygon(shadowShape);
             return;
         }
-        parameterFrame->show();
-        parameterText->show();
         if(parameterBlock!=nullptr){
             parameterBlock->show();
         }
-        qreal paramWidth=parameterText->boundingRect().width();
-        qreal paramHeight=parameterText->boundingRect().height();
-        qreal paramBoxWidth=paramWidth+variableHorizontalPadding*2;
-        qreal paramBoxHeight=std::max<qreal>(floatBlockWidth,paramHeight+6);
         wid=std::max(40,parameterBlock->wid+10);
-        len=static_cast<int>(std::ceil(20+textWidth+10+paramBoxWidth+10+parameterBlock->len+10));
+        len=static_cast<int>(std::ceil(20+textWidth+10+parameterBlock->len+10));
         QPolygonF shape;
         shape<<QPointF(0,0)<<QPointF(len,0)<<QPointF(len,wid)<<QPointF(0,wid);
         setPolygon(shape);
         text->setPos(10,(wid-textHeight)/2);
-        qreal boxX=20+textWidth;
-        qreal boxY=(wid-paramBoxHeight)/2;
-        parameterFrame->setRect(0,0,paramBoxWidth,paramBoxHeight);
-        parameterFrame->setPos(boxX,boxY);
-        parameterText->setPos(boxX+variableHorizontalPadding,(wid-paramHeight)/2);
         parameterBlock->setParameterName(parameterName);
-        parameterBlock->setPos(boxX+paramBoxWidth+10,(wid-parameterBlock->wid)/2);
+        parameterBlock->setPos(20+textWidth+10,(wid-parameterBlock->wid)/2);
 
         QPolygonF shadowShape;
         shadowShape<<QPointF(-shadowPadding,-shadowPadding)
@@ -2367,6 +2358,13 @@ void resetSceneGlobals(){
     contextMenuButtonPressed=false;
     restoringUndo=false;
     suppressCustomReferenceRemoval=false;
+    clearRuntimeCodeSnapshot();
+}
+
+void ensureBuiltInRuntimeVariables(){
+    if(level::activeLevelType()==level::LevelType::Map){
+        runtimeState.forceSetVariable("time",levelTestTimeCount,true);
+    }
 }
 
 void clearDataLockedNames(){
@@ -2689,6 +2687,7 @@ AppGraphicsView::AppGraphicsView(QGraphicsScene* scene):QGraphicsView(scene)
                 finishLevelTest(false);
                 return;
             }
+            clearRuntimeCodeSnapshot();
             programRunning=false;
             runtimeCountersActive=false;
             resetRunButtons();
@@ -2718,6 +2717,7 @@ AppGraphicsView::AppGraphicsView(QGraphicsScene* scene):QGraphicsView(scene)
                 finishLevelTest(true);
                 return;
             }
+            clearRuntimeCodeSnapshot();
             programRunning=false;
             runtimeCountersActive=false;
             resetRunButtons();
@@ -2734,6 +2734,7 @@ AppGraphicsView::AppGraphicsView(QGraphicsScene* scene):QGraphicsView(scene)
                 finishLevelTest(!stepped);
                 return;
             }
+            clearRuntimeCodeSnapshot();
             programRunning=false;
             runtimeCountersActive=false;
             resetRunButtons();
@@ -3671,6 +3672,64 @@ CodeBlock* deserializeCodeBlock(const QJsonObject& object){
         next->pre=block;
     }
     return block;
+}
+
+void collectRuntimeCodeSnapshot(CodeBlock* block){
+    CodeBlock* curr=block;
+    while(curr!=nullptr){
+        if(StartBlock* start=dynamic_cast<StartBlock*>(curr)){
+            runtimeStartBlock=start;
+        }
+        if(CustomHatBlock* customHat=dynamic_cast<CustomHatBlock*>(curr)){
+            runtimeCustomHatBlocks[customHat->customName]=customHat;
+        }
+        if(ControlCodeBlock* control=dynamic_cast<ControlCodeBlock*>(curr)){
+            collectRuntimeCodeSnapshot(control->inside);
+        }
+        curr=curr->next;
+    }
+}
+
+void deleteRuntimeCodeTree(CodeBlock* block){
+    CodeBlock* curr=block;
+    while(curr!=nullptr){
+        CodeBlock* next=curr->next;
+        if(ControlCodeBlock* control=dynamic_cast<ControlCodeBlock*>(curr)){
+            deleteRuntimeCodeTree(control->inside);
+            control->inside=nullptr;
+        }
+        curr->next=nullptr;
+        if(curr->shadow!=nullptr){
+            delete curr->shadow;
+            curr->shadow=nullptr;
+        }
+        delete curr;
+        curr=next;
+    }
+}
+
+void clearRuntimeCodeSnapshot(){
+    for(CodeBlock* root:runtimeCodeRoots){
+        deleteRuntimeCodeTree(root);
+    }
+    runtimeCodeRoots.clear();
+    runtimeStartBlock=nullptr;
+    runtimeCustomHatBlocks.clear();
+    runtimeCodeSnapshotActive=false;
+}
+
+bool buildRuntimeCodeSnapshot(){
+    clearRuntimeCodeSnapshot();
+    for(CodeBlock* root:workspaceCodeRootsFromScene()){
+        CodeBlock* clone=deserializeCodeBlock(serializeCodeBlock(root));
+        if(clone==nullptr){
+            continue;
+        }
+        runtimeCodeRoots.push_back(clone);
+        collectRuntimeCodeSnapshot(clone);
+    }
+    runtimeCodeSnapshotActive=true;
+    return runtimeStartBlock!=nullptr;
 }
 
 vector<CodeBlock*> workspaceCodeRootsFromScene(){
@@ -4664,8 +4723,9 @@ core::BlockExecutor::BlockSnapshot readRuntimeBlock(core::BlockExecutor::Node no
     CustomCallBlock* customCall=dynamic_cast<CustomCallBlock*>(block);
     if(customCall!=nullptr){
         snapshot.customName=customCall->customName.toStdString();
-        auto it=customHatBlocks.find(customCall->customName);
-        if(it!=customHatBlocks.end()&&it->second!=nullptr){
+        const auto& hats=runtimeCodeSnapshotActive?runtimeCustomHatBlocks:customHatBlocks;
+        auto it=hats.find(customCall->customName);
+        if(it!=hats.end()&&it->second!=nullptr){
             snapshot.callTarget=it->second;
         }
     }
@@ -6268,6 +6328,7 @@ void finishLevelTest(bool forcedFail,const QString& message){
     }
     runningBlock=nullptr;
     if(forcedFail||levelTestFailed){
+        clearRuntimeCodeSnapshot();
         levelTestRunning=false;
         resetRunButtons();
         updateTestStatusText();
@@ -6281,6 +6342,7 @@ void finishLevelTest(bool forcedFail,const QString& message){
     level::TestResult result=level::testActiveLevelCase(levelTestCaseIndex,
         currentLevelTestContext());
     if(!result.passed){
+        clearRuntimeCodeSnapshot();
         levelTestRunning=false;
         resetRunButtons();
         updateTestStatusText();
@@ -6290,6 +6352,7 @@ void finishLevelTest(bool forcedFail,const QString& message){
     }
     levelTestCaseIndex++;
     if(levelTestCaseIndex>=levelTestCaseTotal){
+        clearRuntimeCodeSnapshot();
         levelTestRunning=false;
         resetRunButtons();
         updateTestStatusText();
@@ -6301,10 +6364,15 @@ void finishLevelTest(bool forcedFail,const QString& message){
 }
 
 void beginLevelTestCase(int index){
+    if(!buildRuntimeCodeSnapshot()||runtimeStartBlock->next==nullptr){
+        finishLevelTest(true,"测试失败，缺少开始积木块");
+        return;
+    }
     programRunning=true;
     resetRobot();
     runtimeState.resetAll();
     level::prepareActiveTestCase(index,runtimeState);
+    ensureBuiltInRuntimeVariables();
     customParameterStacks.clear();
     runtimeStopRequested=false;
     levelTestFailed=false;
@@ -6312,17 +6380,13 @@ void beginLevelTestCase(int index){
     levelTestTimeCount=0;
     runtimeCountersActive=true;
     updateTestStatusText();
-    if(currentStartBlock==nullptr||currentStartBlock->next==nullptr){
-        finishLevelTest(true,"测试失败，缺少开始积木块");
-        return;
-    }
-    runningBlock=currentStartBlock->next;
+    runningBlock=runtimeStartBlock->next;
     if(executorPtr!=nullptr){
-        executorPtr->reset(currentStartBlock->next);
+        executorPtr->reset(runtimeStartBlock->next);
     }
     if(timerPtr!=nullptr){
         timerPtr->stop();
-        timerPtr->start(runtimeIntervalForCodeBlock(currentStartBlock->next));
+        timerPtr->start(runtimeIntervalForCodeBlock(runtimeStartBlock->next));
     }
 }
 
@@ -6369,18 +6433,23 @@ void ui::setReachPositionGoal(int x,int y){
     level::setActiveReachPositionGoal(x,y);
 }
 
-void ui::enableLevelBlock(const char* blockName){
-    if(blockName==nullptr){
+void ui::setInputCases(const std::vector<level::DataTestCase>& cases){
+    if(level::activeLevel().map().empty()){
+        ui::resetLevelConfig();
+    }
+    level::setActiveInputCases(cases);
+    lockDataCaseNames(cases);
+    if(cases.empty()){
         return;
     }
-    level::enableActiveBlock(blockName);
-}
-
-void ui::disableLevelBlock(const char* blockName){
-    if(blockName==nullptr){
-        return;
+    const level::DataTestCase& testCase=cases.front();
+    for(const auto& item:testCase.inputVariables){
+        runtimeState.forceSetVariable(item.first,item.second,true);
     }
-    level::disableActiveBlock(blockName);
+    for(const auto& item:testCase.inputLists){
+        runtimeState.forceSetList(item.first,item.second,true);
+    }
+    refreshVariableToolbox();
 }
 
 void ui::setDataOutputCases(const std::vector<level::DataTestCase>& cases){
@@ -6512,6 +6581,7 @@ void stopProgram(){
         executorPtr->reset(nullptr);
     }
     customParameterStacks.clear();
+    clearRuntimeCodeSnapshot();
     resetRunButtons();
 }
 
@@ -6519,9 +6589,15 @@ void startProgram(Button* button,int intervalMs){
     if(programRunning||activeRunButton!=nullptr){
         stopProgram();
     }
+    if(!buildRuntimeCodeSnapshot()||runtimeStartBlock->next==nullptr){
+        clearRuntimeCodeSnapshot();
+        resetRunButtons();
+        return;
+    }
     resetRobot();
     runtimeState.resetAll();
     level::prepareActiveTestCase(0,runtimeState);
+    ensureBuiltInRuntimeVariables();
     customParameterStacks.clear();
     runtimeStopRequested=false;
     levelTestFailed=false;
@@ -6529,19 +6605,15 @@ void startProgram(Button* button,int intervalMs){
     levelTestTimeCount=0;
     runtimeCountersActive=true;
     updateTestStatusText();
-    if(currentStartBlock==nullptr||currentStartBlock->next==nullptr){
-        resetRunButtons();
-        return;
-    }
     programRunning=true;
     if(runTextButton!=nullptr){
         runTextButton->text->setPlainText("运行中");
         runTextButton->refreshShape();
         runTextButton->setFixedSize(150,scaledAssetHeight("run.png",150,40));
     }
-    runningBlock=currentStartBlock->next;
+    runningBlock=runtimeStartBlock->next;
     if(executorPtr!=nullptr){
-        executorPtr->reset(currentStartBlock->next);
+        executorPtr->reset(runtimeStartBlock->next);
     }
     if(button!=nullptr){
         activeRunButton=button;
@@ -6549,7 +6621,7 @@ void startProgram(Button* button,int intervalMs){
     }
     if(timerPtr!=nullptr){
         timerPtr->stop();
-        timerPtr->start(runtimeIntervalForCodeBlock(currentStartBlock->next));
+        timerPtr->start(runtimeIntervalForCodeBlock(runtimeStartBlock->next));
     }
 }
 
@@ -7133,6 +7205,7 @@ void LevelChoosePage::startLevel(int levelNumber)
     level::configureActiveLevel(levelNumber,levelType);
     runtimeState.clearAll();
     level::prepareActiveTestCase(0,runtimeState);
+    ensureBuiltInRuntimeVariables();
     lockCurrentDataRuntimeNames();
     ::init();
     stageExpanded=false;
@@ -7168,12 +7241,26 @@ void LevelChoosePage::startLevel(int levelNumber)
 }
 void MainWindow::onStartButtonClicked()
 {
-    int levelNumber=-1;
+    bool ok=false;
+    int levelNumber=QInputDialog::getInt(
+        this,
+        QString::fromUtf8("选择关卡"),
+        QString::fromUtf8("请输入关卡编号："),
+        level::MinLevelNumber,
+        level::MinLevelNumber,
+        level::TotalLevelCount,
+        1,
+        &ok
+    );
+    if(!ok){
+        return;
+    }
     editorExitToDesktopRequested=false;
-    level::LevelType levelType=level::LevelType::SandBox;
+    level::LevelType levelType=level::defaultLevelTypeForNumber(levelNumber);
     level::configureActiveLevel(levelNumber,levelType);
     runtimeState.clearAll();
     level::prepareActiveTestCase(0,runtimeState);
+    ensureBuiltInRuntimeVariables();
     init();
     stageExpanded=false;
     if(view!=nullptr){
