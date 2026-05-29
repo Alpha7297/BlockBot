@@ -534,7 +534,7 @@ void configureSandBoxLevel()
     fillBorderWalls(currentLevel,size);
     currentLevel.setReachPositionGoal(-1,-1);
 }
-TestResult fresh(const TestContext& context){
+FreshResult fresh(const TestContext& context){
     if(currentLevelNumber==2){
         int time=context.time;
         for(int i=1;i<9;i++){
@@ -560,10 +560,14 @@ TestResult fresh(const TestContext& context){
         }
         int robotCell=currentLevel.mapCell(context.robot.x,context.robot.y);
         if(robotCell==CellSpikeUp){
-            return {false,"测试失败：机器人被激活的尖刺击中。"};
+            return {false,true,"测试失败：机器人被激活的尖刺击中。"};
         }
     }
-    return {true,""};
+    int robotCell=currentLevel.mapCell(context.robot.x,context.robot.y);
+    if(robotCell==CellEnd){
+        return {true,false,""};
+    }
+    return {false,false,""};
 }
 
 void configureActiveLevel(int levelNumber,LevelType type){

@@ -19,11 +19,18 @@ inline constexpr int CellSpikeUp=5;
 inline constexpr int CellSpikeDown=6;
 inline constexpr int CellLightG=7;
 inline constexpr int CellLightR=8;
-inline constexpr int CellLightOff=9;
+inline constexpr int CellLightY=9;
 inline constexpr int CellScope1=10;
 inline constexpr int CellScope2=11;
 inline constexpr int CellScope3=12;
 inline constexpr int CellScope4=13;
+inline constexpr int CellBeam=14;
+inline constexpr int CellLiquid=15;
+inline constexpr int CellPlate=16;
+inline constexpr int CellValve=17;
+inline constexpr int CellAntenna=18;
+inline constexpr int CellAntenna2=19;
+inline constexpr int CellLightOff=20;
 enum class LevelType{
     Map,
     DataOutput,
@@ -47,6 +54,12 @@ struct TestContext{
 struct TestResult{
     bool passed = false;
     std::string message;
+};
+
+struct FreshResult{
+    bool reachedGoal = false;
+    bool trapped = false;
+    std::string trapMessage;
 };
 
 struct DataTestCase{
@@ -128,7 +141,7 @@ int testContextTime(const TestContext& context);
 int activeLevelNumber();
 LevelType activeLevelType();
 LevelType defaultLevelTypeForNumber(int levelNumber);
-TestResult fresh(const TestContext& context);
+FreshResult fresh(const TestContext& context);
 void configureActiveLevel(int levelNumber,LevelType type);
 void configureSandBoxLevel();
 }
