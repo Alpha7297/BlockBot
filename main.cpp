@@ -1,8 +1,7 @@
+#include "tale/TaleWindow.h"
 #include "ui/App.h"
-#include "level/Level.h"
-#include <vector>
-using std::vector;
 
 int main(int argc,char* argv[]){
+    //return tale::runTale(argc,argv);
     return ui::runApp(argc,argv);
 }

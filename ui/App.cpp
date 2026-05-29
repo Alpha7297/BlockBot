@@ -50,6 +50,8 @@
 #include "../level/Level.h"
 #include "../level/LevelConstants.h"
 #include "../message/Message.h"
+#include "../settings/SettingsDialog.h"
+#include "../settings/parameter.h"
 #include "MainWindow.h"
 using std::vector;
 using std::function;
@@ -3037,7 +3039,7 @@ QRectF workspaceRect(){
 }
 
 qreal workspaceMaxScrollY(){
-    return workspaceHeight*10;
+    return workspaceHeight*settings::WorkspaceEditLength;
 }
 
 QRectF workspaceTotalStageRect(){
@@ -6855,13 +6857,13 @@ bool isRuntimeActionBlockType(int blockType){
 
 int runtimeIntervalForBlockType(int blockType){
     return isRuntimeActionBlockType(blockType)
-        ? level::RuntimeActionBlockIntervalMs
-        : level::RuntimeCodeBlockIntervalMs;
+        ? settings::RuntimeActionBlockIntervalMs
+        : settings::RuntimeCodeBlockIntervalMs;
 }
 
 int runtimeIntervalForCodeBlock(CodeBlock* block){
     if(block==nullptr){
-        return level::RuntimeCodeBlockIntervalMs;
+        return settings::RuntimeCodeBlockIntervalMs;
     }
     return runtimeIntervalForBlockType(block->type);
 }
@@ -7192,6 +7194,22 @@ void drawStage(QGraphicsScene& scene){
         saveUndoCheckpoint();
     };
     scene.addItem(createCustomBlockButton);
+
+    TextButton* settingsButton=new TextButton("Settings");
+    settingsButton->setPos(990,10);
+    settingsButton->setFixedSize(60,60);
+    settingsButton->setBrush(fileButtonColor());
+    settingsButton->setTexture("icons/settings.png");
+    settingsButton->text->hide();
+    settingsButton->setZValue(topUiZ);
+    settingsButton->onClick=[](){
+        settings::SettingsDialog dialog;
+        if(dialog.exec()==QDialog::Accepted){
+            workspaceScrollY=std::min(workspaceScrollY,workspaceMaxScrollY());
+            syncScrollArea(scrollWorkspace);
+        }
+    };
+    scene.addItem(settingsButton);
 
     TextButton* saveButton=new TextButton("保存");
     saveButton->setPos(1060,10);

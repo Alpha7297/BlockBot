@@ -24,6 +24,11 @@ qt_add_executable(BlockBot
     level/Level.cpp
     level/Level.h
     level/LevelConstants.h
+    settings/SettingsDialog.cpp
+    settings/SettingsDialog.h
+    settings/parameter.h
+    tale/TaleWindow.cpp
+    tale/TaleWindow.h
     core/Runtime.cpp
     core/Runtime.h
     core/Block.cpp
