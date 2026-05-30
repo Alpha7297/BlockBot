@@ -40,16 +40,3 @@ qt_add_executable(BlockBot
 )
 
 target_link_libraries(BlockBot PRIVATE Qt6::Widgets)
-
-add_executable(test_calc
-    test.cpp
-    core/Block.cpp
-    core/Ops.cpp
-    core/Value.cpp
-)
-
-add_custom_target(run_test
-    COMMAND test_calc
-    DEPENDS test_calc
-    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-)

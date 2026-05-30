@@ -336,6 +336,23 @@ void configureMapLevel(int levelNumber){
             }
         }
     }
+    if(levelNumber==5){
+        const std::vector<std::vector<int>> rawMap=readMapFile("level/level5.txt",40,40);
+        for(int i=0;i<40;i++){
+            for(int j=0;j<40;j++){
+                if(rawMap[i][j]==1){
+                    currentLevel.setMapCell(i,j,CellWall);
+                }
+                else{
+                    currentLevel.setMapCell(i,j,CellEmpty);
+                }
+            }
+        }
+        currentLevel.setMapCell(1,1,CellStart);
+        currentLevel.setMapCell(38,38,CellEnd);
+        currentLevel.setReachPositionGoal(38,38);
+        currentLevel.setRobotStart(1,1,4);
+    }
 }
 
 void configureDataOutputLevel(int levelNumber){

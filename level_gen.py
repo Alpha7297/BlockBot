@@ -4,8 +4,8 @@ import sys
 # =========================
 # 常量设置
 # =========================
-WIDTH = 20
-HEIGHT = 20
+WIDTH = 40
+HEIGHT = 40
 CELL_SIZE = 20
 MARGIN = 0
 
