@@ -43,13 +43,17 @@ constexpr qreal AutoCharacterOpacity=-1.0;
 constexpr int TaleTextCharIntervalMs=45;
 
 const QString RobotSpeakerName=QString::fromUtf8("R-07");
-const QString MotherSpeakerName=QString::fromUtf8("???");
+const QString MotherSpeakerName=QString::fromUtf8("Mother");
 const QString EchoSpeakerName=QString::fromUtf8("Echo");
 const QString OldRobotSpeakerName=QString::fromUtf8("Old Robot");
+const QString SystemSpeakerName=QString::fromUtf8("System");
+const QString RecordSpeakerName=QString::fromUtf8("Record");
+const QString ChirpSpeakerName=QString::fromUtf8("Chirp");
 const QString EmptySpeakerName=QString::fromUtf8("");
 
 enum class TaleCharacter{
     Angry,
+    Chirp,
     Curl,
     Curious,
     Damage,
@@ -61,6 +65,7 @@ enum class TaleCharacter{
     Puzzled,
     Questioning,
     Quiver,
+    Record,
     Robot,
     Sad,
     Surprise,
@@ -87,6 +92,7 @@ struct TaleParagraph{
 
 const std::vector<TaleCharacterDefinition> PaintingCharacters={
     {TaleCharacter::Angry,QString::fromUtf8("images/painting/angry.png"),RobotSpeakerName},
+    {TaleCharacter::Chirp,QString::fromUtf8("images/painting/chirp.png"),ChirpSpeakerName},
     {TaleCharacter::Curl,QString::fromUtf8("images/painting/curl.png"),RobotSpeakerName},
     {TaleCharacter::Curious,QString::fromUtf8("images/painting/curious.png"),RobotSpeakerName},
     {TaleCharacter::Damage,QString::fromUtf8("images/painting/damage.png"),RobotSpeakerName},
@@ -98,6 +104,7 @@ const std::vector<TaleCharacterDefinition> PaintingCharacters={
     {TaleCharacter::Puzzled,QString::fromUtf8("images/painting/puzzled.png"),RobotSpeakerName},
     {TaleCharacter::Questioning,QString::fromUtf8("images/painting/questioning.png"),RobotSpeakerName},
     {TaleCharacter::Quiver,QString::fromUtf8("images/painting/quiver.png"),RobotSpeakerName},
+    {TaleCharacter::Record,QString::fromUtf8("images/painting/record.png"),RecordSpeakerName},
     {TaleCharacter::Robot,QString::fromUtf8("images/painting/robot.png"),RobotSpeakerName},
     {TaleCharacter::Sad,QString::fromUtf8("images/painting/sad.png"),RobotSpeakerName},
     {TaleCharacter::Surprise,QString::fromUtf8("images/painting/surprise.png"),RobotSpeakerName},
@@ -108,7 +115,7 @@ std::vector<TaleParagraph> buildLevelOneStory(){
     std::vector<TaleParagraph> story;
 
     story.push_back({
-        EmptySpeakerName,
+        SystemSpeakerName,
         QString::fromUtf8("检测到地刺陷阱。危险状态周期变化。"),
         {{TaleCharacter::Curl,QPointF(460,180)}}
     });    
