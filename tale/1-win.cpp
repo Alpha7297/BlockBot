@@ -95,14 +95,55 @@ std::vector<TaleParagraph> buildLevelOneStory(){
 
     story.push_back({
         EmptySpeakerName,
-        QString::fromUtf8("路径错误。目标位置未到达。"),
-        {{TaleCharacter::Curl,QPointF(460,180)}}
-    });    
-    
+        QString::fromUtf8("行动模块恢复。供电接口接入成功。"),
+        {{TaleCharacter::Robot,QPointF(460,180)}}
+    });
+
     story.push_back({
         RobotSpeakerName,
-        QString::fromUtf8("动作顺序不正确。需要重新规划移动。"),
-        {{TaleCharacter::Curl,QPointF(460,180)}}
+        QString::fromUtf8("视觉稳定。检测到远处出口标志。"),
+        {{TaleCharacter::Robot,QPointF(460,180)}}
+    });
+
+    story.push_back({
+        EmptySpeakerName,
+        QString::fromUtf8("广播中响起断断续续的电流声。"),
+        {{TaleCharacter::Robot,QPointF(460,180)}}
+    });
+
+    story.push_back({
+        EchoSpeakerName,
+        QString::fromUtf8("滋……如果你听得见，就不要只看出口标志。"),
+        {{TaleCharacter::Curious,QPointF(720,180)},
+        {TaleCharacter::Echo,QPointF(360,130)}}
+    });
+
+    story.push_back({
+        RobotSpeakerName,
+        QString::fromUtf8("未知信号。请表明身份。"),
+        {{TaleCharacter::Curious,QPointF(720,180)},
+        {TaleCharacter::Echo,QPointF(360,130)}}
+    });
+
+    story.push_back({
+        EchoSpeakerName,
+        QString::fromUtf8("你可以叫我 Echo。一个还没被完全删掉的声音。"),
+        {{TaleCharacter::Curious,QPointF(720,180)},
+        {TaleCharacter::Echo,QPointF(360,130)}}
+    });
+
+    story.push_back({
+        RobotSpeakerName,
+        QString::fromUtf8("我的指令是离开这里。"),
+        {{TaleCharacter::Curious,QPointF(720,180)},
+        {TaleCharacter::Echo,QPointF(360,130)}}
+    });
+
+    story.push_back({
+        EchoSpeakerName,
+        QString::fromUtf8("那就先学会怎么走。出口不会因为你看见它，就自己打开。"),
+        {{TaleCharacter::Curious,QPointF(720,180)},
+        {TaleCharacter::Echo,QPointF(360,130)}}
     });
 
     return story;

@@ -11,6 +11,7 @@ SOURCES += \
     core/Runtime.cpp \
     core/Value.cpp \
     level/Level.cpp \
+    level/mazeGernerator.cpp \
     message/Message.cpp \
     ui/App.cpp\
     ui/MainWindow.cpp \
@@ -22,6 +23,7 @@ HEADERS += \
     core/Value.h \
     level/Level.h \
     level/LevelConstants.h \
+    level/MazeGenerator.h \
     message/Message.h \
     ui/App.h \
     ui/AppGraphicsView.h \

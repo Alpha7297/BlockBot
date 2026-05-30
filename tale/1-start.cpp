@@ -94,14 +94,38 @@ std::vector<TaleParagraph> buildLevelOneStory(){
     std::vector<TaleParagraph> story;
 
     story.push_back({
-        EmptySpeakerName,
-        QString::fromUtf8("路径错误。目标位置未到达。"),
+        RobotSpeakerName,
+        QString::fromUtf8("定位失败。履带阻力异常。基础行动模块可用。"),
         {{TaleCharacter::Curl,QPointF(460,180)}}
-    });    
-    
+    });
+
+    story.push_back({
+        EmptySpeakerName,
+        QString::fromUtf8("请控制 R-07 到达指定位置。"),
+        {{TaleCharacter::Curl,QPointF(460,180)}}
+    });
+
     story.push_back({
         RobotSpeakerName,
-        QString::fromUtf8("动作顺序不正确。需要重新规划移动。"),
+        QString::fromUtf8("目标确认：离开废料堆，恢复基础行动能力。"),
+        {{TaleCharacter::Curl,QPointF(460,180)}}
+    });
+
+    story.push_back({
+        EmptySpeakerName,
+        QString::fromUtf8("排列基础移动指令，让 R-07 到达指定位置。"),
+        {{TaleCharacter::Curl,QPointF(460,180)}}
+    });
+
+    story.push_back({
+        EmptySpeakerName,
+        QString::fromUtf8("代码必须从“开始”积木接出，并以“结束”积木收尾。先观察 R-07 的朝向和目标位置，用“前进”“左转”“右转”排出一条固定路线。"),
+        {{TaleCharacter::Curl,QPointF(460,180)}}
+    });
+
+    story.push_back({
+        EmptySpeakerName,
+        QString::fromUtf8("不要急着使用复杂结构，本关重点是确认每一条指令都会按顺序执行。"),
         {{TaleCharacter::Curl,QPointF(460,180)}}
     });
 

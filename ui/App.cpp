@@ -283,7 +283,7 @@ void addHeaderLogo(QGraphicsScene& scene){
         QGraphicsPixmapItem* logoImage=scene.addPixmap(
             logoPixmap.scaled(logoWidth,logoHeight,Qt::KeepAspectRatio,Qt::SmoothTransformation)
         );
-        logoImage->setPos(24,16);
+        logoImage->setPos((appWidth-logoWidth)/2,16);
         logoImage->setZValue(topUiZ+1);
         logoImage->setAcceptedMouseButtons(Qt::NoButton);
         return;
@@ -291,7 +291,8 @@ void addHeaderLogo(QGraphicsScene& scene){
 
     QGraphicsTextItem* logoText=scene.addText("BlockBot:Factory");
     logoText->setDefaultTextColor(Qt::white);
-    logoText->setPos(24,27);
+    QRectF logoRect=logoText->boundingRect();
+    logoText->setPos((appWidth-logoRect.width())/2,27);
     logoText->setZValue(topUiZ+1);
     logoText->setAcceptedMouseButtons(Qt::NoButton);
 }
@@ -7022,20 +7023,6 @@ void toggleProgram(Button* button,int intervalMs){
 }
 
 void drawStage(QGraphicsScene& scene){
-    QPixmap titleBarPixmap=loadImageAsset("title_bar.png");
-    if(!titleBarPixmap.isNull()){
-        QGraphicsPixmapItem* titleBarImage=scene.addPixmap(
-            titleBarPixmap.scaled(1040,60,Qt::IgnoreAspectRatio,Qt::SmoothTransformation)
-        );
-        titleBarImage->setPos(10,10);
-        titleBarImage->setZValue(topUiZ);
-    }
-    else{
-        QGraphicsRectItem* logoPlaceholder=scene.addRect(10,10,1040,60);
-        logoPlaceholder->setBrush(QColor(38,44,52));
-        logoPlaceholder->setPen(QPen(QColor(90,100,112),1.5));
-        logoPlaceholder->setZValue(topUiZ);
-    }
     addHeaderLogo(scene);
 
     QPoint stageOrigin=stageDisplayOrigin();
@@ -7384,11 +7371,12 @@ void drawStage(QGraphicsScene& scene){
     };
     scene.addItem(openButton);
     exitButton=new TextButton("退出");
-    exitButton->setPos(10,697);
-    exitButton->setFixedSize(160,scaledAssetHeight("exit.png",160,40));
+    exitButton->setPos(10,10);
+    exitButton->setFixedSize(60,60);
     exitButton->setBrush(fileButtonColor());
-    exitButton->setTexture("exit.png");
-    exitButton->setZValue(20);
+    exitButton->setTexture("icons/return.png");
+    exitButton->text->hide();
+    exitButton->setZValue(topUiZ);
     scene.addItem(exitButton);
 }
 

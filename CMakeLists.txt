@@ -24,6 +24,8 @@ qt_add_executable(BlockBot
     level/Level.cpp
     level/Level.h
     level/LevelConstants.h
+    level/MazeGenerator.h
+    level/mazeGernerator.cpp
     settings/SettingsDialog.cpp
     settings/SettingsDialog.h
     settings/parameter.h
