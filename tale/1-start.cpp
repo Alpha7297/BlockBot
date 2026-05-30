@@ -52,12 +52,19 @@ enum class TaleCharacter{
     Angry,
     Curl,
     Curious,
+    Damage,
+    Determined,
     Echo,
     Glad,
     Mother,
     OldRobot,
+    Puzzled,
+    Questioning,
+    Quiver,
     Robot,
-    Sad
+    Sad,
+    Surprise,
+    Tired
 };
 
 struct TaleCharacterDefinition{
@@ -82,12 +89,19 @@ const std::vector<TaleCharacterDefinition> PaintingCharacters={
     {TaleCharacter::Angry,QString::fromUtf8("images/painting/angry.png"),RobotSpeakerName},
     {TaleCharacter::Curl,QString::fromUtf8("images/painting/curl.png"),RobotSpeakerName},
     {TaleCharacter::Curious,QString::fromUtf8("images/painting/curious.png"),RobotSpeakerName},
+    {TaleCharacter::Damage,QString::fromUtf8("images/painting/damage.png"),RobotSpeakerName},
+    {TaleCharacter::Determined,QString::fromUtf8("images/painting/determined.png"),RobotSpeakerName},
     {TaleCharacter::Echo,QString::fromUtf8("images/painting/echo.png"),EchoSpeakerName},
     {TaleCharacter::Glad,QString::fromUtf8("images/painting/glad.png"),RobotSpeakerName},
     {TaleCharacter::Mother,QString::fromUtf8("images/painting/mother.png"),MotherSpeakerName},
     {TaleCharacter::OldRobot,QString::fromUtf8("images/painting/old_robot.png"),OldRobotSpeakerName},
+    {TaleCharacter::Puzzled,QString::fromUtf8("images/painting/puzzled.png"),RobotSpeakerName},
+    {TaleCharacter::Questioning,QString::fromUtf8("images/painting/questioning.png"),RobotSpeakerName},
+    {TaleCharacter::Quiver,QString::fromUtf8("images/painting/quiver.png"),RobotSpeakerName},
     {TaleCharacter::Robot,QString::fromUtf8("images/painting/robot.png"),RobotSpeakerName},
-    {TaleCharacter::Sad,QString::fromUtf8("images/painting/sad.png"),RobotSpeakerName}
+    {TaleCharacter::Sad,QString::fromUtf8("images/painting/sad.png"),RobotSpeakerName},
+    {TaleCharacter::Surprise,QString::fromUtf8("images/painting/surprise.png"),RobotSpeakerName},
+    {TaleCharacter::Tired,QString::fromUtf8("images/painting/tired.png"),RobotSpeakerName}
 };
 
 std::vector<TaleParagraph> buildLevelOneStory(){
