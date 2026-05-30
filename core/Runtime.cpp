@@ -215,6 +215,9 @@ void RuntimeState::forceSetReadOnly(const std::set<std::string>& constVariables,
 void RobotActions::setVariable(const std::string&,double){
 }
 
+void RobotActions::increaseVariable(const std::string&,double){
+}
+
 void RobotActions::pushList(const std::string&,double){
 }
 
@@ -323,6 +326,11 @@ bool BlockExecutor::step(const BlockReader& readBlock,RobotActions& actions){
     }
     if(block.type==7){
         actions.setVariable(block.variableName,block.value);
+        current=block.next;
+        return true;
+    }
+    if(block.type==14){
+        actions.increaseVariable(block.variableName,block.value);
         current=block.next;
         return true;
     }

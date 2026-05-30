@@ -116,15 +116,34 @@ std::vector<TaleParagraph> buildLevelOneStory(){
 
     story.push_back({
         SystemSpeakerName,
-        QString::fromUtf8("地刺触发。R-07 返回安全点。"),
-        {{TaleCharacter::Damage,QPointF(460,180)}}
+        QString::fromUtf8("备用电源接入。维修单元检测中。"),
+        {{TaleCharacter::Curl,QPointF(460,180)}}
     });    
     
     story.push_back({
+        SystemSpeakerName,
+        QString::fromUtf8("编号：R-07。行动模块：受损。记忆模块：缺失。残留指令：读取中。"),
+        {{TaleCharacter::Curl,QPointF(460,180)}}
+    });
+
+    story.push_back({
+        RecordSpeakerName,
+        QString::fromUtf8("离开这里，把最后的日志带出去。"),
+        {{TaleCharacter::Record,QPointF(210,150)},
+        {TaleCharacter::Curl,QPointF(650,180)}}
+    });
+
+    story.push_back({
         RobotSpeakerName,
-        QString::fromUtf8("我在危险状态下前进了。需要等待地图状态变为安全。"),
-        {{TaleCharacter::Damage,QPointF(460,180)}}
-    });    
+        QString::fromUtf8("指令确认。离开这里。带出日志。"),
+        {{TaleCharacter::Curl,QPointF(460,180)}}
+    });
+
+    story.push_back({
+        EmptySpeakerName,
+        QString::fromUtf8("R-07 的视觉传感器闪了一下。它醒在装配线末端的废料堆里，远处墙面上，“紧急出口”四个字在灰尘后微弱发光。"),
+        {{TaleCharacter::Curl,QPointF(460,180)}}
+    });
     return story;
 }
 

@@ -1,5 +1,5 @@
 #include "MainWindow.h"
-#include"levelchoosepage.h"
+#include "LevelChoosePage.h"
 #include <QVBoxLayout>
 #include <QLabel>
 #include"../message/Message.h"
@@ -61,9 +61,28 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
         "}"
         ).arg(loadAsset("images/bars/sandboxmode.png")));
     layout->addWidget(startBtn, 0, Qt::AlignCenter); // 强制垂直居中
+    layout->addSpacing(20);
+
+    archiveBtn = new QPushButton(QString::fromUtf8("记忆档案"),this);
+    archiveBtn->setFixedSize(360, 90);
+    archiveBtn->setCursor(Qt::PointingHandCursor);
+    archiveBtn->setStyleSheet(QString(
+        "QPushButton {"
+        "    color: #FFFFFF;"
+        "    font-family: 'Microsoft YaHei';"
+        "    font-size: 18px;"
+        "    font-weight: bold;"
+        "    border: none;"
+        "    border-image: url(%1) 0 0 0 0 stretch stretch;"
+        "    background-repeat: no-repeat;"
+        "    background-position: center;"
+        "}"
+        ).arg(loadAsset("images/bars/archive.png")));
+    layout->addWidget(archiveBtn, 0, Qt::AlignCenter);
     layout->addStretch(3);// 底部再加一个弹簧，顶住按钮，配合顶部的弹簧把按钮集群锁在黄金上下位置
     connect(levelBtn, &QPushButton::clicked, this, &MainWindow::onLevelButtonClicked);    // 9. 连接信号
     connect(startBtn, &QPushButton::clicked, this, &MainWindow::onStartButtonClicked);
+    connect(archiveBtn, &QPushButton::clicked, this, &MainWindow::onArchiveButtonClicked);
 }
 void MainWindow::onLevelButtonClicked()
 {
@@ -82,6 +101,30 @@ void MainWindow::onLevelButtonClicked()
     levelChoosePage->raise();
 }
 void MainWindow::onChooseLevelPageClosed()
+{
+    if(centralWidget()!=nullptr){
+        centralWidget()->show();
+    }
+}
+
+void MainWindow::onArchiveButtonClicked()
+{
+    if(archivePage==nullptr)
+    {
+        archivePage=new ArchivePage(this);
+        archivePage->setWindowFlags(Qt::Widget);
+        archivePage->setGeometry(0,0,width(),height());
+        connect(archivePage,&ArchivePage::pageClosed,this,&MainWindow::onArchivePageClosed);
+    }
+    archivePage->init();
+    if(centralWidget()!=nullptr){
+        centralWidget()->hide();
+    }
+    archivePage->show();
+    archivePage->raise();
+}
+
+void MainWindow::onArchivePageClosed()
 {
     if(centralWidget()!=nullptr){
         centralWidget()->show();

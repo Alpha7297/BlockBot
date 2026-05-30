@@ -4,7 +4,8 @@
 #include<QPushButton>
 #include<QGraphicsScene>
 #include "AppGraphicsView.h"
-#include"levelchoosepage.h"
+#include "LevelChoosePage.h"
+#include "ArchivePage.h"
 class MainWindow : public QMainWindow
 {
     Q_OBJECT
@@ -17,12 +18,16 @@ public:
 private slots:
     void onStartButtonClicked();
     void onLevelButtonClicked();
+    void onArchiveButtonClicked();
     void onChooseLevelPageClosed();
+    void onArchivePageClosed();
 private:
     QPushButton *startBtn;
     QPushButton *levelBtn;
+    QPushButton *archiveBtn;
     AppGraphicsView *view=nullptr;
     QGraphicsScene *scene=nullptr;
     LevelChoosePage *levelChoosePage=nullptr;
+    ArchivePage *archivePage=nullptr;
 };
 #endif // MAINWINDOW_H

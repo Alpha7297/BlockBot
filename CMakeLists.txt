@@ -10,13 +10,15 @@ qt_standard_project_setup()
 
 qt_add_executable(BlockBot
     main.cpp
+    ui/ArchivePage.cpp
+    ui/ArchivePage.h
     ui/App.cpp
     ui/App.h
     ui/AppGraphicsView.h
     ui/MainWindow.cpp
     ui/MainWindow.h
-    ui/levelchoosepage.cpp
-    ui/levelchoosepage.h
+    ui/LevelChoosePage.cpp
+    ui/LevelChoosePage.h
     ui/UiConstants.h
     ui/Widgets.h
     message/Message.cpp

@@ -57,6 +57,7 @@ public:
     virtual void moveForward(double steps)=0;
     virtual void waitFrames(double frames)=0;
     virtual void setVariable(const std::string& name,double value);
+    virtual void increaseVariable(const std::string& name,double value);
     virtual void pushList(const std::string& name,double value);
     virtual void setListValue(const std::string& name,double index,double value);
     virtual void removeListValue(const std::string& name,double index);

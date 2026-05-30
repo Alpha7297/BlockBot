@@ -92,6 +92,7 @@ class VariableBlock;
 class RobotCoordBlock;
 class RobotFrontMapBlock;
 class SetVariableBlock;
+class IncreaseVariableBlock;
 class OutputBlock;
 class ListGetBlock;
 class ListSizeBlock;
@@ -164,6 +165,8 @@ void clearContextMenu();
 void showUndoContextMenu(QPointF scenePos);
 void showCodeContextMenu(CodeBlock* block,QPointF scenePos);
 void showFloatContextMenu(FloatBlock* block,QPointF scenePos);
+bool isPlainNumberBlock(FloatBlock* block);
+bool isPlaceholderFloatValue(FloatBlock* block);
 bool isContextMenuItem(QGraphicsItem* item);
 bool isWorkspaceContentItem(QGraphicsItem* item);
 vector<CodeBlock*> workspaceCodeRootsFromScene();
@@ -1189,6 +1192,23 @@ public:
     }
 };
 
+class IncreaseVariableBlock:public SetVariableBlock{
+public:
+    IncreaseVariableBlock(QString name="x",FloatBlock* _value=nullptr,
+                          int base=false,QGraphicsItem* parent=nullptr):
+        SetVariableBlock(name,_value,base,parent){
+        type=14;
+        suffixText->setPlainText(QString::fromUtf8("增加"));
+        refreshSize();
+    }
+
+    CodeBlock* copy() override{
+        IncreaseVariableBlock* newBlock=new IncreaseVariableBlock(variableName,value,false);
+        newBlock->setPos(pos());
+        return newBlock;
+    }
+};
+
 class ListGetBlock:public FloatBlock{
 public:
     QString listName;
@@ -2109,9 +2129,11 @@ public:
     int gridy;
     int direction;
     QPixmap directionSprites[4];
+    QPixmap iconSprite;
     int currentCellSize;
 
     Robot(QGraphicsItem * parent=nullptr):QGraphicsPixmapItem(parent){
+        iconSprite=trimTransparentPixmap(loadImageAsset("icons/robot.png"));
         directionSprites[0]=trimTransparentPixmap(loadPaintingAsset("right.png"));
         directionSprites[1]=trimTransparentPixmap(loadPaintingAsset("back.png"));
         directionSprites[2]=trimTransparentPixmap(loadPaintingAsset("left.png"));
@@ -2152,7 +2174,7 @@ public:
 
     void refreshSprite(int cellSize){
         currentCellSize=cellSize;
-        QPixmap sprite=directionSprites[direction];
+        QPixmap sprite=iconSprite.isNull()?directionSprites[direction]:iconSprite;
         QPixmap scaled=sprite.isNull()
             ?fallbackSprite(cellSize)
             :sprite.scaled(cellSize,cellSize,Qt::KeepAspectRatio,Qt::SmoothTransformation);
@@ -2332,6 +2354,27 @@ public:
         }
     }
 
+    void increaseVariable(const std::string& name,double value) override{
+        QString key=QString::fromStdString(name);
+        QByteArray bytes=key.toUtf8();
+        if(runtimeState.variableReadOnly(name)){
+            message::readOnlyValue(bytes.constData());
+            runtimeStopRequested=true;
+            return;
+        }
+        double current=0.0;
+        if(!runtimeState.getVariable(name,&current)){
+            message::variableNotFound(bytes.constData());
+            runtimeStopRequested=true;
+            return;
+        }
+        if(!runtimeState.setVariable(name,current+value)){
+            message::variableNotFound(bytes.constData());
+            runtimeStopRequested=true;
+            return;
+        }
+    }
+
     void pushList(const std::string& name,double value) override{
         QString key=QString::fromStdString(name);
         QByteArray bytes=key.toUtf8();
@@ -2465,6 +2508,7 @@ vector<CustomCallBlock*> customCallBaseBlocks;
 std::map<QString,CustomHatBlock*> customHatBlocks;
 std::map<QString,vector<double>> customParameterStacks;
 SetVariableBlock* variableSetBaseBlock=nullptr;
+IncreaseVariableBlock* variableIncreaseBaseBlock=nullptr;
 StartBlock* currentStartBlock=nullptr;
 CodeBlock* runningBlock=nullptr;
 vector<ContextMenuButton*> contextMenuButtons;
@@ -2514,6 +2558,7 @@ void resetSceneGlobals(){
     customHatBlocks.clear();
     customParameterStacks.clear();
     variableSetBaseBlock=nullptr;
+    variableIncreaseBaseBlock=nullptr;
     currentStartBlock=nullptr;
     runningBlock=nullptr;
     contextMenuButtons.clear();
@@ -3356,7 +3401,7 @@ void deleteCodeContext(CodeBlock* block){
 }
 
 void copyFloatContext(FloatBlock* block){
-    if(block==nullptr||block->isbase||appScene==nullptr){
+    if(block==nullptr||block->isbase||isPlaceholderFloatValue(block)||appScene==nullptr){
         return;
     }
     FloatBlock* copy=block->copy();
@@ -3379,6 +3424,10 @@ void copyFloatContext(FloatBlock* block){
 
 bool isPlainNumberBlock(FloatBlock* block){
     return block!=nullptr&&block->type==0&&!block->isOperator();
+}
+
+bool isPlaceholderFloatValue(FloatBlock* block){
+    return isPlainNumberBlock(block)&&block->parentItem()!=nullptr;
 }
 
 void deleteFloatContext(FloatBlock* block){
@@ -3782,7 +3831,7 @@ QJsonObject serializeCodeBlock(CodeBlock* block){
         object["value"]=serializeFloatBlock(output->value);
     }
     else if(SetVariableBlock* setVariable=dynamic_cast<SetVariableBlock*>(block)){
-        object["kind"]="setVariable";
+        object["kind"]=setVariable->type==14?"increaseVariable":"setVariable";
         object["name"]=setVariable->variableName;
         object["value"]=serializeFloatBlock(setVariable->value);
     }
@@ -3854,6 +3903,11 @@ CodeBlock* deserializeCodeBlock(const QJsonObject& object){
     else if(kind=="setVariable"){
         FloatBlock* value=deserializeFloatBlock(object["value"].toObject(),nullptr);
         block=new SetVariableBlock(object["name"].toString("x"),value,false);
+        deleteFloatBlock(value);
+    }
+    else if(kind=="increaseVariable"){
+        FloatBlock* value=deserializeFloatBlock(object["value"].toObject(),nullptr);
+        block=new IncreaseVariableBlock(object["name"].toString("x"),value,false);
         deleteFloatBlock(value);
     }
     else if(kind=="pushList"){
@@ -4766,10 +4820,14 @@ void showFloatContextMenu(FloatBlock* block,QPointF scenePos){
         }
         return;
     }
-    addContextMenuButton("复制",scenePos,[block](){
-        copyFloatContext(block);
-    });
-    addContextMenuButton("删除",scenePos+QPointF(0,28),[block](){
+    QPointF deletePos=scenePos;
+    if(!isPlaceholderFloatValue(block)){
+        addContextMenuButton("复制",scenePos,[block](){
+            copyFloatContext(block);
+        });
+        deletePos+=QPointF(0,28);
+    }
+    addContextMenuButton("删除",deletePos,[block](){
         deleteFloatContext(block);
     });
 }
@@ -5353,6 +5411,10 @@ void refreshVariableToolbox(){
     if(variableSetBaseBlock!=nullptr){
         setCodeBlockStagePos(variableSetBaseBlock,scrollToolbox,QPointF(20,y));
         y+=variableSetBaseBlock->wid+toolboxCodeBlockGap;
+    }
+    if(variableIncreaseBaseBlock!=nullptr){
+        setCodeBlockStagePos(variableIncreaseBaseBlock,scrollToolbox,QPointF(20,y));
+        y+=variableIncreaseBaseBlock->wid+toolboxCodeBlockGap;
     }
     for(const auto& item:runtimeState.lists()){
         QString name=QString::fromStdString(item.first);
@@ -7450,6 +7512,10 @@ void drawToolbox(QGraphicsScene& scene){
     variableSetBaseBlock->setZValue(10);
     scene.addItem(variableSetBaseBlock);
     baseCodeBlocks.push_back(variableSetBaseBlock);
+    variableIncreaseBaseBlock=new IncreaseVariableBlock("x",nullptr,true);
+    variableIncreaseBaseBlock->setZValue(10);
+    scene.addItem(variableIncreaseBaseBlock);
+    baseCodeBlocks.push_back(variableIncreaseBaseBlock);
 
     auto addListFloat=[&](FloatBlock* block){
         block->setZValue(10);

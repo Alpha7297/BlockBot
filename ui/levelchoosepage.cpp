@@ -1,4 +1,4 @@
-#include "levelchoosepage.h"
+#include "LevelChoosePage.h"
 #include "fstream"
 #include "../level/LevelConstants.h"
 #include"../message/Message.h"
@@ -102,25 +102,22 @@ void LevelChoosePage::init()
         levels[i]->setFixedSize(levelButtonWidth, levelButtonHeight); // 普通灰色金属框大小
         levels[i]->move(levelPositions[i]);// 搬移到背景图对应的管道口位置
         // 根据 unlockedLevel 判断关卡状态并上色
-        QString templateURL;
-        QString qss;
-        if (levelNum < unlockedLevel) {
+        QString templateURL=loadAsset(QString("images/background/level%1_small.png").arg(levelNum));
+        const bool locked=levelNum>unlockedLevel;
+        if (false) {
             // 【状态 A：已通关】显示正常缩略图
-            templateURL=loadAsset(QString("images/background/level_%1_normal.png").arg(""));//levelNum);
         }
-        else if (levelNum == unlockedLevel) {
+        else if (false && levelNum == unlockedLevel) {
             // 【状态 B：当前正在挑战的关卡】显示高亮红框（或者根据图片，给按钮套上亮色皮肤）
-            templateURL=loadAsset(QString("images/background/level_%1_current.png").arg(""));//levelNum);
         }
-        else {
+        else if (locked) {
             // 【状态 C：未解锁】置灰，并且在右下角带一把锁
-            templateURL=loadAsset(QString("images/background/level_%1_gray.png").arg(""));//levelNum);
             levels[i]->setEnabled(false);
         }
         levels[i]->setStyleSheet("QPushButton { border: none; background: transparent; }");
         // 创建一个独立的 QLabel 塞进按钮里，用来精准控制图片的大小
         QLabel* imgLabel = new QLabel(levels[i]);
-        const int widthBorder=15,heightBorder=10;
+        const int widthBorder=15,heightBorder=5;
         imgLabel->setGeometry(widthBorder, heightBorder, levelButtonWidth-widthBorder*2, levelButtonHeight-heightBorder*2);
         imgLabel->setStyleSheet(QString(
             "QLabel {"
@@ -130,17 +127,18 @@ void LevelChoosePage::init()
             ).arg(templateURL));
         imgLabel->setAttribute(Qt::WA_TransparentForMouseEvents);//允许鼠标事件穿透 QLabel
         // 2. 创建一个 Label 叠在上面（负责第二层：中图，支持自动拉伸）
+        if(locked){
+            QLabel* grayOverlay=new QLabel(levels[i]);
+            grayOverlay->setGeometry(imgLabel->geometry());
+            grayOverlay->setStyleSheet("QLabel { background-color: rgba(128, 128, 128, 150); border: none; }");
+            grayOverlay->setAttribute(Qt::WA_TransparentForMouseEvents);
+        }
         QLabel* borderLabel = new QLabel(levels[i]);
         borderLabel->setGeometry(0, 0, levelButtonWidth, levelButtonHeight);
         borderLabel->setStyleSheet(QString("QLabel{border-image:url(%1);}").arg(loadAsset("images/icons/level.png")));
         borderLabel->setAttribute(Qt::WA_TransparentForMouseEvents); // 点击穿透，不挡住按钮点击
 
         // 3. 创建一个 Label 叠在最上面（负责第三层：文字）
-        QLabel* textLabel = new QLabel(QString::number(levelNum), levels[i]);
-        textLabel->setGeometry(0, 0, levelButtonWidth, levelButtonHeight);
-        textLabel->setAlignment(Qt::AlignCenter); // 绝对居中
-        textLabel->setStyleSheet("QLabel{color: white; font-size: 30px; font-weight: bold;}");
-        textLabel->setAttribute(Qt::WA_TransparentForMouseEvents); // 点击穿透
         //统一绑定点击信号
         connect(levels[i], &QPushButton::clicked, this, &LevelChoosePage::onStartButtonClicked);
         levels[i]->show();

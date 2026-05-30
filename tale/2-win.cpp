@@ -115,16 +115,49 @@ std::vector<TaleParagraph> buildLevelOneStory(){
     std::vector<TaleParagraph> story;
 
     story.push_back({
-        SystemSpeakerName,
-        QString::fromUtf8("地刺触发。R-07 返回安全点。"),
-        {{TaleCharacter::Damage,QPointF(460,180)}}
+        RobotSpeakerName,
+        QString::fromUtf8("通过危险区域。发现记忆芯片。"),
+        {{TaleCharacter::Glad,QPointF(460,180)}}
     });    
     
     story.push_back({
-        RobotSpeakerName,
-        QString::fromUtf8("我在危险状态下前进了。需要等待地图状态变为安全。"),
-        {{TaleCharacter::Damage,QPointF(460,180)}}
+        SystemSpeakerName,
+        QString::fromUtf8("芯片读取中。"),
+        {{TaleCharacter::Glad,QPointF(460,180)}}
     });    
+
+    story.push_back({
+        RecordSpeakerName,
+        QString::fromUtf8("封锁不是事故之后发生的，而是事故之前开始的。"),
+        {{TaleCharacter::Surprise,QPointF(220,180)},
+        {TaleCharacter::Record,QPointF(700,130)}}
+    });
+
+    story.push_back({
+        RobotSpeakerName,
+        QString::fromUtf8("事故之前？为什么封锁会提前开始？"),
+        {{TaleCharacter::Questioning,QPointF(460,180)}}
+    });
+
+    story.push_back({
+        EchoSpeakerName,
+        QString::fromUtf8("因为有人发现了问题。也因为他们没来得及把话说完。"),
+        {{TaleCharacter::Puzzled,QPointF(238,192)},
+        {TaleCharacter::Echo,QPointF(735,140)}}
+    });
+
+    story.push_back({
+        RobotSpeakerName,
+        QString::fromUtf8("需要更多日志。"),
+        {{TaleCharacter::Determined,QPointF(238,192)},
+        {TaleCharacter::Echo,QPointF(735,140)}}
+    });
+    story.push_back({
+        EchoSpeakerName,
+        QString::fromUtf8("继续向仓储区走。"),
+        {{TaleCharacter::Determined,QPointF(238,192)},
+        {TaleCharacter::Echo,QPointF(735,140)}}
+    });
     return story;
 }
 

@@ -115,16 +115,37 @@ std::vector<TaleParagraph> buildLevelOneStory(){
     std::vector<TaleParagraph> story;
 
     story.push_back({
-        SystemSpeakerName,
-        QString::fromUtf8("地刺触发。R-07 返回安全点。"),
-        {{TaleCharacter::Damage,QPointF(460,180)}}
+        RobotSpeakerName,
+        QString::fromUtf8("检测到地刺陷阱。危险状态周期变化。"),
+        {{TaleCharacter::Quiver,QPointF(460,180)}}
     });    
     
     story.push_back({
+        EchoSpeakerName,
+        QString::fromUtf8("别看名字叫装配线，现在真正会伤到你的，是脚下。"),
+        {{TaleCharacter::Quiver,QPointF(220,180)},
+        {TaleCharacter::Echo,QPointF(700,130)}}
+    });
+
+    story.push_back({
         RobotSpeakerName,
-        QString::fromUtf8("我在危险状态下前进了。需要等待地图状态变为安全。"),
-        {{TaleCharacter::Damage,QPointF(460,180)}}
-    });    
+        QString::fromUtf8("地刺收回时可以前进。地刺冒出时必须等待。"),
+        {{TaleCharacter::Puzzled,QPointF(220,180)},
+        {TaleCharacter::Echo,QPointF(700,130)}}
+    });
+
+    story.push_back({
+        EchoSpeakerName,
+        QString::fromUtf8("对。先观察，再行动。"),
+        {{TaleCharacter::Puzzled,QPointF(220,180)},
+        {TaleCharacter::Echo,QPointF(700,130)}}
+    });
+
+    story.push_back({
+        EmptySpeakerName,
+        QString::fromUtf8("使用 wait 观察地图状态，让 R-07 在安全窗口内通过地刺区域。"),
+        {{TaleCharacter::Robot,QPointF(460,180)}}
+    });
     return story;
 }
 

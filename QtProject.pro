@@ -6,6 +6,7 @@ else: unix:!android: target.path = /opt/$${TARGET}/bin
 !isEmpty(target.path): INSTALLS += target
 SOURCES += \
     main.cpp \
+    ui/ArchivePage.cpp \
     core/Block.cpp \
     core/Ops.cpp \
     core/Runtime.cpp \
@@ -15,8 +16,9 @@ SOURCES += \
     message/Message.cpp \
     ui/App.cpp\
     ui/MainWindow.cpp \
-    ui/levelchoosepage.cpp
+    ui/LevelChoosePage.cpp
 HEADERS += \
+    ui/ArchivePage.h \
     core/Block.h \
     core/Ops.h \
     core/Runtime.h \
@@ -30,6 +32,6 @@ HEADERS += \
     ui/MainWindow.h \
     ui/UiConstants.h \
     ui/Widgets.h\
-    ui/levelchoosepage.h
+    ui/LevelChoosePage.h
 
 
