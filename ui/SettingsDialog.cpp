@@ -1,7 +1,7 @@
 #include "SettingsDialog.h"
 #include "parameter.h"
-#include "../ui/AppGraphicsView.h"
-#include "../ui/UiConstants.h"
+#include "AppGraphicsView.h"
+#include "UiConstants.h"
 
 #include <QBrush>
 #include <QGraphicsPixmapItem>

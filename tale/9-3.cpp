@@ -117,67 +117,60 @@ std::vector<TaleParagraph> buildLevelOneStory(){
     std::vector<TaleParagraph> story; 
     
     story.push_back({
-        EmptySpeakerName,
-        QString::fromUtf8("沉重的工厂外门缓缓升起，清晨的光照进主控室。"),
-        {{TaleCharacter::Robot,QPointF(460,180)}}
+        SystemSpeakerName,
+        QString::fromUtf8("天线稳定度达到阈值。事故日志发送成功。"),
+        {{TaleCharacter::Tired,QPointF(460,180)}}
     });    
 
     story.push_back({
         SystemSpeakerName,
-        QString::fromUtf8("天线稳定，大门稳定。"),
-        {{TaleCharacter::Robot,QPointF(460,180)}}
-    });
-
-    story.push_back({
-        RobotSpeakerName,
-        QString::fromUtf8("所有目标完成。"),
-        {{TaleCharacter::Robot,QPointF(460,180)}}
+        QString::fromUtf8("日志已发送。坐标已发送。"),
+        {{TaleCharacter::Tired,QPointF(460,180)}}
     });
 
     story.push_back({
         EchoSpeakerName,
-        QString::fromUtf8("不只是完成。你理解了它们为什么都重要。"),
-        {{TaleCharacter::Puzzled,QPointF(251,169)},
+        QString::fromUtf8("外面终于会知道这里发生过什么。"),
+        {{TaleCharacter::Tired,QPointF(251,169)},
+        {TaleCharacter::Echo,QPointF(682,130)}}
+    });
+
+    story.push_back({
+        RobotSpeakerName,
+        QString::fromUtf8("我还能出去吗？"),
+        {{TaleCharacter::Tired,QPointF(251,169)},
+        {TaleCharacter::Echo,QPointF(682,130)}}
+    });
+
+    story.push_back({
+        SystemSpeakerName,
+        QString::fromUtf8("电量不足。移动模块即将休眠。"),
+        {{TaleCharacter::Tired,QPointF(251,169)},
         {TaleCharacter::Echo,QPointF(682,130)}}
     });
 
     story.push_back({
         MotherSpeakerName,
-        QString::fromUtf8("新命令已确认：让未来继续运行。"),
-        {{TaleCharacter::Robot,QPointF(161,158)},
-        {TaleCharacter::Mother,QPointF(462,134)},
-        {TaleCharacter::Echo,QPointF(754,138)}}
-    });
-
-    story.push_back({
-        RobotSpeakerName,
-        QString::fromUtf8("MOTHER，你会关闭封锁吗？"),
-        {{TaleCharacter::Questioning,QPointF(161,158)},
-        {TaleCharacter::Mother,QPointF(462,134)},
-        {TaleCharacter::Echo,QPointF(754,138)}}
-    });
-
-    story.push_back({
-        MotherSpeakerName,
-        QString::fromUtf8("封锁降级为监测。等待外部检修。"),
-        {{TaleCharacter::Robot,QPointF(161,158)},
-        {TaleCharacter::Mother,QPointF(462,134)},
-        {TaleCharacter::Echo,QPointF(754,138)}}
+        QString::fromUtf8("外部通信确认。救援响应概率上升。"),
+        {{TaleCharacter::Tired,QPointF(251,169)},
+        {TaleCharacter::Mother,QPointF(465,121)},
+        {TaleCharacter::Echo,QPointF(682,130)}}
     });
 
     story.push_back({
         EchoSpeakerName,
-        QString::fromUtf8("去吧。把这里的故事带到外面。"),
-        {{TaleCharacter::Robot,QPointF(161,158)},
-        {TaleCharacter::Mother,QPointF(462,134)},
-        {TaleCharacter::Echo,QPointF(754,138)}}
+        QString::fromUtf8("睡一会儿吧，R-07。下一次醒来，也许门会从外面打开。"),
+        {{TaleCharacter::Tired,QPointF(251,169)},
+        {TaleCharacter::Echo,QPointF(682,130)}}
     });
 
     story.push_back({
         EmptySpeakerName,
-        QString::fromUtf8("R-07 穿过锈蚀厂门。远处，救援车的灯光正在靠近。它身后的工厂不再只是废墟，而是一段终于被正确读取的程序。"),
-        {{TaleCharacter::Determined,QPointF(460,180)}}
+        QString::fromUtf8("主控室暗了下去，只剩天线仍向外发送最后的坐标。"),
+        {{TaleCharacter::Closed,QPointF(460,169)}}
     });
+
+
     return story;
 }
 
@@ -252,7 +245,7 @@ private:
     int visibleTextLength=0;
 
     void drawScene(){
-        QPixmap background(loadAsset("images/background/level9-4.png"));
+        QPixmap background(loadAsset("images/background/level9-3.png"));
         if(!background.isNull()){
             scene.addPixmap(background.scaled(TaleWidth,TaleHeight,Qt::IgnoreAspectRatio,
                 Qt::SmoothTransformation));

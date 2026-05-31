@@ -57,7 +57,7 @@ constexpr int ArchiveCostItemGap=6;
 constexpr int ArchiveControlTopHeight=35;
 constexpr int ArchiveControlInnerHeight=42;
 constexpr int ArchiveControlBottomHeight=20;
-constexpr int ArchiveUnlockedLevelByIndex[ArchiveMenuItemCount]={1,2,3,4,4,5,6,7};
+constexpr int ArchiveUnlockedLevelByIndex[ArchiveMenuItemCount]={1,2,3,3,3,4,4,7};
 
 enum class ArchiveBlockKind{
     Simple,
@@ -608,6 +608,12 @@ void ArchivePage::showArchivePage(int index){
         addText(QString::fromUtf8("在运行中使用等待积木可以观察地刺移动规律。"),
             ArchiveContentPadding,370,390,60);
 
+        addTitle(QString::fromUtf8("提示"),455,145);
+        addText(QString::fromUtf8(
+            "当你忘记了这关需要干什么，可以点击左上角的提示按钮。\n"
+            "再次点击可以关闭提示。"),
+            455,197,350,96);
+
         auto* waitPreview=new ArchiveBlockPreview({
             {QString::fromUtf8("等待"),Qt::blue,true,true,ArchiveBlockKind::FloatCode,
                 QString::fromUtf8("x"),QString::fromUtf8("帧"),
@@ -789,6 +795,36 @@ void ArchivePage::showArchivePage(int index){
             "一种简单方法是：每次找到最小的数字，放到最前面。\n"
             "3 1 4 2 -> 1 3 4 2 -> 1 2 3 4"),
             ArchiveContentPadding,66,390,116);
+
+        addTitle(QString::fromUtf8("学习自定义积木"),ArchiveContentPadding,190);
+        addText(QString::fromUtf8(
+            "把重复出现的动作写成自定义积木。\n"
+            "例如“走正方形”只需要写一次，之后调用这个积木就能复用整段动作。"),
+            ArchiveContentPadding,238,390,112);
+
+        const QColor customColor(82,45,122);
+        auto* customCallPreview=new ArchiveBlockPreview({
+            {QString::fromUtf8("走正方形"),customColor,true,true,ArchiveBlockKind::FloatCode,
+                QString::fromUtf8("x")}
+        },ArchiveBlockPreview::Horizontal,contentPanel);
+        customCallPreview->setGeometry(455,70,330,48);
+
+        auto* customDefinePreview=new ArchiveBlockPreview({
+            {QString::fromUtf8("定义走正方形"),customColor,false,true,ArchiveBlockKind::FloatCode,
+                QString::fromUtf8("x")},
+            {QString::fromUtf8("向前移动"),Qt::blue,true,true,ArchiveBlockKind::FloatCode,
+                QString::fromUtf8("x"),QString::fromUtf8("步")},
+            {QString::fromUtf8("右转"),Qt::blue,true,true},
+            {QString::fromUtf8("向前移动"),Qt::blue,true,true,ArchiveBlockKind::FloatCode,
+                QString::fromUtf8("x"),QString::fromUtf8("步")},
+            {QString::fromUtf8("右转"),Qt::blue,true,true},
+            {QString::fromUtf8("向前移动"),Qt::blue,true,true,ArchiveBlockKind::FloatCode,
+                QString::fromUtf8("x"),QString::fromUtf8("步")},
+            {QString::fromUtf8("右转"),Qt::blue,true,true},
+            {QString::fromUtf8("向前移动"),Qt::blue,true,true,ArchiveBlockKind::FloatCode,
+                QString::fromUtf8("x"),QString::fromUtf8("步")}
+        },ArchiveBlockPreview::Vertical,contentPanel);
+        customDefinePreview->setGeometry(455,140,360,330);
 
         showChildren();
         return;

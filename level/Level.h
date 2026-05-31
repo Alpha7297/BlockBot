@@ -31,6 +31,8 @@ inline constexpr int CellAntenna=18;
 inline constexpr int CellAntenna2=19;
 inline constexpr int CellLightOff=20;
 inline constexpr int CellBeam2=21;
+inline constexpr int CellLiquid2=22;
+inline constexpr int CellValve2=23;
 enum class LevelType{
     Map,
     DataOutput,
@@ -49,6 +51,7 @@ struct TestContext{
     core::RuntimeState* runtime = nullptr;
     int steps = 0;
     int time = 0;
+    bool waited = false;
 };
 
 struct TestResult{

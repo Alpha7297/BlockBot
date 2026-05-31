@@ -44,6 +44,9 @@ int mapSizeForLevel(int levelNumber){
     if(levelNumber==2||levelNumber==3||levelNumber==4){
         return 20;
     }
+    if(levelNumber==9){
+        return 10;
+    }
     return 40;
 }
 
@@ -138,20 +141,90 @@ int level4CellFromRaw(int raw){
     return CellEmpty;
 }
 
+int level9CellFromRaw(int raw){
+    if(raw==1){
+        return CellWall;
+    }
+    if(raw==3){
+        return CellPlate;
+    }
+    if(raw==4){
+        return CellLiquid;
+    }
+    if(raw==5){
+        return CellAntenna;
+    }
+    if(raw==6){
+        return CellValve;
+    }
+    return CellEmpty;
+}
+
 bool isScopeCell(int cell){
     return cell==CellScope1||cell==CellScope2||cell==CellScope3||cell==CellScope4;
+}
+
+double runtimeVariableValue(core::RuntimeState* runtime,const std::string& name,double fallback=0.0){
+    if(runtime==nullptr){
+        return fallback;
+    }
+    double value=fallback;
+    runtime->getVariable(name,&value);
+    return value;
+}
+
+void forceRuntimeVariable(core::RuntimeState* runtime,const std::string& name,double value){
+    if(runtime!=nullptr){
+        runtime->forceSetVariable(name,value,true);
+    }
+}
+
+bool findAdjacentDevice(int x,int y,int* deviceX,int* deviceY,int* deviceCell){
+    const int dx[4]={1,-1,0,0};
+    const int dy[4]={0,0,1,-1};
+    for(int i=0;i<4;i++){
+        int nx=x+dx[i];
+        int ny=y+dy[i];
+        int cell=currentLevel.mapCell(nx,ny);
+        if(cell==CellLiquid||cell==CellLiquid2||
+           cell==CellAntenna||cell==CellAntenna2||
+           cell==CellValve||cell==CellValve2){
+            if(deviceX!=nullptr)*deviceX=nx;
+            if(deviceY!=nullptr)*deviceY=ny;
+            if(deviceCell!=nullptr)*deviceCell=cell;
+            return true;
+        }
+    }
+    return false;
+}
+
+void resetLevel9DeviceCells(){
+    for(int x=0;x<10;x++){
+        for(int y=0;y<10;y++){
+            int cell=currentLevel.mapCell(x,y);
+            if(cell==CellLiquid2){
+                currentLevel.setMapCell(x,y,CellLiquid);
+            }
+            else if(cell==CellAntenna2){
+                currentLevel.setMapCell(x,y,CellAntenna);
+            }
+            else if(cell==CellValve2){
+                currentLevel.setMapCell(x,y,CellValve);
+            }
+        }
+    }
 }
 
 DataTestCase makeLevel6Case(const std::vector<double>& time,const std::vector<double>& pos,int n){
     DataTestCase testCase;
     testCase.inputVariables["n"]=n;
-    testCase.inputLists["time"]=time;
-    testCase.inputLists["pos"]=pos;
+    testCase.inputLists["时间"]=time;
+    testCase.inputLists["位置"]=pos;
 
     std::vector<std::pair<double,double>> valid;
     int count=std::min(n,static_cast<int>(std::min(time.size(),pos.size())));
     for(int i=0;i<count;i++){
-        if(time[i]<1||time[i]>1000||pos[i]<1||pos[i]>=410){
+        if(time[i]<0||pos[i]<0){
             continue;
         }
         valid.push_back({time[i],pos[i]});
@@ -163,7 +236,7 @@ DataTestCase makeLevel6Case(const std::vector<double>& time,const std::vector<do
         return lhs.second<rhs.second;
     });
     for(const auto& item:valid){
-        testCase.expectedLists["target"].push_back(item.second);
+        testCase.expectedLists["有效结果"].push_back(item.second);
     }
     return testCase;
 }
@@ -175,20 +248,18 @@ DataTestCase makeGeneratedLevel6Case(int seed,int n){
     pos.reserve(n);
     std::mt19937 rng(seed);
     for(int i=0;i<n;i++){
-        int rawTime=randomInt(rng,-49,1058);
-        int rawPos=randomInt(rng,-29,440);
-        if(i%17==0){
-            rawTime=-1;
+        if(randomInt(rng,1,10)<2){
+            if(randomInt(rng,0,1)==0){
+                time.push_back(-1);
+                pos.push_back(randomInt(rng,0,400));
+            }
+            else{
+                time.push_back(randomInt(rng,0,1000));
+                pos.push_back(-1);
+            }
         }
-        else if(i%29==0){
-            rawTime=1001;
-        }
-        if(i%13==0){
-            rawPos=0;
-        }
-        else if(i%31==0){
-            rawPos=410;
-        }
+        int rawTime=randomInt(rng,1,1000);
+        int rawPos=randomInt(rng,1,400);
         time.push_back(rawTime);
         pos.push_back(rawPos);
     }
@@ -234,7 +305,7 @@ DataTestCase makeLevel8Case(int seed){
     for(int i=0;i<n;i++){
         threshold.push_back(randomInt(rng,0,4));
     }
-    c.inputLists["阈值"]=threshold;
+    c.inputLists["压力上限"]=threshold;
     int left=0,right=n-1;
     int leftMax=0,rightMax=0;
     std::vector<double> ans;
@@ -356,6 +427,25 @@ void configureMapLevel(int levelNumber){
         currentLevel.setMapCell(38,38,CellEnd);
         currentLevel.setReachPositionGoal(38,38);
         currentLevel.setRobotStart(1,1,4);
+    }
+    if(levelNumber==9){
+        const std::vector<std::vector<int>> rawMap=readMapFile("level/level9.txt",10,10);
+        if(!rawMap.empty()){
+            for(int y=0;y<10;y++){
+                for(int x=0;x<10;x++){
+                    int raw=rawMap[y][x];
+                    currentLevel.setMapCell(x,y,level9CellFromRaw(raw));
+                    if(raw==2){
+                        currentLevel.setRobotStart(x,y,0);
+                    }
+                }
+            }
+        }
+        DataTestCase c;
+        c.inputVariables["天线稳定度"]=0;
+        c.inputVariables["门稳定度"]=0;
+        c.inputVariables["冷却值"]=60;
+        currentLevel.setInputCases({c});
     }
 }
 
@@ -604,6 +694,22 @@ void LevelConfig::prepareTestCase(int index,core::RuntimeState& runtime) const{
 }
 
 TestResult LevelConfig::runTestCase(int index,const TestContext& context) const{
+    if(currentLevelNumber==9){
+        double door=runtimeVariableValue(context.runtime,"门稳定度",0.0);
+        double antenna=runtimeVariableValue(context.runtime,"天线稳定度",0.0);
+        bool doorReady=door>=4.0;
+        bool antennaReady=antenna>=5.0;
+        if(!doorReady&&!antennaReady){
+            return {false,"测试失败：门稳定度和天线稳定度都没有达标。"};
+        }
+        if(doorReady&&!antennaReady){
+            return {true,"孤独逃离：闸门已经打开，但日志没有发送。"};
+        }
+        if(!doorReady&&antennaReady){
+            return {true,"日志成功：天线已经修复，但闸门没有打开。"};
+        }
+        return {true,"胜利：闸门打开，日志也成功发送。"};
+    }
     if(test==nullptr){
         return {true,"No level test is configured."};
     }
@@ -793,6 +899,47 @@ FreshResult fresh(const TestContext& context){
         }
         if(robotHit){
             return {false,true,"测试失败：机器人被旋转光束击中。"};
+        }
+    }
+    if(currentLevelNumber==9){
+        resetLevel9DeviceCells();
+        double cooling=runtimeVariableValue(context.runtime,"冷却值",60.0)-1.0;
+        double door=runtimeVariableValue(context.runtime,"门稳定度",0.0);
+        double antenna=runtimeVariableValue(context.runtime,"天线稳定度",0.0);
+
+        int deviceX=-1;
+        int deviceY=-1;
+        int deviceCell=CellEmpty;
+        bool onPlate=currentLevel.mapCell(context.robot.x,context.robot.y)==CellPlate;
+        bool hasDevice=onPlate&&findAdjacentDevice(
+            context.robot.x,context.robot.y,&deviceX,&deviceY,&deviceCell);
+        if(hasDevice){
+            if(deviceCell==CellValve){
+                currentLevel.setMapCell(deviceX,deviceY,CellValve2);
+            }
+            else if(deviceCell==CellLiquid){
+                currentLevel.setMapCell(deviceX,deviceY,CellLiquid2);
+            }
+            else if(deviceCell==CellAntenna){
+                currentLevel.setMapCell(deviceX,deviceY,CellAntenna2);
+            }
+        }
+        if(context.waited&&hasDevice){
+            if(deviceCell==CellValve){
+                cooling+=5.0;
+            }
+            else if(deviceCell==CellLiquid){
+                door+=1.0;
+            }
+            else if(deviceCell==CellAntenna){
+                antenna+=1.0;
+            }
+        }
+        forceRuntimeVariable(context.runtime,"冷却值",cooling);
+        forceRuntimeVariable(context.runtime,"门稳定度",door);
+        forceRuntimeVariable(context.runtime,"天线稳定度",antenna);
+        if(cooling<0.0){
+            return {false,true,"测试失败：冷却值低于 0。"};
         }
     }
     int robotCell=currentLevel.mapCell(context.robot.x,context.robot.y);
