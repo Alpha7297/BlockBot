@@ -198,20 +198,24 @@ DataTestCase makeGeneratedLevel6Case(int seed,int n){
 DataTestCase makeLevel7Case(int seed){
     DataTestCase c;
     std::mt19937 rng(seed);
-    int origin=randomInt(rng,100000,999999);
-    c.expectedVariables["明文"]=origin;
-    std::vector<int> numberlist;
-    int value=origin;
-    while(value!=0){
-        int a=value%10;
-        numberlist.push_back((a+3)%10);
-        value=value/10;
-    }
     int ans=0;
-    int n=numberlist.size();
-    for(int i=0;i<n;i++){
-        ans=ans*10+numberlist[(i-2+n)%n];
-    }
+    int origin=0;
+    do{
+        origin=randomInt(rng,100000,999999);
+        std::vector<int> numberlist;
+        int value=origin;
+        while(value!=0){
+            int a=value%10;
+            numberlist.push_back((a+3)%10);
+            value=value/10;
+        }
+        ans=0;
+        int n=numberlist.size();
+        for(int i=0;i<n;i++){
+            ans=ans*10+numberlist[(i-2+n)%n];
+        }
+    }while(ans<100000);
+    c.expectedVariables["明文"]=origin;
     c.inputVariables["密码"]=ans;
     return c;
 }

@@ -3,10 +3,18 @@
 #include "UiConstants.h"
 
 #include <QCloseEvent>
+#include <QCoreApplication>
+#include <QDir>
+#include <QFile>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonParseError>
 #include <QLabel>
 #include <QPainter>
 #include <QPixmap>
 #include <QPushButton>
+#include <QStandardPaths>
+#include <QTextEdit>
 #include <QWidget>
 
 #include <algorithm>
@@ -23,8 +31,8 @@ constexpr int ArchiveLeftCardWidth=150;
 constexpr int ArchiveRightCardWidth=850;
 constexpr int ArchiveCardHeight=500;
 constexpr int ArchiveCardTopMargin=200;
-constexpr int ArchiveRightCardOpacity=200;
-constexpr int ArchiveMenuItemCount=9;
+constexpr int ArchiveRightCardOpacity=220;
+constexpr int ArchiveMenuItemCount=8;
 constexpr int ArchiveMenuItemWidth=150;
 constexpr int ArchiveMenuItemHeight=50;
 constexpr int ArchiveMenuItemGap=0;
@@ -46,6 +54,10 @@ constexpr int ArchiveCostIconSize=33;
 constexpr int ArchiveCostGap=8;
 constexpr int ArchiveCostTextWidth=46;
 constexpr int ArchiveCostItemGap=6;
+constexpr int ArchiveControlTopHeight=35;
+constexpr int ArchiveControlInnerHeight=42;
+constexpr int ArchiveControlBottomHeight=20;
+constexpr int ArchiveUnlockedLevelByIndex[ArchiveMenuItemCount]={1,2,3,4,4,5,6,7};
 
 enum class ArchiveBlockKind{
     Simple,
@@ -53,7 +65,9 @@ enum class ArchiveBlockKind{
     FloatValue,
     BinaryOp,
     PrefixBinaryOp,
-    UnaryOp
+    UnaryOp,
+    ControlCode,
+    CostOnly
 };
 
 struct ArchiveBlock{
@@ -95,8 +109,70 @@ QPolygonF archiveFloatPolygon(qreal width,qreal height){
     return shape;
 }
 
+QPolygonF archiveControlPolygon(qreal width,qreal topHeight,qreal innerHeight,qreal bottomHeight){
+    const qreal height=topHeight+innerHeight+bottomHeight;
+    const qreal innerConnectorX=codeInsideLeftWidth+codeConnectorX;
+    const qreal innerConnectorRight=innerConnectorX+codeConnectorWidth;
+    const qreal innerBottomY=topHeight+innerHeight;
+    QPolygonF shape;
+    shape<<QPointF(0,0)
+         <<QPointF(codeConnectorX,0)
+         <<QPointF(codeConnectorX,codeConnectorHeight)
+         <<QPointF(codeConnectorX+codeConnectorWidth,codeConnectorHeight)
+         <<QPointF(codeConnectorX+codeConnectorWidth,0)
+         <<QPointF(width,0)
+         <<QPointF(width,topHeight)
+         <<QPointF(innerConnectorRight,topHeight)
+         <<QPointF(innerConnectorRight,topHeight+codeConnectorHeight)
+         <<QPointF(innerConnectorX,topHeight+codeConnectorHeight)
+         <<QPointF(innerConnectorX,topHeight)
+         <<QPointF(codeInsideLeftWidth,topHeight)
+         <<QPointF(codeInsideLeftWidth,innerBottomY)
+         <<QPointF(innerConnectorX,innerBottomY)
+         <<QPointF(innerConnectorX,innerBottomY+codeConnectorHeight)
+         <<QPointF(innerConnectorRight,innerBottomY+codeConnectorHeight)
+         <<QPointF(innerConnectorRight,innerBottomY)
+         <<QPointF(width,innerBottomY)
+         <<QPointF(width,height)
+         <<QPointF(codeConnectorX+codeConnectorWidth,height)
+         <<QPointF(codeConnectorX+codeConnectorWidth,height+codeConnectorHeight)
+         <<QPointF(codeConnectorX,height+codeConnectorHeight)
+         <<QPointF(codeConnectorX,height)
+         <<QPointF(0,height);
+    return shape;
+}
+
 QFont archiveBlockFont(){
     return QFont("Microsoft YaHei",12);
+}
+
+QString archiveLevelSaveFilePath(){
+    QString dir=QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    if(dir.isEmpty()){
+        dir=QCoreApplication::applicationDirPath();
+    }
+    QDir().mkpath(dir);
+    return QDir(dir).filePath("level.json");
+}
+
+int archiveUnlockedLevel(){
+    QFile file(archiveLevelSaveFilePath());
+    int unlockedLevel=1;
+    if(file.open(QIODevice::ReadOnly|QIODevice::Text)){
+        QJsonParseError error;
+        const QJsonDocument document=QJsonDocument::fromJson(file.readAll(),&error);
+        if(error.error==QJsonParseError::NoError&&document.isObject()){
+            unlockedLevel=document.object().value("level").toInt(1);
+        }
+    }
+    return std::max(1,std::min(unlockedLevel,7));
+}
+
+bool archiveIndexUnlocked(int index,int unlockedLevel){
+    if(index<0||index>=ArchiveMenuItemCount){
+        return false;
+    }
+    return unlockedLevel>=ArchiveUnlockedLevelByIndex[index];
 }
 
 int archiveCostWidth(const ArchiveBlock& block){
@@ -187,30 +263,62 @@ protected:
                     valueWidth+opHorizontalPadding;
                 itemHeight=floatBlockWidth+opVerticalPadding*2;
             }
+            if(block.kind==ArchiveBlockKind::ControlCode){
+                valueWidth=std::max(floatBlockWidth,
+                    painter.fontMetrics().horizontalAdvance(block.valueText)+12);
+                suffixWidth=painter.fontMetrics().horizontalAdvance(block.suffixText);
+                blockWidth=std::max(170,
+                    20+textWidth+10+valueWidth+10+suffixWidth+10);
+                itemHeight=ArchiveControlTopHeight+ArchiveControlInnerHeight+
+                    ArchiveControlBottomHeight+codeConnectorHeight;
+            }
+            if(block.kind==ArchiveBlockKind::CostOnly){
+                blockWidth=0;
+                itemHeight=ArchiveCostIconSize;
+            }
             const int rowHeight=hasCost?std::max(itemHeight,ArchiveCostIconSize):itemHeight;
             const bool floatLike=block.kind==ArchiveBlockKind::FloatValue||
                 block.kind==ArchiveBlockKind::BinaryOp||
                 block.kind==ArchiveBlockKind::PrefixBinaryOp||
                 block.kind==ArchiveBlockKind::UnaryOp;
-            QPolygonF shape=floatLike?
+            QPolygonF shape=block.kind==ArchiveBlockKind::ControlCode?
+                archiveControlPolygon(blockWidth,ArchiveControlTopHeight,
+                    ArchiveControlInnerHeight,ArchiveControlBottomHeight):
+                (floatLike?
                 archiveFloatPolygon(blockWidth,floatBlockWidth):
                 archiveBlockPolygon(blockWidth,ArchiveBlockHeight,
-                    block.topSocket,block.bottomTab);
+                    block.topSocket,block.bottomTab));
             if(block.kind==ArchiveBlockKind::BinaryOp||
                block.kind==ArchiveBlockKind::PrefixBinaryOp||
                block.kind==ArchiveBlockKind::UnaryOp){
                 shape=archiveFloatPolygon(blockWidth,itemHeight);
             }
-            shape.translate(x,y);
-
-            painter.setPen(QPen(Qt::black,2));
-            painter.setBrush(block.color);
-            painter.drawPolygon(shape);
+            if(block.kind!=ArchiveBlockKind::CostOnly){
+                shape.translate(x,y);
+                painter.setPen(QPen(Qt::black,2));
+                painter.setBrush(block.color);
+                painter.drawPolygon(shape);
+            }
 
             painter.setPen(Qt::white);
-            if(block.kind==ArchiveBlockKind::FloatValue){
+            if(block.kind==ArchiveBlockKind::CostOnly){
+            }
+            else if(block.kind==ArchiveBlockKind::FloatValue){
                 QRect textRect(x,y,blockWidth,floatBlockWidth);
                 painter.drawText(textRect,Qt::AlignCenter,block.text);
+            }
+            else if(block.kind==ArchiveBlockKind::ControlCode){
+                QRect textRect(x+10,y,textWidth+4,ArchiveControlTopHeight);
+                painter.drawText(textRect,Qt::AlignVCenter|Qt::AlignLeft,block.text);
+                const int valueX=x+20+textWidth;
+                const int valueY=y+(ArchiveControlTopHeight-floatBlockWidth)/2;
+                drawFloatSlot(painter,valueX,valueY,valueWidth,block.valueText);
+                painter.setPen(Qt::white);
+                painter.drawText(
+                    QRect(valueX+valueWidth+10,y,suffixWidth+4,ArchiveControlTopHeight),
+                    Qt::AlignVCenter|Qt::AlignLeft,
+                    block.suffixText
+                );
             }
             else if(block.kind==ArchiveBlockKind::BinaryOp||
                     block.kind==ArchiveBlockKind::PrefixBinaryOp){
@@ -347,6 +455,7 @@ void ArchivePage::init(){
     for(QWidget* child:findChildren<QWidget*>(QString(),Qt::FindDirectChildrenOnly)){
         delete child;
     }
+    const int unlockedLevel=archiveUnlockedLevel();
 
     setFixedSize(PageWidth,PageHeight);
     setStyleSheet(QString("QDialog { border-image: url(%1) 0 0 0 0 stretch stretch; }")
@@ -382,31 +491,36 @@ void ArchivePage::init(){
         ArchiveCardHeight
     );
     rightCard->setStyleSheet(QString(
-        "QLabel { background-color: rgba(120, 120, 120, %1); border: none; }")
+        "QLabel { background-color: rgba(45, 50, 58, %1); border: none; }")
         .arg(ArchiveRightCardOpacity));
 
     for(int i=0;i<ArchiveMenuItemCount;i++){
         QPushButton* itemButton=new QPushButton(QString::number(i+1),this);
+        const bool unlocked=archiveIndexUnlocked(i,unlockedLevel);
         itemButton->setGeometry(
             archiveContentX+(ArchiveLeftCardWidth-ArchiveMenuItemWidth)/2,
             ArchiveCardTopMargin+ArchiveMenuTopPadding+i*(ArchiveMenuItemHeight+ArchiveMenuItemGap),
             ArchiveMenuItemWidth,
             ArchiveMenuItemHeight
         );
-        itemButton->setCursor(Qt::PointingHandCursor);
+        itemButton->setEnabled(unlocked);
+        itemButton->setCursor(unlocked?Qt::PointingHandCursor:Qt::ForbiddenCursor);
         itemButton->setStyleSheet(QString(
             "QPushButton {"
-            "  color: white;"
+            "  color: %2;"
             "  font-family: 'Microsoft YaHei';"
             "  font-size: 20px;"
             "  font-weight: bold;"
             "  border: none;"
             "  border-image: url(%1) 0 0 0 0 stretch stretch;"
             "}")
-            .arg(loadAsset("images/bars/archive_select.png")));
-        connect(itemButton,&QPushButton::clicked,this,[this,i](){
-            showArchivePage(i);
-        });
+            .arg(loadAsset("images/bars/archive_select.png"))
+            .arg(unlocked?"white":"rgba(255,255,255,90)"));
+        if(unlocked){
+            connect(itemButton,&QPushButton::clicked,this,[this,i](){
+                showArchivePage(i);
+            });
+        }
     }
 
     contentPanel=new QWidget(this);
@@ -422,6 +536,9 @@ void ArchivePage::init(){
 
 void ArchivePage::showArchivePage(int index){
     if(contentPanel==nullptr){
+        return;
+    }
+    if(!archiveIndexUnlocked(index,archiveUnlockedLevel())){
         return;
     }
     for(QWidget* child:contentPanel->findChildren<QWidget*>(QString(),Qt::FindDirectChildrenOnly)){
@@ -442,17 +559,32 @@ void ArchivePage::showArchivePage(int index){
         return label;
     };
     auto addText=[this](const QString& text,int x,int y,int w,int h,int fontSize=18){
-        QLabel* label=new QLabel(text,contentPanel);
+        QTextEdit* label=new QTextEdit(contentPanel);
         label->setGeometry(x,y,w,h);
-        label->setWordWrap(true);
-        label->setAlignment(Qt::AlignLeft|Qt::AlignTop);
+        label->setPlainText(text);
+        label->setReadOnly(true);
+        label->setFrameShape(QFrame::NoFrame);
+        label->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+        label->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+        label->setAttribute(Qt::WA_TransparentForMouseEvents);
+        label->document()->setDocumentMargin(0);
         label->setStyleSheet(QString(
-            "QLabel { color: white; font-family: 'Microsoft YaHei'; font-size: %1px; line-height: 145%; }")
+            "QTextEdit { background: transparent; border: none; color: white; font-family: 'Microsoft YaHei'; font-size: %1px; }")
             .arg(fontSize));
         return label;
     };
+    auto addScaledImage=[this](const QString& assetPath,int x,int y,int w,int h){
+        QLabel* label=new QLabel(contentPanel);
+        label->setGeometry(x,y,w,h);
+        label->setAlignment(Qt::AlignLeft|Qt::AlignTop);
+        QPixmap pixmap(loadAsset(assetPath));
+        if(!pixmap.isNull()){
+            label->setPixmap(pixmap.scaled(w,h,Qt::KeepAspectRatio,Qt::SmoothTransformation));
+        }
+        return label;
+    };
 
-    if(index>=4){
+    if(index>=8){
         contentLabel=new QLabel(QString::number(index+1),contentPanel);
         contentLabel->setAlignment(Qt::AlignCenter);
         contentLabel->setGeometry(0,0,ArchiveRightCardWidth,ArchiveCardHeight);
@@ -541,9 +673,9 @@ void ArchivePage::showArchivePage(int index){
             ArchiveContentPadding,64,360,70);
         auto* listReadPreview=new ArchiveBlockPreview({
             {QString::fromUtf8("我的列表的第 1 项"),QColor(125,28,38),true,true,
-                ArchiveBlockKind::FloatValue,QString(),QString(),QString(),QString::fromUtf8("1")},
+                ArchiveBlockKind::FloatValue},
             {QString::fromUtf8("我的列表的长度"),QColor(125,28,38),true,true,
-                ArchiveBlockKind::FloatValue,QString(),QString(),QString(),QString::fromUtf8("1")}
+                ArchiveBlockKind::FloatValue}
         },ArchiveBlockPreview::Vertical,contentPanel);
         listReadPreview->setGeometry(435,28,380,80);
         auto* listWritePreview=new ArchiveBlockPreview({
@@ -572,6 +704,108 @@ void ArchivePage::showArchivePage(int index){
                 QString::fromUtf8("x"),QString(),QString(),QString::fromUtf8("1")}
         },ArchiveBlockPreview::TwoThenOne,contentPanel);
         boolPreview->setGeometry(400,310,430,120);
+
+        showChildren();
+        return;
+    }
+
+    if(index==4){
+        addTitle(QString::fromUtf8("学习条件"),ArchiveContentPadding,16);
+        addText(QString::fromUtf8(
+            "“如果”会在条件不为 0 时执行内部积木。“当”会在条件不为 0 时重复执行内部积木。"),
+            ArchiveContentPadding,64,390,92);
+        auto* controlPreview=new ArchiveBlockPreview({
+            {QString::fromUtf8("如果"),QColor(54,92,122),true,true,
+                ArchiveBlockKind::ControlCode,QString::fromUtf8("x"),QString::fromUtf8("时执行")},
+            {QString::fromUtf8("当"),QColor(54,92,122),true,true,
+                ArchiveBlockKind::ControlCode,QString::fromUtf8("x"),QString::fromUtf8("时重复执行")}
+        },ArchiveBlockPreview::Vertical,contentPanel);
+        controlPreview->setGeometry(455,34,360,220);
+
+        addTitle(QString::fromUtf8("学习存档"),ArchiveContentPadding,176);
+        addText(QString::fromUtf8(
+            "编辑区右上角有保存和读档按钮。题目难度较大时，可以先保存当前代码，之后再读取继续尝试。"),
+            ArchiveContentPadding,226,390,95);
+
+        addTitle(QString::fromUtf8("学习交互"),ArchiveContentPadding,344);
+        addText(QString::fromUtf8(
+            "坐标积木返回机器人当前位置。前方块类型在前方可通行时返回 0，否则返回 1。"),
+            ArchiveContentPadding,392,390,78);
+        auto* interactPreview=new ArchiveBlockPreview({
+            {QString::fromUtf8("当前 x 坐标"),QColor(42,86,150),true,true,
+                ArchiveBlockKind::FloatValue},
+            {QString::fromUtf8("当前 y 坐标"),QColor(42,86,150),true,true,
+                ArchiveBlockKind::FloatValue},
+            {QString::fromUtf8("前方块类型"),QColor(42,86,150),true,true,
+                ArchiveBlockKind::FloatValue}
+        },ArchiveBlockPreview::Vertical,contentPanel);
+        interactPreview->setGeometry(455,330,350,135);
+
+        showChildren();
+        return;
+    }
+
+    if(index==5){
+        addTitle(QString::fromUtf8("学习哈希"),ArchiveContentPadding,20);
+        addText(QString::fromUtf8(
+            "R-07 的控制台只支持一维列表。需要把二维坐标压缩成一维编号，推荐编码方式是："),
+            ArchiveContentPadding,72,410,92);
+        addScaledImage(QString::fromUtf8("images/bars/archive-6.png"),455,98,220,43);
+        auto* hashCostPreview=new ArchiveBlockPreview({
+            {QString(),Qt::transparent,true,true,ArchiveBlockKind::CostOnly,
+                QString(),QString(),QString(),QString::fromUtf8("2")}
+        },ArchiveBlockPreview::Horizontal,contentPanel);
+        hashCostPreview->setGeometry(690,100,150,45);
+
+        addText(QString::fromUtf8(
+            "例如地图宽度为40时，每一行有40个位置。先用y找到所在行，再加上x，就能得到唯一的一维下标。"),
+            ArchiveContentPadding,245,760,62);
+
+        addTitle(QString::fromUtf8("学习取余"),ArchiveContentPadding,318);
+        addText(QString::fromUtf8(
+            "floor 积木返回浮点数向下取整的结果。\n 例如x =3.1时floor(x)返回3\n"
+            "取余可以用：a-b*floor(a/b)"),
+            ArchiveContentPadding,366,390,92);
+        auto* floorPreview=new ArchiveBlockPreview({
+            {QString::fromUtf8("floor"),QColor(42,105,86),true,true,ArchiveBlockKind::UnaryOp,
+                QString::fromUtf8("x"),QString(),QString(),QString::fromUtf8("1")}
+        },ArchiveBlockPreview::Horizontal,contentPanel);
+        floorPreview->setGeometry(455,322,250,48);
+
+        addScaledImage(QString::fromUtf8("images/bars/archive-7.png"),455,405,225,55);
+        auto* modCostPreview=new ArchiveBlockPreview({
+            {QString(),Qt::transparent,true,true,ArchiveBlockKind::CostOnly,
+                QString(),QString(),QString(),QString::fromUtf8("4")}
+        },ArchiveBlockPreview::Horizontal,contentPanel);
+        modCostPreview->setGeometry(695,411,150,45);
+
+        showChildren();
+        return;
+    }
+
+    if(index==6){
+        addTitle(QString::fromUtf8("学习排序"),ArchiveContentPadding,18);
+        addText(QString::fromUtf8(
+            "一种简单方法是：每次找到最小的数字，放到最前面。\n"
+            "3 1 4 2 -> 1 3 4 2 -> 1 2 3 4"),
+            ArchiveContentPadding,66,390,116);
+
+        showChildren();
+        return;
+    }
+
+    if(index==7){
+        addTitle(QString::fromUtf8("学习字符串"),ArchiveContentPadding,20);
+        addText(QString::fromUtf8(
+            "字符串就是一连串的字符，例如 \"HELLO\"。\n"
+            "R-07 的控制台不支持真正的文字，可以用数字代替字符，再用列表保存这些数字。"),
+            ArchiveContentPadding,72,390,132);
+
+        addText(QString::fromUtf8(
+            "下面的代码展示了把数字转换并放入列表的写法。\n第一段循环是把数字逆序放进列表\n第二段循环是反转顺序"),
+            ArchiveContentPadding,230,390,112);
+
+        addScaledImage(QString::fromUtf8("images/bars/archive-8.png"),485,36,300,417);
 
         showChildren();
         return;

@@ -30,6 +30,7 @@
 #include <QLineEdit>
 #include <QMouseEvent>
 #include <QTextDocument>
+#include <QThread>
 #include <QTransform>
 #include <QWheelEvent>
 #include <QFileDialog>
@@ -154,6 +155,12 @@ void recordRuntimeTimeUse(){
 
 void recordFloatOperatorUse(){
     recordRuntimeStepUse();
+}
+
+void waitRuntimeValueRead(){
+    if(programRunning||levelTestRunning||runtimeCountersActive){
+        QThread::msleep(1);
+    }
 }
 void refreshFloatAncestors(FloatBlock* block);
 void refreshAllControlLayouts();
@@ -739,6 +746,7 @@ public:
     }
 
     double getValue() const override{
+        waitRuntimeValueRead();
         double value=0.0;
         std::string name=variableName.toStdString();
         if(!runtimeState.getVariable(name,&value)){
@@ -2205,7 +2213,7 @@ extern Robot* player;
 
 int frontMapType(){
     if(player==nullptr){
-        return -1;
+        return 1;
     }
     int x=player->gridx;
     int y=player->gridy;
@@ -2222,9 +2230,9 @@ int frontMapType(){
         y--;
     }
     if(x<0||x>=currentMapWidth()||y<0||y>=currentMapHeight()){
-        return -1;
+        return 1;
     }
-    return mapdata[x][y];
+    return mapdata[x][y]==level::CellWall?1:0;
 }
 
 class RobotCoordBlock:public FloatBlock{
@@ -2240,6 +2248,7 @@ public:
     }
 
     double getValue() const override{
+        waitRuntimeValueRead();
         if(player==nullptr){
             return 0.0;
         }
@@ -2271,6 +2280,7 @@ public:
     }
 
     double getValue() const override{
+        waitRuntimeValueRead();
         return frontMapType();
     }
 
