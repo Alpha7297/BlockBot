@@ -444,7 +444,7 @@ void configureMapLevel(int levelNumber){
         DataTestCase c;
         c.inputVariables["天线稳定度"]=0;
         c.inputVariables["门稳定度"]=0;
-        c.inputVariables["冷却值"]=60;
+        c.inputVariables["冷却值"]=30;
         currentLevel.setInputCases({c});
     }
 }
@@ -458,9 +458,9 @@ void configureDataOutputLevel(int levelNumber){
     std::mt19937 rng(13);
     if(levelNumber==6){
         cases.push_back(makeLevel6Case(
-            {7,3},
-            {41,284},
-            2
+            {7,3,-1,12},
+            {41,284,10,-1},
+            4
         ));
         for(int i=0;i<9;i++){
             cases.push_back(makeGeneratedLevel6Case(
@@ -482,8 +482,8 @@ void configureDataOutputLevel(int levelNumber){
         DataTestCase c1;
         c1.inputVariables["n"]=5;
         c1.inputLists["高度"]={4,3,4,1,3};
-        c1.inputLists["阈值"]={0,0,0,1,1};
-        c1.expectedLists["危险点"]={1,3};
+        c1.inputLists["压力上限"]={0,0,0,1,1};
+        c1.expectedLists["危险点"]={2,4};
         cases.push_back(c1);
         for(int i=0;i<9;i++){
             cases.push_back(makeLevel8Case(randomInt(rng,0,std::numeric_limits<int>::max())));
@@ -903,7 +903,7 @@ FreshResult fresh(const TestContext& context){
     }
     if(currentLevelNumber==9){
         resetLevel9DeviceCells();
-        double cooling=runtimeVariableValue(context.runtime,"冷却值",60.0)-1.0;
+        double cooling=runtimeVariableValue(context.runtime,"冷却值",30.0)-1.0;
         double door=runtimeVariableValue(context.runtime,"门稳定度",0.0);
         double antenna=runtimeVariableValue(context.runtime,"天线稳定度",0.0);
 

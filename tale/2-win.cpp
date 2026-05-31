@@ -232,7 +232,7 @@ private:
     int visibleTextLength=0;
 
     void drawScene(){
-        QPixmap background(loadAsset("images/background/level1.png"));
+        QPixmap background(loadAsset("images/background/level2.png"));
         if(!background.isNull()){
             scene.addPixmap(background.scaled(TaleWidth,TaleHeight,Qt::IgnoreAspectRatio,
                 Qt::SmoothTransformation));

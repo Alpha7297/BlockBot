@@ -122,7 +122,7 @@ std::vector<TaleParagraph> buildLevelOneStory(){
     
     story.push_back({
         RobotSpeakerName,
-        QString::fromUtf8("初始 冷却值：20。阀门稳定度：0。天线稳定度：0。"),
+        QString::fromUtf8("初始 冷却值：30。阀门稳定度：0。天线稳定度：0。"),
         {{TaleCharacter::Robot,QPointF(460,180)}}
     });    
 
