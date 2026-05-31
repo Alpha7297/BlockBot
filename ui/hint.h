@@ -1,6 +1,7 @@
 #ifndef UI_HINT_H
 #define UI_HINT_H
 
+#include <QGraphicsPixmapItem>
 #include <QGraphicsRectItem>
 #include <QGraphicsTextItem>
 #include <QGraphicsSceneMouseEvent>
@@ -8,6 +9,7 @@
 
 class LevelHintPanel:public QGraphicsRectItem{
 public:
+    QGraphicsPixmapItem* background;
     QGraphicsTextItem* contentText;
 
     LevelHintPanel(QGraphicsItem* parent=nullptr);

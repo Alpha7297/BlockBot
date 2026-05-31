@@ -30,7 +30,6 @@
 #include <QLineEdit>
 #include <QMouseEvent>
 #include <QTextDocument>
-#include <QTextStream>
 #include <QThread>
 #include <QTransform>
 #include <QWheelEvent>
@@ -38,7 +37,6 @@
 #include <QCloseEvent>
 #include <QMainWindow>
 #include <QPixmap>
-#include <QRegularExpression>
 #include <algorithm>
 #include <cmath>
 #include <functional>
@@ -7570,7 +7568,7 @@ void drawStage(QGraphicsScene& scene){
     scene.addItem(exitButton);
 
     levelInfoPanel=new LevelHintPanel();
-    levelInfoPanel->setPos((appWidth-720)/2,(appHeight-420)/2);
+    levelInfoPanel->setPos((appWidth-800)/2,(appHeight-466)/2);
     levelInfoPanel->setHintText(hintTextForLevel(level::activeLevelNumber()));
     levelInfoPanel->setZValue(topUiZ+30);
     levelInfoPanel->setVisible(false);

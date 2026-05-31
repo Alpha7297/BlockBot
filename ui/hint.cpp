@@ -1,23 +1,33 @@
 #include "hint.h"
+#include "../ui/AppGraphicsView.h"
 
 #include <QBrush>
 #include <QColor>
 #include <QFont>
 #include <QPen>
+#include <QPixmap>
 #include <QTextDocument>
 #include <Qt>
 
 LevelHintPanel::LevelHintPanel(QGraphicsItem* parent):QGraphicsRectItem(parent){
-    setRect(0,0,720,420);
-    setBrush(QColor(80,80,80,185));
+    setRect(0,0,800,466);
     setPen(Qt::NoPen);
     setAcceptedMouseButtons(Qt::LeftButton);
+
+    background=new QGraphicsPixmapItem(this);
+    QPixmap pixmap(loadAsset("images/bars/hint_panel.png"));
+    if(!pixmap.isNull()){
+        background->setPixmap(pixmap.scaled(800,466,Qt::IgnoreAspectRatio,Qt::SmoothTransformation));
+    }
+    background->setPos(0,0);
+    background->setZValue(-1);
+
     contentText=new QGraphicsTextItem(this);
     contentText->document()->setDocumentMargin(0);
     contentText->setDefaultTextColor(Qt::white);
     contentText->setFont(QFont(QStringLiteral("Microsoft YaHei"),20));
-    contentText->setTextWidth(640);
-    contentText->setPos(40,34);
+    contentText->setTextWidth(700);
+    contentText->setPos(50,42);
     contentText->setAcceptedMouseButtons(Qt::NoButton);
 }
 
