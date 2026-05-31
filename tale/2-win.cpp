@@ -1,4 +1,4 @@
-#include "TaleWindow.h"
+﻿#include "TaleWindow.h"
 #include "../ui/AppGraphicsView.h"
 
 #include <QApplication>
@@ -48,12 +48,12 @@ const QString EchoSpeakerName=QString::fromUtf8("Echo");
 const QString OldRobotSpeakerName=QString::fromUtf8("Old Robot");
 const QString SystemSpeakerName=QString::fromUtf8("System");
 const QString RecordSpeakerName=QString::fromUtf8("Record");
-const QString ChirpSpeakerName=QString::fromUtf8("Chirp");
+const QString ChipSpeakerName=QString::fromUtf8("Chip");
 const QString EmptySpeakerName=QString::fromUtf8("");
 
 enum class TaleCharacter{
     Angry,
-    Chirp,
+    Chip,
     Curl,
     Curious,
     Damage,
@@ -92,7 +92,7 @@ struct TaleParagraph{
 
 const std::vector<TaleCharacterDefinition> PaintingCharacters={
     {TaleCharacter::Angry,QString::fromUtf8("images/painting/angry.png"),RobotSpeakerName},
-    {TaleCharacter::Chirp,QString::fromUtf8("images/painting/chirp.png"),ChirpSpeakerName},
+    {TaleCharacter::Chip,QString::fromUtf8("images/painting/chip.png"),ChipSpeakerName},
     {TaleCharacter::Curl,QString::fromUtf8("images/painting/curl.png"),RobotSpeakerName},
     {TaleCharacter::Curious,QString::fromUtf8("images/painting/curious.png"),RobotSpeakerName},
     {TaleCharacter::Damage,QString::fromUtf8("images/painting/damage.png"),RobotSpeakerName},
@@ -419,3 +419,5 @@ int runTale(int argc,char* argv[]){
 }
 
 }
+
+

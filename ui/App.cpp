@@ -42,6 +42,7 @@
 #include <limits>
 #include <map>
 #include <set>
+#include <utility>
 #include <vector>
 
 #include "App.h"
@@ -498,6 +499,45 @@ void editNameText(QString& name,QGraphicsTextItem* textItem,const QString& title
     }
 }
 
+QPolygonF codeBlockPolygon(qreal len,qreal height,bool topSocket,bool bottomTab,
+                           qreal connectorX=codeConnectorX){
+    qreal connectorRight=connectorX+codeConnectorWidth;
+    QPolygonF shape;
+    shape<<QPointF(0,0);
+    if(topSocket){
+        shape<<QPointF(connectorX,0)
+             <<QPointF(connectorX,codeConnectorHeight)
+             <<QPointF(connectorRight,codeConnectorHeight)
+             <<QPointF(connectorRight,0);
+    }
+    shape<<QPointF(len,0)
+         <<QPointF(len,height);
+    if(bottomTab){
+        shape<<QPointF(connectorRight,height)
+             <<QPointF(connectorRight,height+codeConnectorHeight)
+             <<QPointF(connectorX,height+codeConnectorHeight)
+             <<QPointF(connectorX,height);
+    }
+    shape<<QPointF(0,height);
+    return shape;
+}
+
+QPolygonF codeBlockShadowPolygon(qreal len,qreal height,bool topSocket,bool bottomTab,
+                                 qreal connectorX=codeConnectorX){
+    return codeBlockPolygon(len,height,topSocket,bottomTab,connectorX);
+}
+
+void setCodeBlockShape(QGraphicsPolygonItem* block,QGraphicsPolygonItem* shadow,
+                       qreal len,qreal height,bool topSocket,bool bottomTab,
+                       qreal connectorX=codeConnectorX){
+    block->setPolygon(codeBlockPolygon(len,height,topSocket,bottomTab,connectorX));
+    if(shadow!=nullptr){
+        shadow->setPolygon(codeBlockShadowPolygon(len,height,topSocket,bottomTab,connectorX));
+    }
+}
+
+void setCodeShadowLikeBlock(QGraphicsPolygonItem* shadow,CodeBlock* block);
+
 class CodeBlock:public QGraphicsPolygonItem{
 public:
     int len;
@@ -530,18 +570,12 @@ public:
         len=text->boundingRect().width()+30;
         wid=40;
         s=ss;
-        shape<<QPoint(0,0)<<QPoint(len,0)
-             <<QPoint(len,wid)<<QPoint(0,wid);
+        shape=codeBlockPolygon(len,wid,true,true);
         setPolygon(shape);
         setBrush(Qt::blue);
         setPen(QPen(Qt::black,1.5));
         shadow=new QGraphicsPolygonItem();
-        QPolygonF shadowShape;
-        shadowShape<<QPointF(-shadowPadding,-shadowPadding)
-                   <<QPointF(len+shadowPadding,-shadowPadding)
-                   <<QPointF(len+shadowPadding,wid+shadowPadding)
-                   <<QPointF(-shadowPadding,wid+shadowPadding);
-        shadow->setPolygon(shadowShape);
+        shadow->setPolygon(codeBlockShadowPolygon(len,wid,true,true));
         shadow->setBrush(Qt::gray);
         shadow->setPen(Qt::NoPen);
         shadow->setPos(pos());
@@ -684,6 +718,13 @@ public:
     void mouseMoveEvent(QGraphicsSceneMouseEvent* event) override;
     void mouseReleaseEvent(QGraphicsSceneMouseEvent* event) override;
 };
+
+void setCodeShadowLikeBlock(QGraphicsPolygonItem* shadow,CodeBlock* block){
+    if(shadow==nullptr||block==nullptr){
+        return;
+    }
+    shadow->setPolygon(block->polygon());
+}
 
 class VariableBlock:public FloatBlock{
 public:
@@ -993,20 +1034,10 @@ public:
         qreal suffixHeight=suffixText->boundingRect().height();
         wid=std::max(40,value->wid+10);
         len=static_cast<int>(std::ceil(20+textWidth+10+value->len+10+suffixWidth+10));
-        QPolygonF shape;
-        shape<<QPointF(0,0)<<QPointF(len,0)
-             <<QPointF(len,wid)<<QPointF(0,wid);
-        setPolygon(shape);
+        setCodeBlockShape(this,shadow,len,wid,true,true);
         text->setPos(10,(wid-textHeight)/2);
         value->setPos(20+textWidth,(wid-value->wid)/2);
         suffixText->setPos(20+textWidth+value->len+10,(wid-suffixHeight)/2);
-
-        QPolygonF shadowShape;
-        shadowShape<<QPointF(-shadowPadding,-shadowPadding)
-                   <<QPointF(len+shadowPadding,-shadowPadding)
-                   <<QPointF(len+shadowPadding,wid+shadowPadding)
-                   <<QPointF(-shadowPadding,wid+shadowPadding);
-        shadow->setPolygon(shadowShape);
     }
     CodeBlock* copy() override{
         FloatCodeBlock* newBlock=new FloatCodeBlock(type,s,value,false);
@@ -1075,10 +1106,7 @@ public:
         qreal messageBoxHeight=std::max<qreal>(floatBlockWidth,messageHeight+6);
         wid=std::max(40,value->wid+10);
         len=static_cast<int>(std::ceil(20+textWidth+10+messageBoxWidth+10+value->len+10));
-        QPolygonF shape;
-        shape<<QPointF(0,0)<<QPointF(len,0)
-             <<QPointF(len,wid)<<QPointF(0,wid);
-        setPolygon(shape);
+        setCodeBlockShape(this,shadow,len,wid,true,true);
         text->setPos(10,(wid-textHeight)/2);
         qreal messageBoxX=20+textWidth;
         qreal messageBoxY=(wid-messageBoxHeight)/2;
@@ -1087,12 +1115,6 @@ public:
         messageItem->setPos(messageBoxX+variableHorizontalPadding,(wid-messageHeight)/2);
         value->setPos(messageBoxX+messageBoxWidth+10,(wid-value->wid)/2);
 
-        QPolygonF shadowShape;
-        shadowShape<<QPointF(-shadowPadding,-shadowPadding)
-                   <<QPointF(len+shadowPadding,-shadowPadding)
-                   <<QPointF(len+shadowPadding,wid+shadowPadding)
-                   <<QPointF(-shadowPadding,wid+shadowPadding);
-        shadow->setPolygon(shadowShape);
     }
 
     CodeBlock* copy() override{
@@ -1164,10 +1186,7 @@ public:
         wid=std::max(40,value->wid+10);
         len=static_cast<int>(std::ceil(20+textWidth+10+variableBoxWidth+10+
             suffixWidth+10+value->len+10));
-        QPolygonF shape;
-        shape<<QPointF(0,0)<<QPointF(len,0)
-             <<QPointF(len,wid)<<QPointF(0,wid);
-        setPolygon(shape);
+        setCodeBlockShape(this,shadow,len,wid,true,true);
         text->setPos(10,(wid-textHeight)/2);
         qreal variableBoxX=20+textWidth;
         qreal variableBoxY=(wid-variableBoxHeight)/2;
@@ -1177,12 +1196,6 @@ public:
         suffixText->setPos(variableBoxX+variableBoxWidth+10,(wid-suffixHeight)/2);
         value->setPos(variableBoxX+variableBoxWidth+10+suffixWidth+10,(wid-value->wid)/2);
 
-        QPolygonF shadowShape;
-        shadowShape<<QPointF(-shadowPadding,-shadowPadding)
-                   <<QPointF(len+shadowPadding,-shadowPadding)
-                   <<QPointF(len+shadowPadding,wid+shadowPadding)
-                   <<QPointF(-shadowPadding,wid+shadowPadding);
-        shadow->setPolygon(shadowShape);
     }
 
     CodeBlock* copy() override{
@@ -1475,9 +1488,7 @@ public:
         wid=std::max(40,value->wid+10);
         len=static_cast<int>(std::ceil(20+textWidth+10+nameBoxWidth+10+
             suffixWidth+10+value->len+10));
-        QPolygonF shape;
-        shape<<QPointF(0,0)<<QPointF(len,0)<<QPointF(len,wid)<<QPointF(0,wid);
-        setPolygon(shape);
+        setCodeBlockShape(this,shadow,len,wid,true,true);
         text->setPos(10,(wid-textHeight)/2);
         qreal boxX=20+textWidth;
         qreal boxY=(wid-nameBoxHeight)/2;
@@ -1487,12 +1498,6 @@ public:
         suffixText->setPos(boxX+nameBoxWidth+10,(wid-suffixHeight)/2);
         value->setPos(boxX+nameBoxWidth+10+suffixWidth+10,(wid-value->wid)/2);
 
-        QPolygonF shadowShape;
-        shadowShape<<QPointF(-shadowPadding,-shadowPadding)
-                   <<QPointF(len+shadowPadding,-shadowPadding)
-                   <<QPointF(len+shadowPadding,wid+shadowPadding)
-                   <<QPointF(-shadowPadding,wid+shadowPadding);
-        shadow->setPolygon(shadowShape);
     }
 
     CodeBlock* copy() override{
@@ -1570,9 +1575,7 @@ public:
         wid=std::max(40,std::max(index->wid,value->wid)+10);
         len=static_cast<int>(std::ceil(20+textWidth+10+nameBoxWidth+10+
             infixWidth+10+index->len+10+suffixWidth+10+value->len+10));
-        QPolygonF shape;
-        shape<<QPointF(0,0)<<QPointF(len,0)<<QPointF(len,wid)<<QPointF(0,wid);
-        setPolygon(shape);
+        setCodeBlockShape(this,shadow,len,wid,true,true);
         text->setPos(10,(wid-textHeight)/2);
         qreal boxX=20+textWidth;
         qreal boxY=(wid-nameBoxHeight)/2;
@@ -1587,12 +1590,6 @@ public:
         suffixText->setPos(suffixX,(wid-suffixHeight)/2);
         value->setPos(suffixX+suffixWidth+10,(wid-value->wid)/2);
 
-        QPolygonF shadowShape;
-        shadowShape<<QPointF(-shadowPadding,-shadowPadding)
-                   <<QPointF(len+shadowPadding,-shadowPadding)
-                   <<QPointF(len+shadowPadding,wid+shadowPadding)
-                   <<QPointF(-shadowPadding,wid+shadowPadding);
-        shadow->setPolygon(shadowShape);
     }
 
     CodeBlock* copy() override{
@@ -1666,9 +1663,7 @@ public:
         wid=std::max(40,index->wid+10);
         len=static_cast<int>(std::ceil(20+textWidth+10+nameBoxWidth+10+
             infixWidth+10+index->len+10+suffixWidth+10));
-        QPolygonF shape;
-        shape<<QPointF(0,0)<<QPointF(len,0)<<QPointF(len,wid)<<QPointF(0,wid);
-        setPolygon(shape);
+        setCodeBlockShape(this,shadow,len,wid,true,true);
         text->setPos(10,(wid-textHeight)/2);
         qreal boxX=20+textWidth;
         qreal boxY=(wid-nameBoxHeight)/2;
@@ -1681,12 +1676,6 @@ public:
         index->setPos(indexX,(wid-index->wid)/2);
         suffixText->setPos(indexX+index->len+10,(wid-suffixHeight)/2);
 
-        QPolygonF shadowShape;
-        shadowShape<<QPointF(-shadowPadding,-shadowPadding)
-                   <<QPointF(len+shadowPadding,-shadowPadding)
-                   <<QPointF(len+shadowPadding,wid+shadowPadding)
-                   <<QPointF(-shadowPadding,wid+shadowPadding);
-        shadow->setPolygon(shadowShape);
     }
 
     CodeBlock* copy() override{
@@ -1740,9 +1729,7 @@ public:
         qreal nameBoxHeight=std::max<qreal>(floatBlockWidth,nameHeight+6);
         wid=40;
         len=static_cast<int>(std::ceil(20+textWidth+10+nameBoxWidth+10));
-        QPolygonF shape;
-        shape<<QPointF(0,0)<<QPointF(len,0)<<QPointF(len,wid)<<QPointF(0,wid);
-        setPolygon(shape);
+        setCodeBlockShape(this,shadow,len,wid,true,true);
         text->setPos(10,(wid-textHeight)/2);
         qreal boxX=20+textWidth;
         qreal boxY=(wid-nameBoxHeight)/2;
@@ -1750,12 +1737,6 @@ public:
         listFrame->setPos(boxX,boxY);
         listText->setPos(boxX+variableHorizontalPadding,(wid-nameHeight)/2);
 
-        QPolygonF shadowShape;
-        shadowShape<<QPointF(-shadowPadding,-shadowPadding)
-                   <<QPointF(len+shadowPadding,-shadowPadding)
-                   <<QPointF(len+shadowPadding,wid+shadowPadding)
-                   <<QPointF(-shadowPadding,wid+shadowPadding);
-        shadow->setPolygon(shadowShape);
     }
 
     CodeBlock* copy() override{
@@ -1781,7 +1762,7 @@ public:
         topHeight=30;
         innerHeight=30;
         bottomHeight=20;
-        leftWidth=10;
+        leftWidth=static_cast<int>(codeInsideLeftWidth);
         inside=nullptr;
         if(_condition==nullptr){
             condition=new FloatBlock(0,false,this);
@@ -1816,26 +1797,40 @@ public:
         )));
         wid=topHeight+innerHeight+bottomHeight;
 
+        qreal innerConnectorX=leftWidth+codeConnectorX;
+        qreal innerConnectorRight=innerConnectorX+codeConnectorWidth;
+        qreal innerBottomY=topHeight+innerHeight;
         QPolygonF shape;
         shape<<QPointF(0,0)
+             <<QPointF(codeConnectorX,0)
+             <<QPointF(codeConnectorX,codeConnectorHeight)
+             <<QPointF(codeConnectorX+codeConnectorWidth,codeConnectorHeight)
+             <<QPointF(codeConnectorX+codeConnectorWidth,0)
              <<QPointF(len,0)
              <<QPointF(len,topHeight)
+             <<QPointF(innerConnectorRight,topHeight)
+             <<QPointF(innerConnectorRight,topHeight+codeConnectorHeight)
+             <<QPointF(innerConnectorX,topHeight+codeConnectorHeight)
+             <<QPointF(innerConnectorX,topHeight)
              <<QPointF(leftWidth,topHeight)
-             <<QPointF(leftWidth,topHeight+innerHeight)
-             <<QPointF(len,topHeight+innerHeight)
+             <<QPointF(leftWidth,innerBottomY)
+             <<QPointF(innerConnectorX,innerBottomY)
+             <<QPointF(innerConnectorX,innerBottomY+codeConnectorHeight)
+             <<QPointF(innerConnectorRight,innerBottomY+codeConnectorHeight)
+             <<QPointF(innerConnectorRight,innerBottomY)
+             <<QPointF(len,innerBottomY)
              <<QPointF(len,wid)
+             <<QPointF(codeConnectorX+codeConnectorWidth,wid)
+             <<QPointF(codeConnectorX+codeConnectorWidth,wid+codeConnectorHeight)
+             <<QPointF(codeConnectorX,wid+codeConnectorHeight)
+             <<QPointF(codeConnectorX,wid)
              <<QPointF(0,wid);
         setPolygon(shape);
         text->setPos(10,(topHeight-textHeight)/2);
         condition->setPos(20+textWidth,(topHeight-condition->wid)/2);
         suffixText->setPos(20+textWidth+condition->len+10,(topHeight-suffixHeight)/2);
 
-        QPolygonF shadowShape;
-        shadowShape<<QPointF(-shadowPadding,-shadowPadding)
-                   <<QPointF(len+shadowPadding,-shadowPadding)
-                   <<QPointF(len+shadowPadding,wid+shadowPadding)
-                   <<QPointF(-shadowPadding,wid+shadowPadding);
-        shadow->setPolygon(shadowShape);
+        shadow->setPolygon(shape);
     }
 
     CodeBlock* copy() override{
@@ -1852,6 +1847,7 @@ public:
     StartBlock(int base=false,QGraphicsItem * parent=nullptr):
         CodeBlock(-1,"开始运行",base,parent){
         setBrush(QColor(156,118,42));
+        setCodeBlockShape(this,shadow,len,wid,false,true);
     }
     CodeBlock* copy() override{
         StartBlock* newBlock=new StartBlock(false);
@@ -1865,6 +1861,7 @@ public:
     EndBlock(int base=false,QGraphicsItem* parent=nullptr):
         CodeBlock(-4,QString::fromUtf8("结束"),base,parent){
         setBrush(QColor(156,118,42));
+        setCodeBlockShape(this,shadow,len,wid,true,false);
     }
 
     CodeBlock* copy() override{
@@ -1955,16 +1952,8 @@ public:
             }
             wid=40;
             len=static_cast<int>(std::ceil(textWidth+30));
-            QPolygonF shape;
-            shape<<QPointF(0,0)<<QPointF(len,0)<<QPointF(len,wid)<<QPointF(0,wid);
-            setPolygon(shape);
+            setCodeBlockShape(this,shadow,len,wid,false,true);
             text->setPos(10,(wid-textHeight)/2);
-            QPolygonF shadowShape;
-            shadowShape<<QPointF(-shadowPadding,-shadowPadding)
-                       <<QPointF(len+shadowPadding,-shadowPadding)
-                       <<QPointF(len+shadowPadding,wid+shadowPadding)
-                       <<QPointF(-shadowPadding,wid+shadowPadding);
-            shadow->setPolygon(shadowShape);
             return;
         }
         if(parameterBlock!=nullptr){
@@ -1972,19 +1961,11 @@ public:
         }
         wid=std::max(40,parameterBlock->wid+10);
         len=static_cast<int>(std::ceil(20+textWidth+10+parameterBlock->len+10));
-        QPolygonF shape;
-        shape<<QPointF(0,0)<<QPointF(len,0)<<QPointF(len,wid)<<QPointF(0,wid);
-        setPolygon(shape);
+        setCodeBlockShape(this,shadow,len,wid,false,true);
         text->setPos(10,(wid-textHeight)/2);
         parameterBlock->setParameterName(parameterName);
         parameterBlock->setPos(20+textWidth+10,(wid-parameterBlock->wid)/2);
 
-        QPolygonF shadowShape;
-        shadowShape<<QPointF(-shadowPadding,-shadowPadding)
-                   <<QPointF(len+shadowPadding,-shadowPadding)
-                   <<QPointF(len+shadowPadding,wid+shadowPadding)
-                   <<QPointF(-shadowPadding,wid+shadowPadding);
-        shadow->setPolygon(shadowShape);
     }
 
     CodeBlock* copy() override{
@@ -2033,32 +2014,15 @@ public:
         if(!hasParameter()||value==nullptr){
             wid=40;
             len=static_cast<int>(std::ceil(textWidth+30));
-            QPolygonF shape;
-            shape<<QPointF(0,0)<<QPointF(len,0)<<QPointF(len,wid)<<QPointF(0,wid);
-            setPolygon(shape);
+            setCodeBlockShape(this,shadow,len,wid,true,true);
             text->setPos(10,(wid-textHeight)/2);
-            QPolygonF shadowShape;
-            shadowShape<<QPointF(-shadowPadding,-shadowPadding)
-                       <<QPointF(len+shadowPadding,-shadowPadding)
-                       <<QPointF(len+shadowPadding,wid+shadowPadding)
-                       <<QPointF(-shadowPadding,wid+shadowPadding);
-            shadow->setPolygon(shadowShape);
             return;
         }
         wid=std::max(40,value->wid+10);
         len=static_cast<int>(std::ceil(20+textWidth+10+value->len+10));
-        QPolygonF shape;
-        shape<<QPointF(0,0)<<QPointF(len,0)<<QPointF(len,wid)<<QPointF(0,wid);
-        setPolygon(shape);
+        setCodeBlockShape(this,shadow,len,wid,true,true);
         text->setPos(10,(wid-textHeight)/2);
         value->setPos(20+textWidth,(wid-value->wid)/2);
-
-        QPolygonF shadowShape;
-        shadowShape<<QPointF(-shadowPadding,-shadowPadding)
-                   <<QPointF(len+shadowPadding,-shadowPadding)
-                   <<QPointF(len+shadowPadding,wid+shadowPadding)
-                   <<QPointF(-shadowPadding,wid+shadowPadding);
-        shadow->setPolygon(shadowShape);
     }
 
     CodeBlock* copy() override{
@@ -2174,12 +2138,23 @@ public:
 
     void refreshSprite(int cellSize){
         currentCellSize=cellSize;
-        QPixmap sprite=iconSprite.isNull()?directionSprites[direction]:iconSprite;
+        QPixmap sprite=iconSprite.isNull()?directionSprites[direction]:rotatedIconSprite();
         QPixmap scaled=sprite.isNull()
             ?fallbackSprite(cellSize)
             :sprite.scaled(cellSize,cellSize,Qt::KeepAspectRatio,Qt::SmoothTransformation);
         setPixmap(scaled);
         setOffset((cellSize-scaled.width())/2.0,(cellSize-scaled.height())/2.0);
+    }
+
+    QPixmap rotatedIconSprite() const{
+        if(iconSprite.isNull()){
+            return QPixmap();
+        }
+        // robot.png faces left. Directions are: 0 right, 1 down, 2 left, 3 up.
+        const int rotationDegrees[]={180,90,0,270};
+        QTransform transform;
+        transform.rotate(rotationDegrees[direction]);
+        return iconSprite.transformed(transform,Qt::SmoothTransformation);
     }
 
     void turnLeft(){
@@ -3945,7 +3920,16 @@ CodeBlock* deserializeCodeBlock(const QJsonObject& object){
         block=control;
     }
     else{
-        block=new CodeBlock(object["type"].toInt(),object["text"].toString(),false);
+        int type=object["type"].toInt();
+        if(type==3){
+            FloatBlock* value=new FloatBlock(0,false);
+            value->setData(1);
+            block=new FloatCodeBlock(3,object["text"].toString("向前移动"),value,false);
+            deleteFloatBlock(value);
+        }
+        else{
+            block=new CodeBlock(type,object["text"].toString(),false);
+        }
     }
     CodeBlock* next=deserializeCodeBlock(object["next"].toObject());
     block->next=next;
@@ -5038,7 +5022,8 @@ core::BlockExecutor::BlockSnapshot readRuntimeBlock(core::BlockExecutor::Node no
     recordRuntimeStepUse();
     snapshot.type=block->type;
     runtimeSkipCurrentBlock=false;
-    bool waitingFrame=block->type==4&&executorPtr!=nullptr&&executorPtr->waitingOn(node);
+    bool waitingFrame=(block->type==3||block->type==4)&&
+        executorPtr!=nullptr&&executorPtr->waitingOn(node);
     if(isEndCodeBlock(block)){
         runtimeEndReached=true;
     }
@@ -6402,6 +6387,7 @@ void CodeBlock::mousePressEvent(QGraphicsSceneMouseEvent* event){
             curr->ismoving=true;
         }
         setCodeTreeZValue(tempBlock,dragZ);
+        setCodeShadowLikeBlock(tempBlock->shadow,tempBlock);
         tempBlock->shadow->setPos(tempBlock->pos());
         tempBlock->shadow->setZValue(dragZ-1);
         scene()->addItem(tempBlock->shadow);
@@ -6433,6 +6419,7 @@ void CodeBlock::mousePressEvent(QGraphicsSceneMouseEvent* event){
     }
     setCodeTreeZValue(this,dragZ);
     scrollArea=scrollNone;
+    setCodeShadowLikeBlock(shadow,this);
     shadow->setPos(pos());
     shadow->setZValue(dragZ-1);
     scene()->addItem(shadow);
@@ -6458,6 +6445,7 @@ void CodeBlock::mouseMoveEvent(QGraphicsSceneMouseEvent* event){
         refreshAllControlLayouts();
         setPos(event->scenePos()-mouseOffset);
         syncCodeChainFrom(this,pos());
+        setCodeShadowLikeBlock(shadow,this);
         shadow->setPos(pos());
         if(!isTopOnlyCodeBlock(this)&&currentStartBlock!=nullptr&&!currentStartBlock->ismoving){
             QPointF startBottom=currentStartBlock->pos()+QPointF(0,currentStartBlock->wid);
@@ -6516,7 +6504,8 @@ void CodeBlock::mouseMoveEvent(QGraphicsSceneMouseEvent* event){
                 }
                 bestNextDistance=distance;
                 nextTarget=otherBlock;
-                shadow->setPos(otherBlock->pos()-QPointF(0,totalwid));
+                setCodeShadowLikeBlock(shadow,curr);
+                shadow->setPos(otherBlock->pos()-QPointF(0,curr->wid));
             }
         }
         }
@@ -6980,6 +6969,10 @@ bool isRuntimeActionBlockType(int blockType){
     return blockType==0||blockType==1||blockType==3||blockType==4;
 }
 
+bool isFirstLevelRestrictedToolbox(){
+    return level::activeLevelNumber()==1;
+}
+
 int runtimeIntervalForBlockType(int blockType){
     return isRuntimeActionBlockType(blockType)
         ? settings::RuntimeActionBlockIntervalMs
@@ -7204,108 +7197,110 @@ void drawStage(QGraphicsScene& scene){
     updateInformationGeometry();
     updateTestStatusText();
 
-    createVariableButton=new TextButton("创建新变量");
-    createVariableButton->setPos(10,577);
-    createVariableButton->setFixedSize(160,scaledAssetHeight("create_variable.png",160,40));
-    createVariableButton->setBrush(variableColor());
-    createVariableButton->setTexture("create_variable.png");
-    createVariableButton->setZValue(20);
-    createVariableButton->onClick=[](){
-        bool ok=false;
-        QString name=QInputDialog::getText(nullptr,"创建新变量","请输入变量名",
-            QLineEdit::Normal,"",&ok).trimmed();
-        if(!ok){
-            return;
-        }
-        if(!validVariableName(name)){
-            message::invalidVariableName();
-            return;
-        }
-        if(!runtimeState.hasVariable(name.toStdString())){
-            runtimeState.createVariable(name.toStdString());
-        }
-        refreshVariableToolbox();
-    };
-    scene.addItem(createVariableButton);
+    if(!isFirstLevelRestrictedToolbox()){
+        createVariableButton=new TextButton("创建新变量");
+        createVariableButton->setPos(10,577);
+        createVariableButton->setFixedSize(160,scaledAssetHeight("create_variable.png",160,40));
+        createVariableButton->setBrush(variableColor());
+        createVariableButton->setTexture("create_variable.png");
+        createVariableButton->setZValue(20);
+        createVariableButton->onClick=[](){
+            bool ok=false;
+            QString name=QInputDialog::getText(nullptr,"创建新变量","请输入变量名",
+                QLineEdit::Normal,"",&ok).trimmed();
+            if(!ok){
+                return;
+            }
+            if(!validVariableName(name)){
+                message::invalidVariableName();
+                return;
+            }
+            if(!runtimeState.hasVariable(name.toStdString())){
+                runtimeState.createVariable(name.toStdString());
+            }
+            refreshVariableToolbox();
+        };
+        scene.addItem(createVariableButton);
 
-    createListButton=new TextButton("创建新列表");
-    createListButton->setPos(10,617);
-    createListButton->setFixedSize(160,scaledAssetHeight("create_list.png",160,40));
-    createListButton->setBrush(listColor());
-    createListButton->setTexture("create_list.png");
-    createListButton->setZValue(20);
-    createListButton->onClick=[](){
-        bool ok=false;
-        QString name=QInputDialog::getText(nullptr,"创建新列表","请输入列表名",
-            QLineEdit::Normal,"",&ok).trimmed();
-        if(!ok){
-            return;
-        }
-        if(!validVariableName(name)){
-            message::invalidVariableName();
-            return;
-        }
-        if(!runtimeState.hasList(name.toStdString())){
-            runtimeState.createList(name.toStdString());
-        }
-        refreshVariableToolbox();
-    };
-    scene.addItem(createListButton);
+        createListButton=new TextButton("创建新列表");
+        createListButton->setPos(10,617);
+        createListButton->setFixedSize(160,scaledAssetHeight("create_list.png",160,40));
+        createListButton->setBrush(listColor());
+        createListButton->setTexture("create_list.png");
+        createListButton->setZValue(20);
+        createListButton->onClick=[](){
+            bool ok=false;
+            QString name=QInputDialog::getText(nullptr,"创建新列表","请输入列表名",
+                QLineEdit::Normal,"",&ok).trimmed();
+            if(!ok){
+                return;
+            }
+            if(!validVariableName(name)){
+                message::invalidVariableName();
+                return;
+            }
+            if(!runtimeState.hasList(name.toStdString())){
+                runtimeState.createList(name.toStdString());
+            }
+            refreshVariableToolbox();
+        };
+        scene.addItem(createListButton);
 
-    createCustomBlockButton=new TextButton("创建自定义积木");
-    createCustomBlockButton->setPos(10,657);
-    createCustomBlockButton->setFixedSize(160,scaledAssetHeight("create_custom.png",160,40));
-    createCustomBlockButton->setBrush(customBlockColor());
-    createCustomBlockButton->setTexture("create_custom.png");
-    createCustomBlockButton->setZValue(20);
-    createCustomBlockButton->onClick=[](){
-        QDialog dialog;
-        dialog.setWindowTitle("创建自定义积木");
-        QFormLayout layout(&dialog);
-        QLineEdit nameEdit;
-        QLineEdit parameterEdit;
-        layout.addRow("自定义积木名",&nameEdit);
-        layout.addRow("参数名(默认无参数)",&parameterEdit);
-        QDialogButtonBox buttons(QDialogButtonBox::Ok|QDialogButtonBox::Cancel);
-        layout.addWidget(&buttons);
-        QObject::connect(&buttons,&QDialogButtonBox::accepted,&dialog,&QDialog::accept);
-        QObject::connect(&buttons,&QDialogButtonBox::rejected,&dialog,&QDialog::reject);
-        if(dialog.exec()!=QDialog::Accepted){
-            return;
-        }
-        QString name=nameEdit.text().trimmed();
-        QString parameterName=parameterEdit.text().trimmed();
-        if(!validVariableName(name)){
-            message::invalidVariableName();
-            return;
-        }
-        if(!parameterName.isEmpty()&&!validVariableName(parameterName)){
-            message::invalidVariableName();
-            return;
-        }
-        if(customHatBlocks.find(name)!=customHatBlocks.end()){
-            return;
-        }
-        CustomHatBlock* hat=new CustomHatBlock(name,parameterName,false);
-        setCodeBlockStagePos(hat,scrollWorkspace,QPointF(40,40));
-        hat->setZValue(10);
-        if(appScene!=nullptr){
-            appScene->addItem(hat);
-        }
-        codeBlocks.push_back(hat);
-        customHatBlocks[name]=hat;
+        createCustomBlockButton=new TextButton("创建自定义积木");
+        createCustomBlockButton->setPos(10,657);
+        createCustomBlockButton->setFixedSize(160,scaledAssetHeight("create_custom.png",160,40));
+        createCustomBlockButton->setBrush(customBlockColor());
+        createCustomBlockButton->setTexture("create_custom.png");
+        createCustomBlockButton->setZValue(20);
+        createCustomBlockButton->onClick=[](){
+            QDialog dialog;
+            dialog.setWindowTitle("创建自定义积木");
+            QFormLayout layout(&dialog);
+            QLineEdit nameEdit;
+            QLineEdit parameterEdit;
+            layout.addRow("自定义积木名",&nameEdit);
+            layout.addRow("参数名(默认无参数)",&parameterEdit);
+            QDialogButtonBox buttons(QDialogButtonBox::Ok|QDialogButtonBox::Cancel);
+            layout.addWidget(&buttons);
+            QObject::connect(&buttons,&QDialogButtonBox::accepted,&dialog,&QDialog::accept);
+            QObject::connect(&buttons,&QDialogButtonBox::rejected,&dialog,&QDialog::reject);
+            if(dialog.exec()!=QDialog::Accepted){
+                return;
+            }
+            QString name=nameEdit.text().trimmed();
+            QString parameterName=parameterEdit.text().trimmed();
+            if(!validVariableName(name)){
+                message::invalidVariableName();
+                return;
+            }
+            if(!parameterName.isEmpty()&&!validVariableName(parameterName)){
+                message::invalidVariableName();
+                return;
+            }
+            if(customHatBlocks.find(name)!=customHatBlocks.end()){
+                return;
+            }
+            CustomHatBlock* hat=new CustomHatBlock(name,parameterName,false);
+            setCodeBlockStagePos(hat,scrollWorkspace,QPointF(40,40));
+            hat->setZValue(10);
+            if(appScene!=nullptr){
+                appScene->addItem(hat);
+            }
+            codeBlocks.push_back(hat);
+            customHatBlocks[name]=hat;
 
-        CustomCallBlock* callBlock=new CustomCallBlock(name,parameterName,nullptr,true);
-        callBlock->setZValue(10);
-        if(appScene!=nullptr){
-            appScene->addItem(callBlock);
-        }
-        baseCodeBlocks.push_back(callBlock);
-        customCallBaseBlocks.push_back(callBlock);
-        refreshVariableToolbox();
-        saveUndoCheckpoint();
-    };
-    scene.addItem(createCustomBlockButton);
+            CustomCallBlock* callBlock=new CustomCallBlock(name,parameterName,nullptr,true);
+            callBlock->setZValue(10);
+            if(appScene!=nullptr){
+                appScene->addItem(callBlock);
+            }
+            baseCodeBlocks.push_back(callBlock);
+            customCallBaseBlocks.push_back(callBlock);
+            refreshVariableToolbox();
+            saveUndoCheckpoint();
+        };
+        scene.addItem(createCustomBlockButton);
+    }
 
     TextButton* settingsButton=new TextButton("Settings");
     settingsButton->setPos(990,10);
@@ -7488,55 +7483,78 @@ void drawToolbox(QGraphicsScene& scene){
     addCode(new EndBlock(true));
     addCode(new CodeBlock(0,"左转",true));
     addCode(new CodeBlock(1,"右转",true));
-    addCode(new CodeBlock(3,"向前移动",true));
-    addCode(new FloatCodeBlock(4,"等待",nullptr,true));
-    addCode(new OutputBlock("x",nullptr,true));
-    addCode(new ControlCodeBlock(5,"如果",nullptr,true));
-    addCode(new ControlCodeBlock(6,"当",nullptr,true));
+    addCode(new FloatCodeBlock(3,"向前移动",nullptr,true));
+    if(!isFirstLevelRestrictedToolbox()){
+        addCode(new FloatCodeBlock(4,"等待",nullptr,true));
+        addCode(new OutputBlock("x",nullptr,true));
+        addCode(new ControlCodeBlock(5,"如果",nullptr,true));
+        addCode(new ControlCodeBlock(6,"当",nullptr,true));
 
-    const QString unaryNames[]={"sin","cos","tan","asin","acos","atan","ln","log10","floor","abs","not"};
-    for(int i=0;i<11;i++){
-        addFloat(new UnaryOpBlock(i,unaryNames[i],nullptr,true));
+        const std::pair<int,QString> unaryBlocks[]={
+            {8,"floor"},
+            {9,"abs"},
+            {10,"not"}
+        };
+        for(const auto& item:unaryBlocks){
+            addFloat(new UnaryOpBlock(item.first,item.second,nullptr,true));
+        }
+
+        const std::pair<int,QString> binaryBlocks[]={
+            {0,"+"},
+            {1,"-"},
+            {2,"*"},
+            {3,"/"},
+            {4,"pow"},
+            {6,"max"},
+            {7,"min"},
+            {8,"=="},
+            {9,"!="},
+            {10,"<"},
+            {11,">"},
+            {12,"and"},
+            {13,"or"}
+        };
+        for(const auto& item:binaryBlocks){
+            addFloat(new BinaryOpBlock(item.first,item.second,nullptr,nullptr,true));
+        }
+        addFloat(new RobotCoordBlock(0,true));
+        addFloat(new RobotCoordBlock(1,true));
+        addFloat(new RobotFrontMapBlock(true));
+
+        variableToolboxStartY=y;
+        variableSetBaseBlock=new SetVariableBlock("x",nullptr,true);
+        variableSetBaseBlock->setZValue(10);
+        scene.addItem(variableSetBaseBlock);
+        baseCodeBlocks.push_back(variableSetBaseBlock);
+        variableIncreaseBaseBlock=new IncreaseVariableBlock("x",nullptr,true);
+        variableIncreaseBaseBlock->setZValue(10);
+        scene.addItem(variableIncreaseBaseBlock);
+        baseCodeBlocks.push_back(variableIncreaseBaseBlock);
+
+        auto addListFloat=[&](FloatBlock* block){
+            block->setZValue(10);
+            scene.addItem(block);
+            floatBlocks.push_back(block);
+            listFloatBaseBlocks.push_back(block);
+        };
+        auto addListCode=[&](CodeBlock* block){
+            block->setZValue(10);
+            scene.addItem(block);
+            baseCodeBlocks.push_back(block);
+            listCodeBaseBlocks.push_back(block);
+        };
+        addListFloat(new ListGetBlock("x",nullptr,true));
+        addListFloat(new ListSizeBlock("x",true));
+        addListCode(new PushListBlock("x",nullptr,true));
+        addListCode(new SetListBlock("x",nullptr,nullptr,true));
+        addListCode(new RemoveListItemBlock("x",nullptr,true));
+        addListCode(new ClearListBlock("x",true));
+
+        refreshVariableToolbox();
     }
-
-    const QString binaryNames[]={"+","-","*","/","pow","arg","max","min","==","!=","<",">","and","or"};
-    for(int i=0;i<14;i++){
-        addFloat(new BinaryOpBlock(i,binaryNames[i],nullptr,nullptr,true));
+    else{
+        variableToolboxStartY=y;
     }
-    addFloat(new RobotCoordBlock(0,true));
-    addFloat(new RobotCoordBlock(1,true));
-    addFloat(new RobotFrontMapBlock(true));
-
-    variableToolboxStartY=y;
-    variableSetBaseBlock=new SetVariableBlock("x",nullptr,true);
-    variableSetBaseBlock->setZValue(10);
-    scene.addItem(variableSetBaseBlock);
-    baseCodeBlocks.push_back(variableSetBaseBlock);
-    variableIncreaseBaseBlock=new IncreaseVariableBlock("x",nullptr,true);
-    variableIncreaseBaseBlock->setZValue(10);
-    scene.addItem(variableIncreaseBaseBlock);
-    baseCodeBlocks.push_back(variableIncreaseBaseBlock);
-
-    auto addListFloat=[&](FloatBlock* block){
-        block->setZValue(10);
-        scene.addItem(block);
-        floatBlocks.push_back(block);
-        listFloatBaseBlocks.push_back(block);
-    };
-    auto addListCode=[&](CodeBlock* block){
-        block->setZValue(10);
-        scene.addItem(block);
-        baseCodeBlocks.push_back(block);
-        listCodeBaseBlocks.push_back(block);
-    };
-    addListFloat(new ListGetBlock("x",nullptr,true));
-    addListFloat(new ListSizeBlock("x",true));
-    addListCode(new PushListBlock("x",nullptr,true));
-    addListCode(new SetListBlock("x",nullptr,nullptr,true));
-    addListCode(new RemoveListItemBlock("x",nullptr,true));
-    addListCode(new ClearListBlock("x",true));
-
-    refreshVariableToolbox();
     updateToolboxScrollRange();
     toolboxSlider=new ScrollSlider(panelRect.right()-22,panelRect.top()+10,panelRect.height()-30);
     QPixmap sliderPixmap=loadImageAsset("slider.png");
@@ -7631,13 +7649,8 @@ void LevelChoosePage::startLevel(int levelNumber)
         if(closedScene!=nullptr){
             closedScene->deleteLater();
         }
-        QTimer::singleShot(0,this,[this](){
-            loadProcess();
-            show();
-            raise();
-        });
     };
-    this->hide();
+    close();
     view->show();
 }
 void MainWindow::onStartButtonClicked()

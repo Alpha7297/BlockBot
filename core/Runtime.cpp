@@ -283,7 +283,7 @@ bool BlockExecutor::step(const BlockReader& readBlock,RobotActions& actions){
     }
 
     BlockSnapshot block=readBlock(current);
-    if(block.type!=4&&waiting!=nullptr){
+    if(block.type!=3&&block.type!=4&&waiting!=nullptr){
         waiting=nullptr;
         waitRemaining=0.0;
     }
@@ -329,6 +329,23 @@ bool BlockExecutor::step(const BlockReader& readBlock,RobotActions& actions){
         current=block.next;
         return true;
     }
+    if(block.type==3){
+        lastStepConsumedActionStep=true;
+        if(waiting!=current){
+            waiting=current;
+            waitRemaining=std::floor(std::max(0.0,block.value));
+        }
+        if(waitRemaining>1.0){
+            actions.moveForward(1.0);
+            waitRemaining-=1.0;
+            return true;
+        }
+        actions.moveForward(waitRemaining);
+        waiting=nullptr;
+        waitRemaining=0.0;
+        current=block.next;
+        return true;
+    }
     if(block.type==14){
         actions.increaseVariable(block.variableName,block.value);
         current=block.next;
@@ -371,7 +388,7 @@ bool BlockExecutor::step(const BlockReader& readBlock,RobotActions& actions){
         return true;
     }
 
-    if(block.type==0||block.type==1||block.type==3){
+    if(block.type==0||block.type==1){
         lastStepConsumedActionStep=true;
     }
     executeOne(block.type,block.value,actions);

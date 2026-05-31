@@ -4,6 +4,7 @@
 #include <QDialog>
 
 class QLabel;
+class QWidget;
 
 class ArchivePage:public QDialog{
     Q_OBJECT
@@ -18,6 +19,9 @@ protected:
     void closeEvent(QCloseEvent* event) override;
 
 private:
+    void showArchivePage(int index);
+
+    QWidget* contentPanel=nullptr;
     QLabel* contentLabel=nullptr;
 };
 

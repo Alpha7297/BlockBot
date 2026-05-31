@@ -25,10 +25,11 @@
 | 普通语句积木 | `CodeBlock` | `QGraphicsPolygonItem` | 由构造参数决定 | `Qt::blue` | `(文字宽度 + 30) × 40` |
 | 左转 | `CodeBlock` | `QGraphicsPolygonItem` | `0` | `Qt::blue` | `(文字宽度 + 30) × 40` |
 | 右转 | `CodeBlock` | `QGraphicsPolygonItem` | `1` | `Qt::blue` | `(文字宽度 + 30) × 40` |
-| 向前移动 | `CodeBlock` | `QGraphicsPolygonItem` | `3` | `Qt::blue` | `(文字宽度 + 30) × 40` |
+| 向前移动 x 步 | `FloatCodeBlock` | `CodeBlock` | `3` | 继承 `CodeBlock` 的 `Qt::blue` | `ceil(20 + 文字宽度 + 10 + 数值长度 + 10 + 后缀宽度 + 10) × max(40, 数值高度 + 10)` |
 | 等待 | `FloatCodeBlock` | `CodeBlock` | `4` | 继承 `CodeBlock` 的 `Qt::blue` | `ceil(20 + 文字宽度 + 10 + 数值长度 + 10 + 后缀宽度 + 10) × max(40, 数值高度 + 10)` |
 | 输出 | `OutputBlock` | `CodeBlock` | `12` | `QColor(130,76,180)` | `ceil(20 + 文字宽度 + 10 + 文本框长度 + 10 + 数值长度 + 10) × max(40, 数值高度 + 10)` |
 | 将变量设置为数值 | `SetVariableBlock` | `CodeBlock` | `7` | `QColor(194,92,0)` | `ceil(20 + 文字宽度 + 10 + 变量框长度 + 10 + 后缀宽度 + 10 + 数值长度 + 10) × max(40, 数值高度 + 10)` |
+| 将变量增加数值 | `IncreaseVariableBlock` | `SetVariableBlock` | `14` | `QColor(194,92,0)` | 同 `SetVariableBlock` |
 | 在列表末尾加入 | `PushListBlock` | `CodeBlock` | `8` | `QColor(125,28,38)` | `ceil(20 + 文字宽度 + 10 + 列表框长度 + 10 + 后缀宽度 + 10 + 数值长度 + 10) × max(40, 数值高度 + 10)` |
 | 设置列表某项 | `SetListBlock` | `CodeBlock` | `9` | `QColor(125,28,38)` | `ceil(20 + 文字宽度 + 10 + 列表框长度 + 10 + 中间文字宽度 + 10 + 下标长度 + 10 + 后缀宽度 + 10 + 数值长度 + 10) × max(40, max(下标高度, 数值高度) + 10)` |
 | 清空列表 | `ClearListBlock` | `CodeBlock` | `10` | `QColor(125,28,38)` | `ceil(20 + 文字宽度 + 10 + 列表框长度 + 10) × 40` |
@@ -76,14 +77,6 @@
 
 | 显示文本 | 说明 |
 | --- | --- |
-| `sin` | 正弦 |
-| `cos` | 余弦 |
-| `tan` | 正切 |
-| `asin` | 反正弦 |
-| `acos` | 反余弦 |
-| `atan` | 反正切 |
-| `ln` | 自然对数 |
-| `log10` | 常用对数 |
 | `floor` | 向下取整 |
 | `abs` | 绝对值 |
 | `not` | 逻辑非 |
@@ -97,7 +90,6 @@
 | `*` | 乘法 |
 | `/` | 除法 |
 | `pow` | 幂 |
-| `arg` | 角度 / 参数运算 |
 | `max` | 最大值 |
 | `min` | 最小值 |
 | `==` | 相等 |
