@@ -1,5 +1,6 @@
 #include "MainWindow.h"
 #include "LevelChoosePage.h"
+#include "../tale/TaleWindow.h"
 #include <QVBoxLayout>
 #include <QLabel>
 #include"../message/Message.h"
@@ -86,6 +87,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
 }
 void MainWindow::onLevelButtonClicked()
 {
+    const bool hasProgress=LevelChoosePage::hasProgressSave();
     if(levelChoosePage==nullptr)
     {
         levelChoosePage=new LevelChoosePage(this);
@@ -93,12 +95,22 @@ void MainWindow::onLevelButtonClicked()
         levelChoosePage->setGeometry(0,0,width(),height());
         connect(levelChoosePage,&LevelChoosePage::pageClosed,this,&MainWindow::onChooseLevelPageClosed);
     }
-    levelChoosePage->loadProcess();
     if(centralWidget()!=nullptr){
         centralWidget()->hide();
     }
-    levelChoosePage->show();
-    levelChoosePage->raise();
+    auto showLevelChoose=[this](){
+        levelChoosePage->loadProcess();
+        levelChoosePage->show();
+        levelChoosePage->raise();
+    };
+    if(!hasProgress){
+        QWidget* taleWindow=tale::createTaleWindow(tale::TaleScene::Start,showLevelChoose);
+        taleWindow->show();
+        taleWindow->raise();
+        taleWindow->activateWindow();
+        return;
+    }
+    showLevelChoose();
 }
 void MainWindow::onChooseLevelPageClosed()
 {

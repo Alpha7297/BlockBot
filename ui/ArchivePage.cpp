@@ -1,6 +1,7 @@
 #include "ArchivePage.h"
 #include "AppGraphicsView.h"
 #include "UiConstants.h"
+#include "../level/LevelConstants.h"
 
 #include <QCloseEvent>
 #include <QCoreApplication>
@@ -219,7 +220,8 @@ int archiveUnlockedLevel(){
             unlockedLevel=document.object().value("level").toInt(1);
         }
     }
-    return std::max(1,std::min(unlockedLevel,9));
+    return std::max(level::MinLevelNumber,
+        std::min(unlockedLevel,level::TotalLevelCount+1));
 }
 
 bool archiveIndexUnlocked(int index,int unlockedLevel){
@@ -740,7 +742,7 @@ void ArchivePage::showArchivePage(int index){
 
     if(index==1){
         addTitle(QString::fromUtf8("设置界面"),ArchiveContentPadding,18);
-        addText(QString::fromUtf8("打开设置界面，可以调整工作区长度、程序运行速度。"),
+        addText(QString::fromUtf8("打开设置界面，可以调整工作区长度、R-07 的执行速度。"),
             ArchiveContentPadding,70,360,70);
 
         addTitle(QString::fromUtf8("时间"),ArchiveContentPadding,145);
@@ -749,7 +751,7 @@ void ArchivePage::showArchivePage(int index){
             ArchiveContentPadding,197,390,112);
 
         addTitle(QString::fromUtf8("使用等待"),ArchiveContentPadding,318);
-        addText(QString::fromUtf8("在运行中使用等待积木可以观察地刺移动规律。"),
+        addText(QString::fromUtf8("在运行中使用等待指令可以观察地刺移动规律。"),
             ArchiveContentPadding,370,390,60);
 
         addTitle(QString::fromUtf8("提示"),455,145);
@@ -788,7 +790,7 @@ void ArchivePage::showArchivePage(int index){
 
         addTitle(QString::fromUtf8("学习条件"),ArchiveContentPadding,148);
         addText(QString::fromUtf8(
-            "“如果”会在条件不为 0 时执行内部积木。“当”会在条件不为 0 时重复执行内部积木。"),
+            "“如果”会在条件不为 0 时执行内部积木。\n“当”会在条件不为 0 时重复执行内部积木。"),
             ArchiveContentPadding,196,390,84);
         auto* controlPreview=new ArchiveBlockPreview({
             {QString::fromUtf8("如果"),QColor(54,92,122),true,true,
@@ -800,7 +802,7 @@ void ArchivePage::showArchivePage(int index){
 
         addTitle(QString::fromUtf8("学习交互"),ArchiveContentPadding,330);
         addText(QString::fromUtf8(
-            "坐标积木返回机器人当前位置。前方能否通行在前方可通行时返回 1，否则返回 0。"),
+            "坐标传感器返回 R-07 当前位置。前方能否通行在前方可通行时返回 1，否则返回 0。"),
             ArchiveContentPadding,378,390,78);
         auto* interactPreview=new ArchiveBlockPreview({
             {QString::fromUtf8("当前 x 坐标"),QColor(42,86,150),true,true,
@@ -888,7 +890,7 @@ void ArchivePage::showArchivePage(int index){
 
         addTitle(QString::fromUtf8("学习存档"),ArchiveContentPadding,270);
         addText(QString::fromUtf8(
-            "编辑区右上角有保存和读档按钮。题目难度较大时，可以先保存当前代码，之后再读取继续尝试。"),
+            "控制台右上角有保存和读档按钮。题目难度较大时，可以先保存当前程序，之后再读取继续尝试。"),
             ArchiveContentPadding,318,390,95);
 
         showChildren();
@@ -898,8 +900,8 @@ void ArchivePage::showArchivePage(int index){
     if(index==5){
         addTitle(QString::fromUtf8("学习自定义积木"),ArchiveContentPadding,20);
         addText(QString::fromUtf8(
-            "把重复出现的动作写成自定义积木。\n"
-            "自定义的积木会加入到工具箱，可以方便调用。"),
+            "把重复出现的动作记录成自定义积木。\n"
+            "自定义积木会加入到工具箱，可以方便调用。"),
             ArchiveContentPadding,72,390,112);
 
         const QColor customColor(82,45,122);
@@ -955,7 +957,7 @@ void ArchivePage::showArchivePage(int index){
 
         addTitle(QString::fromUtf8("学习取余"),ArchiveContentPadding,318);
         addText(QString::fromUtf8(
-            "floor 积木返回浮点数向下取整的结果。\n 例如x =3.1时floor(x)返回3\n"
+            "floor 指令返回浮点数向下取整的结果。\n 例如x =3.1时floor(x)返回3\n"
             "取余可以用：a-b*floor(a/b)"),
             ArchiveContentPadding,366,390,92);
         auto* floorPreview=new ArchiveBlockPreview({
@@ -987,7 +989,7 @@ void ArchivePage::showArchivePage(int index){
 
     if(index==7){
         addTitle(QString::fromUtf8("学习输出"),ArchiveContentPadding,18);
-        addText(QString::fromUtf8("输出积木可以在运行时输出某个值，方便运行时调试程序。"),
+        addText(QString::fromUtf8("输出指令可以在运行时输出某个值，方便检查 R-07 的状态。"),
             ArchiveContentPadding,66,390,72);
         auto* outputPreview=new ArchiveBlockPreview({
             {QString::fromUtf8("输出"),QColor(130,76,180),true,true,ArchiveBlockKind::FloatCode,
@@ -1016,7 +1018,7 @@ void ArchivePage::showArchivePage(int index){
         return;
     }
 
-    QLabel* title=new QLabel(QString::fromUtf8("如何写一个完整的程序"),contentPanel);
+    QLabel* title=new QLabel(QString::fromUtf8("如何控制 R-07"),contentPanel);
     title->setGeometry(ArchiveContentPadding,20,ArchiveTextWidth,ArchiveTitleHeight);
     title->setStyleSheet(
         "QLabel { color: white; font-family: 'Microsoft YaHei'; font-size: 28px; font-weight: bold; }");
@@ -1026,8 +1028,8 @@ void ArchivePage::showArchivePage(int index){
     text->setWordWrap(true);
     text->setAlignment(Qt::AlignLeft|Qt::AlignTop);
     text->setText(QString::fromUtf8(
-        "程序必须从“开始”积木块开始顺序运行，直到“结束”积木块结束。\n\n"
-        "如右侧代码完成了向左侧移动一步："));
+        "使用积木块搭建程序来控制R-07\n流程必须从“开始”顺序运行，直到“结束”收尾。\n\n"
+        "如右侧程序完成了向左侧移动一步："));
     text->setStyleSheet(
         "QLabel { color: white; font-family: 'Microsoft YaHei'; font-size: 20px; line-height: 150%; }");
 
@@ -1045,7 +1047,7 @@ void ArchivePage::showArchivePage(int index){
         ArchiveProgramPreviewHeight
     );
 
-    QLabel* moveTitle=new QLabel(QString::fromUtf8("移动积木"),contentPanel);
+    QLabel* moveTitle=new QLabel(QString::fromUtf8("移动控制"),contentPanel);
     moveTitle->setGeometry(ArchiveContentPadding,250,ArchiveTextWidth,36);
     moveTitle->setStyleSheet(
         "QLabel { color: white; font-family: 'Microsoft YaHei'; font-size: 24px; font-weight: bold; }");

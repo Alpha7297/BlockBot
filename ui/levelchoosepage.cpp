@@ -103,7 +103,7 @@ void LevelChoosePage::init()
         levels[i]->move(levelPositions[i]);// 搬移到背景图对应的管道口位置
         // 根据 unlockedLevel 判断关卡状态并上色
         QString templateURL=loadAsset(QString("images/background/level%1_small.png").arg(levelNum));
-        const bool locked=levelNum>unlockedLevel;
+        const bool locked=levelNum>std::min(unlockedLevel,level::TotalLevelCount);
         if (false) {
             // 【状态 A：已通关】显示正常缩略图
         }
@@ -193,7 +193,7 @@ void LevelChoosePage::loadProcess(){
         needsRewrite=true;
     }
     unlockedLevel=std::max(level::MinLevelNumber,
-                             std::min(unlockedLevel,level::TotalLevelCount));
+                             std::min(unlockedLevel,level::TotalLevelCount+1));
     if(needsRewrite){
         writeLevelSave(unlockedLevel);
     }
@@ -210,5 +210,24 @@ void LevelChoosePage::saveProcess()
 void LevelChoosePage::upgradeLevelUnlocked(int levelNumber)
 {
     int levelNow=loadLevel();
+    if(levelNow<level::MinLevelNumber){
+        levelNow=level::MinLevelNumber;
+    }
+    levelNumber=std::max(level::MinLevelNumber,
+                         std::min(levelNumber,level::TotalLevelCount+1));
     if(levelNumber>levelNow)writeLevelSave(levelNumber);
+}
+
+bool LevelChoosePage::isLevelPassed(int levelNumber)
+{
+    int levelNow=loadLevel();
+    if(levelNow<level::MinLevelNumber){
+        levelNow=level::MinLevelNumber;
+    }
+    return levelNow>levelNumber;
+}
+
+bool LevelChoosePage::hasProgressSave()
+{
+    return QFileInfo::exists(levelSaveFilePath());
 }

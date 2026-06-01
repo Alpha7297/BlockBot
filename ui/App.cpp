@@ -56,6 +56,7 @@
 #include "../level/Level.h"
 #include "../level/LevelConstants.h"
 #include "../message/Message.h"
+#include "../tale/TaleWindow.h"
 #include "SettingsDialog.h"
 #include "parameter.h"
 #include "MainWindow.h"
@@ -113,6 +114,88 @@ bool runtimeCodeSnapshotActive=false;
 QString runtimeSnapshotError;
 bool runtimeEndReached=false;
 bool runtimeWaitActionFrame=false;
+QWidget* activeTaleWindow=nullptr;
+
+tale::TaleScene taleStartSceneForLevel(int levelNumber){
+    switch(levelNumber){
+    case 1:return tale::TaleScene::Level1Start;
+    case 2:return tale::TaleScene::Level2Start;
+    case 3:return tale::TaleScene::Level3Start;
+    case 4:return tale::TaleScene::Level4Start;
+    case 5:return tale::TaleScene::Level5Start;
+    case 6:return tale::TaleScene::Level6Start;
+    case 7:return tale::TaleScene::Level7Start;
+    case 8:return tale::TaleScene::Level8Start;
+    case 9:return tale::TaleScene::Level9Start;
+    default:return tale::TaleScene::Start;
+    }
+}
+
+tale::TaleScene taleLoseSceneForLevel(int levelNumber){
+    switch(levelNumber){
+    case 1:return tale::TaleScene::Level1Lose;
+    case 2:return tale::TaleScene::Level2Lose;
+    case 3:return tale::TaleScene::Level3Lose;
+    case 4:return tale::TaleScene::Level4Lose;
+    case 5:return tale::TaleScene::Level5Lose;
+    case 6:return tale::TaleScene::Level6Lose;
+    case 7:return tale::TaleScene::Level7Lose;
+    case 8:return tale::TaleScene::Level8Lose;
+    case 9:return tale::TaleScene::Level9CoreFailure;
+    default:return tale::TaleScene::Start;
+    }
+}
+
+tale::TaleScene taleWinSceneForResult(int levelNumber,const level::TestResult& result){
+    if(levelNumber==9){
+        QString message=QString::fromStdString(result.message);
+        if(message.contains(QString::fromUtf8("孤独逃离"))){
+            return tale::TaleScene::Level9EscapeOnly;
+        }
+        if(message.contains(QString::fromUtf8("日志成功"))){
+            return tale::TaleScene::Level9SendOnly;
+        }
+        return tale::TaleScene::Level9Complete;
+    }
+    switch(levelNumber){
+    case 1:return tale::TaleScene::Level1Win;
+    case 2:return tale::TaleScene::Level2Win;
+    case 3:return tale::TaleScene::Level3Win;
+    case 4:return tale::TaleScene::Level4Win;
+    case 5:return tale::TaleScene::Level5Win;
+    case 6:return tale::TaleScene::Level6Win;
+    case 7:return tale::TaleScene::Level7Win;
+    case 8:return tale::TaleScene::Level8Win;
+    default:return tale::TaleScene::Start;
+    }
+}
+
+void showTaleScene(tale::TaleScene scene,std::function<void()> onClosed={}){
+    QWidget* window=tale::createTaleWindow(scene,[onClosed=std::move(onClosed)](){
+        activeTaleWindow=nullptr;
+        if(onClosed){
+            onClosed();
+        }
+    });
+    activeTaleWindow=window;
+    window->show();
+    window->raise();
+    window->activateWindow();
+}
+
+bool askEnterTale(const QString& text){
+    return QMessageBox::question(nullptr,
+        QString::fromUtf8("剧情"),
+        text,
+        QMessageBox::Yes|QMessageBox::No,
+        QMessageBox::Yes)==QMessageBox::Yes;
+}
+
+void maybeShowTaleScene(tale::TaleScene scene,bool force,const QString& question){
+    if(force||askEnterTale(question)){
+        showTaleScene(scene);
+    }
+}
 
 void recordRuntimeStepUse(){
     if(runtimeCountersActive){
@@ -300,9 +383,9 @@ QPixmap trimTransparentPixmap(const QPixmap& pixmap){
 }
 
 void addHeaderLogo(QGraphicsScene& scene){
-    QPixmap logoPixmap=trimTransparentPixmap(loadImageAsset("logo-flatten.png"));
+    QPixmap logoPixmap=trimTransparentPixmap(loadImageAsset("console.png"));
     if(!logoPixmap.isNull()){
-        constexpr int logoHeight=48;
+        constexpr int logoHeight=60;
         int logoWidth=int(std::round(double(logoPixmap.width())*logoHeight/logoPixmap.height()));
         QGraphicsPixmapItem* logoImage=scene.addPixmap(
             logoPixmap.scaled(logoWidth,logoHeight,Qt::KeepAspectRatio,Qt::SmoothTransformation)
@@ -7042,6 +7125,9 @@ void finishLevelTest(bool forcedFail,const QString& message){
                 .arg(levelTestCaseIndex+1):
             message;
         QMessageBox::warning(nullptr,"测试结果",text);
+        maybeShowTaleScene(taleLoseSceneForLevel(levelNumberNow),
+            false,
+            QString::fromUtf8("测试失败。是否进入失败剧情？"));
         return;
     }
     level::TestResult result=level::testActiveLevelCase(levelTestCaseIndex,
@@ -7053,10 +7139,14 @@ void finishLevelTest(bool forcedFail,const QString& message){
         updateTestStatusText();
         QMessageBox::warning(nullptr,"测试结果",
             QString::fromStdString(result.message));
+        maybeShowTaleScene(taleLoseSceneForLevel(levelNumberNow),
+            false,
+            QString::fromUtf8("测试失败。是否进入失败剧情？"));
         return;
     }
     levelTestCaseIndex++;
     if(levelTestCaseIndex>=levelTestCaseTotal){
+        bool alreadyPassed=LevelChoosePage::isLevelPassed(levelNumberNow);
         clearRuntimeCodeSnapshot();
         levelTestRunning=false;
         resetRunButtons();
@@ -7064,6 +7154,9 @@ void finishLevelTest(bool forcedFail,const QString& message){
         LevelChoosePage::upgradeLevelUnlocked(levelNumberNow+1);
         QMessageBox::information(nullptr,"测试结果",
             QString("%1 次测试都已通过").arg(levelTestCaseTotal));
+        maybeShowTaleScene(taleWinSceneForResult(levelNumberNow,result),
+            !alreadyPassed,
+            QString::fromUtf8("该关卡此前已经通过。是否进入胜利剧情？"));
         return;
     }
     QString successText=result.message.empty()?
@@ -8006,8 +8099,20 @@ void LevelChoosePage::onStartButtonClicked()
     {
         levelNumber=Slender->property("levelNumber").toInt();
     }
+    if(levelNumber<level::MinLevelNumber||levelNumber>level::TotalLevelCount){
+        return;
+    }
     levelNumberNow=levelNumber;
-    startLevel(levelNumber);
+    auto enterLevel=[this,levelNumber](){
+        startLevel(levelNumber);
+    };
+    bool alreadyPassed=LevelChoosePage::isLevelPassed(levelNumber);
+    if(alreadyPassed&&!askEnterTale(QString::fromUtf8("该关卡此前已经通过。是否进入开场剧情？"))){
+        enterLevel();
+        return;
+    }
+    hide();
+    showTaleScene(taleStartSceneForLevel(levelNumber),enterLevel);
 }
 
 void LevelChoosePage::startLevel(int levelNumber)

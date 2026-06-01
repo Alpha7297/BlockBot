@@ -63,11 +63,11 @@ QString chineseLevelTitle(int levelNumber){
 QString hintTextForLevel(int levelNumber){
     static const QString hints[]={
         QString::fromUtf8(
-            "你需要编写代码，控制R-07从起点移动到终点\n"
-            "在档案1学习如何控制机器人"
+            "你需要通过控制台，控制R-07从起点移动到终点\n"
+            "在档案1学习如何控制 R-07"
         ),
         QString::fromUtf8(
-            "地刺会周期性出现，你需要观察规律控制机器人从起点到达终点\n"
+            "地刺会周期性出现，你需要观察规律，控制R-07从起点到达终点\n"
             "在档案2学习如何观察关卡"
         ),
         QString::fromUtf8(
@@ -76,14 +76,14 @@ QString hintTextForLevel(int levelNumber){
             "在档案3学习条件语句与前方能否通行"
         ),
         QString::fromUtf8(
-            "四个侦察机器人每帧都会顺时针转动\n你需要编写代码控制机器人到达终点，并不被侦察机器人发现\n\n"
+            "四个侦察机器人每帧都会顺时针转动\n你需要通过控制台让R-07到达终点，不被侦察机器人发现\n\n"
             "档案4学习运算与变量\n"
             "注意机器人的侦测器无法分辨前方是激光还是可通行地面"
         ),
         QString::fromUtf8(
-            "这一关你需要控制机器人走过迷宫到达终点\n\n"
+            "这一关你需要控制 R-07 走过迷宫到达终点\n\n"
             "档案5学习列表与存档\n"
-            "档案6学习自定义积木\n"
+            "档案6学习自定义控制方式\n"
             "在档案7学习哈希和取余"
         ),
         QString::fromUtf8(

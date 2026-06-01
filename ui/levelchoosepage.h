@@ -25,6 +25,8 @@ public:
     int totalLevels=9;
     void startLevel(int levelNumber);
     static void upgradeLevelUnlocked(int levelNumber);
+    static bool isLevelPassed(int levelNumber);
+    static bool hasProgressSave();
 signals:
     void pageClosed();
 private slots:
