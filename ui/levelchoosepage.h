@@ -35,10 +35,13 @@ private:
     AppGraphicsView *view=nullptr;
     QGraphicsScene *scene=nullptr;
     std::vector<QPushButton*>levels;
+    bool closingToEditor=false;
 protected:
     void closeEvent(QCloseEvent *event)override
     {
-        emit pageClosed();
+        if(!closingToEditor){
+            emit pageClosed();
+        }
         QDialog::closeEvent(event);
     }
 };

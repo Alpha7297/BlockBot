@@ -456,7 +456,7 @@ void configureMapLevel(int levelNumber,bool regenerateDynamicMaps){
         }
         DataTestCase c;
         c.inputVariables["天线稳定度"]=0;
-        c.inputVariables["门稳定度"]=0;
+        c.inputVariables["阀门稳定度"]=0;
         c.inputVariables["冷却值"]=30;
         currentLevel.setInputCases({c});
     }
@@ -730,12 +730,22 @@ void LevelConfig::prepareTestCase(int index,core::RuntimeState& runtime) const{
 
 TestResult LevelConfig::runTestCase(int index,const TestContext& context) const{
     if(currentLevelNumber==9){
-        double door=runtimeVariableValue(context.runtime,"门稳定度",0.0);
+        double door=runtimeVariableValue(context.runtime,"阀门稳定度",0.0);
         double antenna=runtimeVariableValue(context.runtime,"天线稳定度",0.0);
         bool doorReady=door>=4.0;
         bool antennaReady=antenna>=5.0;
+        bool overtime=context.time>60;
         if(!doorReady&&!antennaReady){
-            return {false,"测试失败：门稳定度和天线稳定度都没有达标。"};
+            return {false,"测试失败：阀门稳定度和天线稳定度都没有达标。"};
+        }
+        if(overtime){
+            if(doorReady&&!antennaReady){
+                return {true,"孤独逃离：超过 60 帧，闸门已经打开，但日志没有发送。"};
+            }
+            if(!doorReady&&antennaReady){
+                return {true,"日志成功：超过 60 帧，日志已经发送，但闸门没有打开。"};
+            }
+            return {false,"测试失败：超过 60 帧，未在时间窗口内完成第九关目标。"};
         }
         if(doorReady&&!antennaReady){
             return {true,"孤独逃离：闸门已经打开，但日志没有发送。"};
@@ -940,7 +950,7 @@ FreshResult fresh(const TestContext& context){
     if(currentLevelNumber==9){
         resetLevel9DeviceCells();
         double cooling=runtimeVariableValue(context.runtime,"冷却值",30.0)-1.0;
-        double door=runtimeVariableValue(context.runtime,"门稳定度",0.0);
+        double door=runtimeVariableValue(context.runtime,"阀门稳定度",0.0);
         double antenna=runtimeVariableValue(context.runtime,"天线稳定度",0.0);
 
         int deviceX=-1;
@@ -962,20 +972,23 @@ FreshResult fresh(const TestContext& context){
         }
         if(context.waited&&hasDevice){
             if(deviceCell==CellValve){
-                cooling+=5.0;
+                door+=1.0;
             }
             else if(deviceCell==CellLiquid){
-                door+=1.0;
+                cooling+=5.0;
             }
             else if(deviceCell==CellAntenna){
                 antenna+=1.0;
             }
         }
         forceRuntimeVariable(context.runtime,"冷却值",cooling);
-        forceRuntimeVariable(context.runtime,"门稳定度",door);
+        forceRuntimeVariable(context.runtime,"阀门稳定度",door);
         forceRuntimeVariable(context.runtime,"天线稳定度",antenna);
         if(cooling<0.0){
             return {false,true,"测试失败：冷却值低于 0。"};
+        }
+        if(context.time>60||(door>=4.0&&antenna>=5.0)){
+            return {true,false,""};
         }
     }
     int robotCell=currentLevel.mapCell(context.robot.x,context.robot.y);

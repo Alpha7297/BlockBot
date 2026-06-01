@@ -1021,7 +1021,7 @@ void ArchivePage::showArchivePage(int index){
     QLabel* title=new QLabel(QString::fromUtf8("如何控制 R-07"),contentPanel);
     title->setGeometry(ArchiveContentPadding,20,ArchiveTextWidth,ArchiveTitleHeight);
     title->setStyleSheet(
-        "QLabel { color: white; font-family: 'Microsoft YaHei'; font-size: 28px; font-weight: bold; }");
+        "QLabel { color: white; font-family: 'Microsoft YaHei'; font-size: 24px; font-weight: bold; }");
 
     QLabel* text=new QLabel(contentPanel);
     text->setGeometry(ArchiveContentPadding,76,ArchiveTextWidth,ArchiveTextHeight);

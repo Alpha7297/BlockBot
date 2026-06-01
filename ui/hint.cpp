@@ -113,7 +113,11 @@ QString hintTextForLevel(int levelNumber){
             "最终危险位置为 2 和 4。"
         ),
         QString::fromUtf8(
-            "请你综合考虑三个不同的目标，争取同时完成"
+            "请你综合考虑三个不同的目标，争取同时完成\n\n"
+            "总时间不超过 60 帧，才能进入完美结局\n"
+            "阀门稳定度达到 4，打开大门让 R-07 离开工厂\n"
+            "天线稳定度达到 5，把事故日志发送出去\n"
+            "冷却值保持不低于 0，避免核心过载"
         )
     };
     if(levelNumber<1||levelNumber>9){

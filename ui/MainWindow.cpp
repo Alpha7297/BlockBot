@@ -114,6 +114,10 @@ void MainWindow::onLevelButtonClicked()
 }
 void MainWindow::onChooseLevelPageClosed()
 {
+    if(levelChoosePage!=nullptr){
+        levelChoosePage->deleteLater();
+        levelChoosePage=nullptr;
+    }
     if(centralWidget()!=nullptr){
         centralWidget()->show();
     }

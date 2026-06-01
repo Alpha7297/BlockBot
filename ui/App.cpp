@@ -197,6 +197,11 @@ void maybeShowTaleScene(tale::TaleScene scene,bool force,const QString& question
     }
 }
 
+bool shouldKeepLevel9ProgressAtCurrentLevel(tale::TaleScene scene){
+    return scene==tale::TaleScene::Level9EscapeOnly||
+           scene==tale::TaleScene::Level9SendOnly;
+}
+
 void recordRuntimeStepUse(){
     if(runtimeCountersActive){
         levelTestStepCount++;
@@ -2352,10 +2357,11 @@ public:
 extern int mapdata[screensize][screensize];
 extern Robot* player;
 
-bool isPassableMapCell(int cell){
+bool isMovableMapCell(int cell){
     return cell==level::CellEmpty||
            cell==level::CellStart||
            cell==level::CellPlate||
+           cell==level::CellSpikeUp||
            cell==level::CellSpikeDown||
            cell==level::CellLightG||
            cell==level::CellLightR||
@@ -2365,8 +2371,12 @@ bool isPassableMapCell(int cell){
            cell==level::CellEnd;
 }
 
+bool isSensorPassableMapCell(int cell){
+    return isMovableMapCell(cell)&&cell!=level::CellSpikeUp;
+}
+
 bool isBlockingMapCell(int cell){
-    return !isPassableMapCell(cell);
+    return !isMovableMapCell(cell);
 }
 
 int frontMapType(){
@@ -2390,7 +2400,7 @@ int frontMapType(){
     if(x<0||x>=currentMapWidth()||y<0||y>=currentMapHeight()){
         return 0;
     }
-    return isPassableMapCell(mapdata[x][y])?1:0;
+    return isSensorPassableMapCell(mapdata[x][y])?1:0;
 }
 
 class RobotCoordBlock:public FloatBlock{
@@ -7147,16 +7157,20 @@ void finishLevelTest(bool forcedFail,const QString& message){
     levelTestCaseIndex++;
     if(levelTestCaseIndex>=levelTestCaseTotal){
         bool alreadyPassed=LevelChoosePage::isLevelPassed(levelNumberNow);
+        tale::TaleScene winScene=taleWinSceneForResult(levelNumberNow,result);
+        bool keepCurrentLevel=levelNumberNow==9&&shouldKeepLevel9ProgressAtCurrentLevel(winScene);
         clearRuntimeCodeSnapshot();
         levelTestRunning=false;
         resetRunButtons();
         updateTestStatusText();
-        LevelChoosePage::upgradeLevelUnlocked(levelNumberNow+1);
+        if(!keepCurrentLevel){
+            LevelChoosePage::upgradeLevelUnlocked(levelNumberNow+1);
+        }
         QMessageBox::information(nullptr,"测试结果",
             QString("%1 次测试都已通过").arg(levelTestCaseTotal));
-        maybeShowTaleScene(taleWinSceneForResult(levelNumberNow,result),
+        maybeShowTaleScene(winScene,
             !alreadyPassed,
-            QString::fromUtf8("该关卡此前已经通过。是否进入胜利剧情？"));
+            QString::fromUtf8("该关卡此前已经通过。是否进入结局剧情？"));
         return;
     }
     QString successText=result.message.empty()?
@@ -8148,13 +8162,16 @@ void LevelChoosePage::startLevel(int levelNumber)
         QGraphicsScene* closedScene=scene;
         view=nullptr;
         scene=nullptr;
+        closingToEditor=false;
         if(closedView!=nullptr){
             closedView->deleteLater();
         }
         if(closedScene!=nullptr){
             closedScene->deleteLater();
         }
+        emit pageClosed();
     };
+    closingToEditor=true;
     close();
     view->show();
 }
