@@ -47,14 +47,15 @@
 #include <vector>
 
 #include "App.h"
+#include "hint.h"
 #include "UiConstants.h"
 #include "Widgets.h"
 #include "../core/Runtime.h"
 #include "../level/Level.h"
 #include "../level/LevelConstants.h"
 #include "../message/Message.h"
-#include "../settings/SettingsDialog.h"
-#include "../settings/parameter.h"
+#include "SettingsDialog.h"
+#include "parameter.h"
 #include "MainWindow.h"
 using std::vector;
 using std::function;
@@ -109,6 +110,7 @@ std::map<QString,CustomHatBlock*> runtimeCustomHatBlocks;
 bool runtimeCodeSnapshotActive=false;
 QString runtimeSnapshotError;
 bool runtimeEndReached=false;
+bool runtimeWaitActionFrame=false;
 
 void recordRuntimeStepUse(){
     if(runtimeCountersActive){
@@ -139,6 +141,7 @@ void recordRuntimeTimeUse(){
         if(level::activeLevelType()==level::LevelType::Map){
             runtimeState.forceSetVariable("time",levelTestTimeCount,true);
             level::FreshResult freshResult=level::fresh(currentLevelTestContext());
+            runtimeWaitActionFrame=false;
             syncMapDataFromActiveLevel();
             updateStageGeometry();
             if(freshResult.reachedGoal){
@@ -251,6 +254,9 @@ QPixmap loadPaintingAsset(const QString& fileName){
     }
     return QPixmap();
 }
+
+
+
 
 qreal scaledAssetHeight(const QString& fileName,qreal targetWidth,qreal fallbackHeight){
     QPixmap pixmap=loadImageAsset(fileName);
@@ -466,6 +472,7 @@ public:
         event->accept();
     }
 };
+
 
 class ContextMenuButton:public Button{
 public:
@@ -2095,6 +2102,8 @@ int currentMapSide(){
     return std::max(currentMapWidth(),currentMapHeight());
 }
 
+bool isBlockingMapCell(int cell);
+
 class Robot:public QGraphicsPixmapItem{
 public:
     int gridx;
@@ -2196,7 +2205,7 @@ public:
             return;
         }
         int cell=mapdata[newx][newy];
-        if(cell==level::CellWall){
+        if(isBlockingMapCell(cell)){
             return;
         }
         gridx=newx;
@@ -2210,6 +2219,19 @@ public:
 
 extern int mapdata[screensize][screensize];
 extern Robot* player;
+
+bool isPassableMapCell(int cell){
+    return cell==level::CellEmpty||
+           cell==level::CellPlate||
+           cell==level::CellLightG||
+           cell==level::CellLightR||
+           cell==level::CellLightY||
+           cell==level::CellEnd;
+}
+
+bool isBlockingMapCell(int cell){
+    return !isPassableMapCell(cell);
+}
 
 int frontMapType(){
     if(player==nullptr){
@@ -2232,7 +2254,7 @@ int frontMapType(){
     if(x<0||x>=currentMapWidth()||y<0||y>=currentMapHeight()){
         return 1;
     }
-    return mapdata[x][y]==level::CellWall?1:0;
+    return isBlockingMapCell(mapdata[x][y])?1:0;
 }
 
 class RobotCoordBlock:public FloatBlock{
@@ -2322,6 +2344,7 @@ public:
     }
 
     void waitFrames(double) override{
+        runtimeWaitActionFrame=true;
     }
 
     void setVariable(const std::string& name,double value) override{
@@ -2464,6 +2487,7 @@ QGraphicsRectItem* stage;
 QGraphicsRectItem* toolboxBackground;
 QGraphicsRectItem* workspaceBackground;
 QGraphicsRectItem* squares[screensize][screensize];
+QGraphicsPixmapItem* platePairImages[screensize][screensize];
 Button* runButton=nullptr;
 Button* fastRunButton=nullptr;
 TextButton* runTextButton=nullptr;
@@ -2480,6 +2504,8 @@ TextButton* createVariableButton=nullptr;
 TextButton* createListButton=nullptr;
 TextButton* createCustomBlockButton=nullptr;
 TextButton* exitButton=nullptr;
+TextButton* levelInfoButton=nullptr;
+LevelHintPanel* levelInfoPanel=nullptr;
 ScrollSlider* toolboxSlider=nullptr;
 ScrollSlider* workspaceSlider=nullptr;
 vector<CodeBlock*> codeBlocks;
@@ -2512,6 +2538,7 @@ void resetSceneGlobals(){
     for(int i=0;i<screensize;i++){
         for(int j=0;j<screensize;j++){
             squares[i][j]=nullptr;
+            platePairImages[i][j]=nullptr;
         }
     }
     runButton=nullptr;
@@ -2530,6 +2557,8 @@ void resetSceneGlobals(){
     createListButton=nullptr;
     createCustomBlockButton=nullptr;
     exitButton=nullptr;
+    levelInfoButton=nullptr;
+    levelInfoPanel=nullptr;
     toolboxSlider=nullptr;
     workspaceSlider=nullptr;
     codeBlocks.clear();
@@ -2747,11 +2776,13 @@ std::map<int,QBrush> buildCellBrushes(int cellSize){
     brushes[level::CellScope4]=rotatedCellBrush("scope.png",brushes[level::CellEmpty],cellSize,90);
     brushes[level::CellBeam1]=scaledCellBrush("beam.png",brushes[level::CellEmpty],cellSize);
     brushes[level::CellBeam2]=rotatedCellBrush("beam.png",brushes[level::CellEmpty],cellSize,90);
-    brushes[level::CellLiquid]=brushes[level::CellSpikeUp];
+    brushes[level::CellLiquid]=scaledCellBrush("liquid.png",brushes[level::CellEmpty],cellSize);
     brushes[level::CellPlate]=scaledCellBrush("plate.png",brushes[level::CellEmpty],cellSize);
     brushes[level::CellValve]=scaledCellBrush("valve.png",brushes[level::CellEmpty],cellSize);
     brushes[level::CellAntenna]=scaledCellBrush("antenna.png",brushes[level::CellEmpty],cellSize);
     brushes[level::CellAntenna2]=scaledCellBrush("antenna2.png",brushes[level::CellEmpty],cellSize);
+    brushes[level::CellLiquid2]=scaledCellBrush("liquid2.png",brushes[level::CellEmpty],cellSize);
+    brushes[level::CellValve2]=scaledCellBrush("valve2.png",brushes[level::CellEmpty],cellSize);
     cache[cellSize]=brushes;
     return brushes;
 }
@@ -2763,6 +2794,76 @@ QBrush brushForCell(int cell,const std::map<int,QBrush>& brushes){
     }
     auto floorIt=brushes.find(level::CellEmpty);
     return floorIt==brushes.end()?QBrush(Qt::gray):floorIt->second;
+}
+
+QString platePairAssetForCells(int deviceCell,int plateCell){
+    if(plateCell!=level::CellPlate){
+        return QString();
+    }
+    if(deviceCell==level::CellValve){
+        return QStringLiteral("valve-plate1.png");
+    }
+    if(deviceCell==level::CellValve2){
+        return QStringLiteral("valve-plate2.png");
+    }
+    if(deviceCell==level::CellLiquid){
+        return QStringLiteral("liquid-plate1.png");
+    }
+    if(deviceCell==level::CellLiquid2){
+        return QStringLiteral("liquid-plate2.png");
+    }
+    if(deviceCell==level::CellAntenna){
+        return QStringLiteral("antenna-plate1.png");
+    }
+    if(deviceCell==level::CellAntenna2){
+        return QStringLiteral("antenna-plate2.png");
+    }
+    return QString();
+}
+
+void updatePlatePairImages(QPoint origin,int cellSize,qreal baseZ){
+    for(int i=0;i<screensize;i++){
+        for(int j=0;j<screensize;j++){
+            if(platePairImages[i][j]!=nullptr){
+                platePairImages[i][j]->setVisible(false);
+            }
+        }
+    }
+    int mapWidth=currentMapWidth();
+    int mapHeight=currentMapHeight();
+    for(int x=0;x+1<mapWidth;x++){
+        for(int y=0;y<mapHeight;y++){
+            QString asset=platePairAssetForCells(mapdata[x][y],mapdata[x+1][y]);
+            if(asset.isEmpty()){
+                continue;
+            }
+            if(squares[x][y]!=nullptr){
+                squares[x][y]->setVisible(false);
+            }
+            if(squares[x+1][y]!=nullptr){
+                squares[x+1][y]->setVisible(false);
+            }
+            if(platePairImages[x][y]==nullptr&&appScene!=nullptr){
+                platePairImages[x][y]=appScene->addPixmap(QPixmap());
+            }
+            QGraphicsPixmapItem* item=platePairImages[x][y];
+            if(item==nullptr){
+                continue;
+            }
+            QPixmap pixmap=loadImageAsset(asset);
+            if(!pixmap.isNull()){
+                item->setPixmap(pixmap.scaled(
+                    cellSize*2,
+                    cellSize,
+                    Qt::IgnoreAspectRatio,
+                    Qt::SmoothTransformation
+                ));
+            }
+            item->setPos(origin.x()+x*cellSize,origin.y()+y*cellSize);
+            item->setZValue(baseZ+2);
+            item->setVisible(true);
+        }
+    }
 }
 
 void updateStageGeometry(){
@@ -2796,6 +2897,7 @@ void updateStageGeometry(){
             squares[i][j]->setZValue(baseZ+1);
         }
     }
+    updatePlatePairImages(origin,cellSize,baseZ);
     if(player!=nullptr){
         player->setZValue(baseZ+10);
         player->SyncCell(cellSize,origin);
@@ -2894,6 +2996,7 @@ AppGraphicsView::AppGraphicsView(QGraphicsScene* scene):QGraphicsView(scene)
             return;
         }
 
+        runtimeWaitActionFrame=false;
         bool stepped=executorPtr->step(readRuntimeBlock,*robotActions);
         if(executorPtr->didConsumeActionStep()){
             recordRuntimeTimeUse();
@@ -6725,6 +6828,7 @@ level::TestContext currentLevelTestContext(){
     context.runtime=&runtimeState;
     context.steps=levelTestStepCount;
     context.time=levelTestTimeCount;
+    context.waited=runtimeWaitActionFrame;
     return context;
 }
 
@@ -6776,8 +6880,10 @@ void finishLevelTest(bool forcedFail,const QString& message){
         resetRunButtons();
         updateTestStatusText();
         LevelChoosePage::upgradeLevelUnlocked(levelNumberNow+1);
-        QMessageBox::information(nullptr,"测试结果",
-            QString("所有 %1 个测试样例都已通过").arg(levelTestCaseTotal));
+        QString successText=result.message.empty()?
+            QString("所有 %1 个测试样例都已通过").arg(levelTestCaseTotal):
+            QString::fromStdString(result.message);
+        QMessageBox::information(nullptr,"测试结果",successText);
         return;
     }
     beginLevelTestCase(levelTestCaseIndex);
@@ -6983,6 +7089,18 @@ bool isFirstLevelRestrictedToolbox(){
     return level::activeLevelNumber()==1;
 }
 
+bool toolboxAllowsWaitBlock(){
+    return level::activeLevelNumber()>=2;
+}
+
+bool toolboxAllowsAdvancedBlocks(){
+    return level::activeLevelNumber()>=3;
+}
+
+bool toolboxAllowsCustomBlocks(){
+    return level::activeLevelNumber()>=4;
+}
+
 int runtimeIntervalForBlockType(int blockType){
     return isRuntimeActionBlockType(blockType)
         ? settings::RuntimeActionBlockIntervalMs
@@ -7103,6 +7221,7 @@ void drawStage(QGraphicsScene& scene){
     for(int i=0;i<screensize;i++){
         for(int j=0;j<screensize;j++){
             squares[i][j]=scene.addRect(0,0,cellSize,cellSize);
+            platePairImages[i][j]=nullptr;
             if(i>=mapWidth||j>=mapHeight){
                 squares[i][j]->setVisible(false);
             }
@@ -7207,7 +7326,7 @@ void drawStage(QGraphicsScene& scene){
     updateInformationGeometry();
     updateTestStatusText();
 
-    if(!isFirstLevelRestrictedToolbox()){
+    if(toolboxAllowsAdvancedBlocks()){
         createVariableButton=new TextButton("创建新变量");
         createVariableButton->setPos(10,577);
         createVariableButton->setFixedSize(160,scaledAssetHeight("create_variable.png",160,40));
@@ -7255,7 +7374,9 @@ void drawStage(QGraphicsScene& scene){
             refreshVariableToolbox();
         };
         scene.addItem(createListButton);
+    }
 
+    if(toolboxAllowsCustomBlocks()){
         createCustomBlockButton=new TextButton("创建自定义积木");
         createCustomBlockButton->setPos(10,657);
         createCustomBlockButton->setFixedSize(160,scaledAssetHeight("create_custom.png",160,40));
@@ -7445,6 +7566,27 @@ void drawStage(QGraphicsScene& scene){
     exitButton->text->hide();
     exitButton->setZValue(topUiZ);
     scene.addItem(exitButton);
+
+    levelInfoPanel=new LevelHintPanel();
+    levelInfoPanel->setPos((appWidth-800)/2,(appHeight-466)/2);
+    levelInfoPanel->setHintText(hintTextForLevel(level::activeLevelNumber()));
+    levelInfoPanel->setZValue(topUiZ+30);
+    levelInfoPanel->setVisible(false);
+    scene.addItem(levelInfoPanel);
+
+    levelInfoButton=new TextButton("信息");
+    levelInfoButton->setPos(80,10);
+    levelInfoButton->setFixedSize(60,60);
+    levelInfoButton->setBrush(fileButtonColor());
+    levelInfoButton->setTexture("icons/information.png");
+    levelInfoButton->text->hide();
+    levelInfoButton->setZValue(topUiZ);
+    levelInfoButton->onClick=[](){
+        if(levelInfoPanel!=nullptr){
+            levelInfoPanel->setVisible(!levelInfoPanel->isVisible());
+        }
+    };
+    scene.addItem(levelInfoButton);
 }
 
 void addPanelMasks(QGraphicsScene& scene,QRectF panelRect,bool protectStage=false){
@@ -7494,8 +7636,10 @@ void drawToolbox(QGraphicsScene& scene){
     addCode(new CodeBlock(0,"左转",true));
     addCode(new CodeBlock(1,"右转",true));
     addCode(new FloatCodeBlock(3,"向前移动",nullptr,true));
-    if(!isFirstLevelRestrictedToolbox()){
+    if(toolboxAllowsWaitBlock()){
         addCode(new FloatCodeBlock(4,"等待",nullptr,true));
+    }
+    if(toolboxAllowsAdvancedBlocks()){
         addCode(new OutputBlock("x",nullptr,true));
         addCode(new ControlCodeBlock(5,"如果",nullptr,true));
         addCode(new ControlCodeBlock(6,"当",nullptr,true));
@@ -7562,7 +7706,7 @@ void drawToolbox(QGraphicsScene& scene){
 
         refreshVariableToolbox();
     }
-    else{
+    if(!toolboxAllowsAdvancedBlocks()){
         variableToolboxStartY=y;
     }
     updateToolboxScrollRange();

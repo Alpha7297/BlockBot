@@ -14,6 +14,8 @@ qt_add_executable(BlockBot
     ui/ArchivePage.h
     ui/App.cpp
     ui/App.h
+    ui/hint.cpp
+    ui/hint.h
     ui/AppGraphicsView.h
     ui/MainWindow.cpp
     ui/MainWindow.h
@@ -28,9 +30,9 @@ qt_add_executable(BlockBot
     level/LevelConstants.h
     level/MazeGenerator.h
     level/mazeGernerator.cpp
-    settings/SettingsDialog.cpp
-    settings/SettingsDialog.h
-    settings/parameter.h
+    ui/SettingsDialog.cpp
+    ui/SettingsDialog.h
+    ui/parameter.h
     tale/TaleWindow.cpp
     tale/TaleWindow.h
     core/Runtime.cpp

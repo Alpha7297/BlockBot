@@ -87,7 +87,7 @@ public:
         fprintf(file,"\n");
         for(int i=1;i<=oldn;i++)
         {
-            fprintf(file,"1");
+            fprintf(file,"1 ");
             for(int j=1;j<=oldm;j++)
             {
                 if(Map[i][j]==1)fprintf(file,"1 ");

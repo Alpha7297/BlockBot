@@ -18,6 +18,7 @@
 #include <QWidget>
 
 #include <algorithm>
+#include <memory>
 #include <utility>
 #include <vector>
 
@@ -57,7 +58,7 @@ constexpr int ArchiveCostItemGap=6;
 constexpr int ArchiveControlTopHeight=35;
 constexpr int ArchiveControlInnerHeight=42;
 constexpr int ArchiveControlBottomHeight=20;
-constexpr int ArchiveUnlockedLevelByIndex[ArchiveMenuItemCount]={1,2,3,4,4,5,6,7};
+constexpr int ArchiveUnlockedLevelByIndex[ArchiveMenuItemCount]={1,2,3,3,3,4,4,7};
 
 enum class ArchiveBlockKind{
     Simple,
@@ -81,6 +82,59 @@ struct ArchiveBlock{
     QString timeCost;
     QString stepCost;
 };
+
+struct ArchiveExpr{
+    enum Kind{
+        Literal,
+        Value,
+        Unary,
+        Binary
+    };
+
+    Kind kind=Literal;
+    QString text;
+    QColor color=QColor(92,102,116);
+    std::shared_ptr<ArchiveExpr> left;
+    std::shared_ptr<ArchiveExpr> right;
+};
+
+std::shared_ptr<ArchiveExpr> archiveLiteral(const QString& text){
+    auto expr=std::make_shared<ArchiveExpr>();
+    expr->kind=ArchiveExpr::Literal;
+    expr->text=text;
+    expr->color=QColor(92,102,116);
+    return expr;
+}
+
+std::shared_ptr<ArchiveExpr> archiveValue(const QString& text,QColor color){
+    auto expr=std::make_shared<ArchiveExpr>();
+    expr->kind=ArchiveExpr::Value;
+    expr->text=text;
+    expr->color=color;
+    return expr;
+}
+
+std::shared_ptr<ArchiveExpr> archiveUnary(const QString& text,std::shared_ptr<ArchiveExpr> slot){
+    auto expr=std::make_shared<ArchiveExpr>();
+    expr->kind=ArchiveExpr::Unary;
+    expr->text=text;
+    expr->color=QColor(42,105,86);
+    expr->left=std::move(slot);
+    return expr;
+}
+
+std::shared_ptr<ArchiveExpr> archiveBinary(
+    const QString& text,
+    std::shared_ptr<ArchiveExpr> left,
+    std::shared_ptr<ArchiveExpr> right){
+    auto expr=std::make_shared<ArchiveExpr>();
+    expr->kind=ArchiveExpr::Binary;
+    expr->text=text;
+    expr->color=QColor(42,105,86);
+    expr->left=std::move(left);
+    expr->right=std::move(right);
+    return expr;
+}
 
 QPolygonF archiveBlockPolygon(qreal width,qreal height,bool topSocket,bool bottomTab){
     const qreal connectorRight=codeConnectorX+codeConnectorWidth;
@@ -446,6 +500,96 @@ private:
     QPixmap stepPixmap;
 };
 
+class ArchiveExpressionPreview:public QWidget{
+public:
+    explicit ArchiveExpressionPreview(std::shared_ptr<ArchiveExpr> expression,QWidget* parent=nullptr):
+        QWidget(parent),
+        expression(std::move(expression)){
+        setAttribute(Qt::WA_TransparentForMouseEvents);
+        setAttribute(Qt::WA_TranslucentBackground);
+    }
+
+protected:
+    void paintEvent(QPaintEvent*) override{
+        if(expression==nullptr){
+            return;
+        }
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing,true);
+        painter.setFont(archiveBlockFont());
+        drawExpression(painter,expression,0,0);
+    }
+
+private:
+    QSize expressionSize(QPainter& painter,const std::shared_ptr<ArchiveExpr>& expr) const{
+        if(expr==nullptr){
+            return QSize(floatBlockWidth,floatBlockWidth);
+        }
+        const int textWidth=painter.fontMetrics().horizontalAdvance(expr->text);
+        if(expr->kind==ArchiveExpr::Literal||expr->kind==ArchiveExpr::Value){
+            return QSize(std::max(floatBlockWidth,textWidth+12),floatBlockWidth);
+        }
+        if(expr->kind==ArchiveExpr::Unary){
+            QSize slot=expressionSize(painter,expr->left);
+            return QSize(
+                opHorizontalPadding+textWidth+opHorizontalPadding+slot.width()+opHorizontalPadding,
+                std::max(floatBlockWidth,slot.height())+opVerticalPadding*2
+            );
+        }
+        QSize left=expressionSize(painter,expr->left);
+        QSize right=expressionSize(painter,expr->right);
+        return QSize(
+            opHorizontalPadding+left.width()+opHorizontalPadding+
+                textWidth+opHorizontalPadding+right.width()+opHorizontalPadding,
+            std::max({floatBlockWidth,left.height(),right.height()})+opVerticalPadding*2
+        );
+    }
+
+    void drawExpression(QPainter& painter,const std::shared_ptr<ArchiveExpr>& expr,int x,int y){
+        if(expr==nullptr){
+            return;
+        }
+        QSize size=expressionSize(painter,expr);
+        QPolygonF shape=archiveFloatPolygon(size.width(),size.height());
+        shape.translate(x,y);
+        painter.setBrush(expr->color);
+        painter.setPen(QPen(Qt::black,2));
+        painter.drawPolygon(shape);
+
+        if(expr->kind==ArchiveExpr::Literal||expr->kind==ArchiveExpr::Value){
+            painter.setPen(Qt::white);
+            painter.drawText(QRect(x,y,size.width(),size.height()),Qt::AlignCenter,expr->text);
+            return;
+        }
+
+        painter.setPen(Qt::white);
+        const int textWidth=painter.fontMetrics().horizontalAdvance(expr->text);
+        if(expr->kind==ArchiveExpr::Unary){
+            QSize slot=expressionSize(painter,expr->left);
+            const int textX=x+opHorizontalPadding;
+            const int slotX=textX+textWidth+opHorizontalPadding;
+            const int slotY=y+(size.height()-slot.height())/2;
+            painter.drawText(QRect(textX,y,textWidth,size.height()),Qt::AlignCenter,expr->text);
+            drawExpression(painter,expr->left,slotX,slotY);
+            return;
+        }
+
+        QSize left=expressionSize(painter,expr->left);
+        QSize right=expressionSize(painter,expr->right);
+        const int leftX=x+opHorizontalPadding;
+        const int textX=leftX+left.width()+opHorizontalPadding;
+        const int rightX=textX+textWidth+opHorizontalPadding;
+        const int leftY=y+(size.height()-left.height())/2;
+        const int rightY=y+(size.height()-right.height())/2;
+        drawExpression(painter,expr->left,leftX,leftY);
+        painter.setPen(Qt::white);
+        painter.drawText(QRect(textX,y,textWidth,size.height()),Qt::AlignCenter,expr->text);
+        drawExpression(painter,expr->right,rightX,rightY);
+    }
+
+    std::shared_ptr<ArchiveExpr> expression;
+};
+
 }
 
 ArchivePage::ArchivePage(QWidget* parent):QDialog(parent){
@@ -491,8 +635,8 @@ void ArchivePage::init(){
         ArchiveCardHeight
     );
     rightCard->setStyleSheet(QString(
-        "QLabel { background-color: rgba(45, 50, 58, %1); border: none; }")
-        .arg(ArchiveRightCardOpacity));
+        "QLabel { border: none; border-image: url(%1) 0 0 0 0 stretch stretch; }")
+        .arg(loadAsset("images/bars/archive_panel.png")));
 
     for(int i=0;i<ArchiveMenuItemCount;i++){
         QPushButton* itemButton=new QPushButton(QString::number(i+1),this);
@@ -607,6 +751,12 @@ void ArchivePage::showArchivePage(int index){
         addTitle(QString::fromUtf8("使用等待"),ArchiveContentPadding,318);
         addText(QString::fromUtf8("在运行中使用等待积木可以观察地刺移动规律。"),
             ArchiveContentPadding,370,390,60);
+
+        addTitle(QString::fromUtf8("提示"),455,145);
+        addText(QString::fromUtf8(
+            "当你忘记了这关需要干什么，可以点击左上角的提示按钮。\n"
+            "再次点击可以关闭提示。"),
+            455,197,350,96);
 
         auto* waitPreview=new ArchiveBlockPreview({
             {QString::fromUtf8("等待"),Qt::blue,true,true,ArchiveBlockKind::FloatCode,
@@ -750,15 +900,22 @@ void ArchivePage::showArchivePage(int index){
         addText(QString::fromUtf8(
             "R-07 的控制台只支持一维列表。需要把二维坐标压缩成一维编号，推荐编码方式是："),
             ArchiveContentPadding,72,410,92);
-        addScaledImage(QString::fromUtf8("images/bars/archive-6.png"),455,98,220,43);
+        auto* hashFormulaPreview=new ArchiveExpressionPreview(
+            archiveBinary(QString::fromUtf8("+"),
+                archiveBinary(QString::fromUtf8("*"),
+                    archiveLiteral(QString::fromUtf8("40")),
+                    archiveValue(QString::fromUtf8("当前 y 坐标"),QColor(42,86,150))),
+                archiveValue(QString::fromUtf8("当前 x 坐标"),QColor(42,86,150))),
+            contentPanel);
+        hashFormulaPreview->setGeometry(455,92,310,70);
         auto* hashCostPreview=new ArchiveBlockPreview({
             {QString(),Qt::transparent,true,true,ArchiveBlockKind::CostOnly,
                 QString(),QString(),QString(),QString::fromUtf8("2")}
         },ArchiveBlockPreview::Horizontal,contentPanel);
-        hashCostPreview->setGeometry(690,100,150,45);
+        hashCostPreview->setGeometry(724,108,150,45);
 
         addText(QString::fromUtf8(
-            "例如地图宽度为40时，每一行有40个位置。先用y找到所在行，再加上x，就能得到唯一的一维下标。"),
+            "例如地图宽度为40时，每一行有40个位置。\n先用y找到所在行，40*y再加上x，就能得到唯一的一维下标。"),
             ArchiveContentPadding,245,760,62);
 
         addTitle(QString::fromUtf8("学习取余"),ArchiveContentPadding,318);
@@ -772,12 +929,22 @@ void ArchivePage::showArchivePage(int index){
         },ArchiveBlockPreview::Horizontal,contentPanel);
         floorPreview->setGeometry(455,322,250,48);
 
-        addScaledImage(QString::fromUtf8("images/bars/archive-7.png"),455,405,225,55);
+        auto* modFormulaPreview=new ArchiveExpressionPreview(
+            archiveBinary(QString::fromUtf8("-"),
+                archiveValue(QString::fromUtf8("a"),QColor(92,102,116)),
+                archiveBinary(QString::fromUtf8("*"),
+                    archiveValue(QString::fromUtf8("b"),QColor(92,102,116)),
+                    archiveUnary(QString::fromUtf8("floor"),
+                        archiveBinary(QString::fromUtf8("/"),
+                            archiveValue(QString::fromUtf8("a"),QColor(92,102,116)),
+                            archiveValue(QString::fromUtf8("b"),QColor(92,102,116)))))),
+            contentPanel);
+        modFormulaPreview->setGeometry(455,400,320,78);
         auto* modCostPreview=new ArchiveBlockPreview({
             {QString(),Qt::transparent,true,true,ArchiveBlockKind::CostOnly,
                 QString(),QString(),QString(),QString::fromUtf8("4")}
         },ArchiveBlockPreview::Horizontal,contentPanel);
-        modCostPreview->setGeometry(695,411,150,45);
+        modCostPreview->setGeometry(736,420,150,45);
 
         showChildren();
         return;
@@ -790,6 +957,36 @@ void ArchivePage::showArchivePage(int index){
             "3 1 4 2 -> 1 3 4 2 -> 1 2 3 4"),
             ArchiveContentPadding,66,390,116);
 
+        addTitle(QString::fromUtf8("学习自定义积木"),ArchiveContentPadding,190);
+        addText(QString::fromUtf8(
+            "把重复出现的动作写成自定义积木。\n"
+            "例如“走正方形”只需要写一次，之后调用这个积木就能复用整段动作。"),
+            ArchiveContentPadding,238,390,112);
+
+        const QColor customColor(82,45,122);
+        auto* customCallPreview=new ArchiveBlockPreview({
+            {QString::fromUtf8("走正方形"),customColor,true,true,ArchiveBlockKind::FloatCode,
+                QString::fromUtf8("x")}
+        },ArchiveBlockPreview::Horizontal,contentPanel);
+        customCallPreview->setGeometry(455,70,330,48);
+
+        auto* customDefinePreview=new ArchiveBlockPreview({
+            {QString::fromUtf8("定义走正方形"),customColor,false,true,ArchiveBlockKind::FloatCode,
+                QString::fromUtf8("x")},
+            {QString::fromUtf8("向前移动"),Qt::blue,true,true,ArchiveBlockKind::FloatCode,
+                QString::fromUtf8("x"),QString::fromUtf8("步")},
+            {QString::fromUtf8("右转"),Qt::blue,true,true},
+            {QString::fromUtf8("向前移动"),Qt::blue,true,true,ArchiveBlockKind::FloatCode,
+                QString::fromUtf8("x"),QString::fromUtf8("步")},
+            {QString::fromUtf8("右转"),Qt::blue,true,true},
+            {QString::fromUtf8("向前移动"),Qt::blue,true,true,ArchiveBlockKind::FloatCode,
+                QString::fromUtf8("x"),QString::fromUtf8("步")},
+            {QString::fromUtf8("右转"),Qt::blue,true,true},
+            {QString::fromUtf8("向前移动"),Qt::blue,true,true,ArchiveBlockKind::FloatCode,
+                QString::fromUtf8("x"),QString::fromUtf8("步")}
+        },ArchiveBlockPreview::Vertical,contentPanel);
+        customDefinePreview->setGeometry(455,140,360,330);
+
         showChildren();
         return;
     }
@@ -800,12 +997,6 @@ void ArchivePage::showArchivePage(int index){
             "字符串就是一连串的字符，例如 \"HELLO\"。\n"
             "R-07 的控制台不支持真正的文字，可以用数字代替字符，再用列表保存这些数字。"),
             ArchiveContentPadding,72,390,132);
-
-        addText(QString::fromUtf8(
-            "下面的代码展示了把数字转换并放入列表的写法。\n第一段循环是把数字逆序放进列表\n第二段循环是反转顺序"),
-            ArchiveContentPadding,230,390,112);
-
-        addScaledImage(QString::fromUtf8("images/bars/archive-8.png"),485,36,300,417);
 
         showChildren();
         return;
