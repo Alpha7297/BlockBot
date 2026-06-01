@@ -32,6 +32,8 @@ qt_add_executable(BlockBot
     level/mazeGernerator.cpp
     ui/SettingsDialog.cpp
     ui/SettingsDialog.h
+    ui/SaveCrypto.cpp
+    ui/SaveCrypto.h
     ui/parameter.h
     tale/TaleWindow.cpp
     tale/TaleWindow.h
@@ -46,3 +48,6 @@ qt_add_executable(BlockBot
 )
 
 target_link_libraries(BlockBot PRIVATE Qt6::Widgets)
+if(WIN32)
+    target_link_libraries(BlockBot PRIVATE Crypt32)
+endif()

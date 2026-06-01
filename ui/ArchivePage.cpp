@@ -1,5 +1,6 @@
 #include "ArchivePage.h"
 #include "AppGraphicsView.h"
+#include "SaveCrypto.h"
 #include "UiConstants.h"
 #include "../level/LevelConstants.h"
 
@@ -201,27 +202,10 @@ QFont archiveBlockFont(){
     return QFont("Microsoft YaHei",12);
 }
 
-QString archiveLevelSaveFilePath(){
-    QString dir=QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
-    if(dir.isEmpty()){
-        dir=QCoreApplication::applicationDirPath();
-    }
-    QDir().mkpath(dir);
-    return QDir(dir).filePath("level.json");
-}
-
 int archiveUnlockedLevel(){
-    QFile file(archiveLevelSaveFilePath());
-    int unlockedLevel=1;
-    if(file.open(QIODevice::ReadOnly|QIODevice::Text)){
-        QJsonParseError error;
-        const QJsonDocument document=QJsonDocument::fromJson(file.readAll(),&error);
-        if(error.error==QJsonParseError::NoError&&document.isObject()){
-            unlockedLevel=document.object().value("level").toInt(1);
-        }
-    }
+    int unlockedLevel=savecrypto::readProgressLevel(1);
     return std::max(level::MinLevelNumber,
-        std::min(unlockedLevel,level::TotalLevelCount+1));
+                    std::min(unlockedLevel,level::TotalLevelCount+1));
 }
 
 bool archiveIndexUnlocked(int index,int unlockedLevel){

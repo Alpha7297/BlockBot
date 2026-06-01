@@ -50,6 +50,7 @@
 
 #include "App.h"
 #include "hint.h"
+#include "SaveCrypto.h"
 #include "UiConstants.h"
 #include "Widgets.h"
 #include "../core/Runtime.h"
@@ -410,15 +411,12 @@ void addHeaderLogo(QGraphicsScene& scene){
 }
 
 QString archiveDirectoryPath(){
-    QString appData=qEnvironmentVariable("APPDATA");
-    QDir dir(appData.isEmpty()?QDir::currentPath():appData);
-    dir.mkpath("BlockBot");
-    return dir.filePath("BlockBot");
+    return savecrypto::archiveDirectoryPath();
 }
 
 QString archiveDefaultFilePath(){
     QDir dir(archiveDirectoryPath());
-    return dir.filePath(QString("BlockBot_%1.json").arg(level::activeLevelNumber()));
+    return dir.filePath(QString("BlockBot_%1.bbot").arg(level::activeLevelNumber()));
 }
 
 bool validVariableName(const QString& name){
@@ -4652,26 +4650,21 @@ void restoreWorkspace(const QJsonObject& root){//load workplace by Json file
 }
 
 QString writeUndoFile(const QJsonObject& snapshot){
-    QDir dir(QDir::current());
-    dir.mkpath("cache");
-    QString path=dir.filePath(QString("cache/undo_%1.json").arg(undoCheckpointId++));
-    QFile file(path);
-    if(file.open(QIODevice::WriteOnly|QIODevice::Truncate)){
-        file.write(QJsonDocument(snapshot).toJson(QJsonDocument::Compact));
-        file.close();
-    }
+    QDir dir(savecrypto::cacheDirectoryPath());
+    QString path=dir.filePath(QString("undo_%1.bbot").arg(undoCheckpointId++));
+    savecrypto::writeEncryptedJsonFile(path,snapshot);
     return path;
 }
 
 void clearUndoCache(){
     undoCheckpoints.clear();
     undoCheckpointId=0;
-    QDir dir(QDir::current().filePath("cache"));
+    QDir dir(savecrypto::cacheDirectoryPath());
     if(!dir.exists()){
         return;
     }
     QStringList filters;
-    filters<<"undo_*.json";
+    filters<<"undo_*.bbot"<<"undo_*.json";
     QFileInfoList files=dir.entryInfoList(filters,QDir::Files);
     for(const QFileInfo& file:files){
         QFile::remove(file.absoluteFilePath());
@@ -4691,16 +4684,11 @@ void undoLastCheckpoint(){
     }
     QFile::remove(undoCheckpoints.back());
     undoCheckpoints.pop_back();
-    QFile file(undoCheckpoints.back());
-    if(!file.open(QIODevice::ReadOnly)){
+    QJsonObject snapshot;
+    if(!savecrypto::readJsonFile(undoCheckpoints.back(),&snapshot)){
         return;
     }
-    QJsonDocument document=QJsonDocument::fromJson(file.readAll());
-    file.close();
-    if(!document.isObject()){
-        return;
-    }
-    restoreWorkspace(document.object());
+    restoreWorkspace(snapshot);
 }
 
 void clearContextMenu(){
@@ -7806,19 +7794,15 @@ void drawStage(QGraphicsScene& scene){
             nullptr,
             "保存文件",
             archiveDefaultFilePath(),
-            "JSON 文件 (*.json)"
+            "BlockBot 存档 (*.bbot);;所有文件 (*)"
         );
         if (filePath.isEmpty()) {
             return;
         }
-        QFile file(filePath);
-        if (!file.open(QIODevice::WriteOnly | QIODevice::Text))
-        {
+        if(!savecrypto::writeEncryptedJsonFile(filePath,serializeWorkspace())){
             message::otherError("错误，无法创建或写入该文件！");
             return;
         }
-        file.write(QJsonDocument(serializeWorkspace()).toJson());
-        file.close();
     };
     scene.addItem(saveButton);
 
@@ -7834,26 +7818,27 @@ void drawStage(QGraphicsScene& scene){
             nullptr,
             "打开文件",
             archiveDirectoryPath(),
-            "JSON 文件 (*.json)"
+            "BlockBot 存档 (*.bbot);;JSON 文件 (*.json);;所有文件 (*)"
         );
         if (filePath.isEmpty()) {
             return;
         }
-        QFile file(filePath);
-        if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-            message::otherError("错误，打开文件失败！");
-            return;
+        if(QFileInfo(filePath).suffix().compare(QStringLiteral("json"),Qt::CaseInsensitive)==0){
+            QMessageBox::StandardButton choice=QMessageBox::warning(
+                nullptr,
+                QString::fromUtf8("不安全的存档格式"),
+                QString::fromUtf8("使用 JSON 打开不安全，发生后果自行承担。你还要打开吗？"),
+                QMessageBox::Yes|QMessageBox::No,
+                QMessageBox::No);
+            if(choice!=QMessageBox::Yes){
+                return;
+            }
         }
-
-        QByteArray jsonData = file.readAll();
-        file.close();
-        QJsonParseError parseError;
-        QJsonDocument jsonDoc = QJsonDocument::fromJson(jsonData, &parseError);
-        if (parseError.error != QJsonParseError::NoError||!jsonDoc.isObject()) {
+        QJsonObject checkedRoot;
+        if(!savecrypto::readJsonFile(filePath,&checkedRoot)){
             message::otherError("当前存档格式错误");
             return;
         }
-        QJsonObject checkedRoot=jsonDoc.object();
         QJsonValue levelValue=checkedRoot["levelNumber"];
         if(!levelValue.isDouble()){
             message::otherError("当前存档格式错误");
@@ -7877,30 +7862,6 @@ void drawStage(QGraphicsScene& scene){
         restoreWorkspace(checkedRoot);
         saveUndoCheckpoint();
         return;
-        if (parseError.error != QJsonParseError::NoError) {
-            message::otherError(std::string("JSON 解析失败:")+parseError.errorString().toStdString());
-            return;
-        }
-
-        if (jsonDoc.isObject()) {
-            QJsonObject root=jsonDoc.object();
-            if(root.contains("levelNumber")){
-                int fileLevelNumber=root["levelNumber"].toInt(level::activeLevelNumber());
-                int currentLevelNumber=level::activeLevelNumber();
-                if(fileLevelNumber!=currentLevelNumber){
-                    QMessageBox::warning(nullptr,"关卡不一致",
-                        QString("当前是第 %1 关，打开的文件是第 %2 关")
-                            .arg(currentLevelNumber)
-                            .arg(fileLevelNumber));
-                }
-            }
-            clearUndoCache();
-            restoreWorkspace(root);
-            saveUndoCheckpoint();
-        }
-        else if (jsonDoc.isArray()) {
-            message::otherError("错误：该 JSON 文件的最外层是一个数组(Array)，而不是对象(Object)！");
-        }
     };
     scene.addItem(openButton);
     exitButton=new TextButton("退出");

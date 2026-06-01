@@ -1,5 +1,6 @@
 #include "LevelChoosePage.h"
 #include "fstream"
+#include "SaveCrypto.h"
 #include "../level/LevelConstants.h"
 #include"../message/Message.h"
 #include <QCoreApplication>
@@ -29,39 +30,11 @@
 
 namespace{
 
-QString levelSaveFilePath(){
-    QString dir=QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
-    if(dir.isEmpty()){
-        dir=QCoreApplication::applicationDirPath();
-    }
-    QDir().mkpath(dir);
-    return QDir(dir).filePath("level.json");
-}
 bool writeLevelSave(int currentLevel){
-    QFile file(levelSaveFilePath());
-    if(!file.open(QIODevice::WriteOnly|QIODevice::Text)){
-        return false;
-    }
-    QJsonObject object;
-    object["level"]=currentLevel;
-    file.write(QJsonDocument(object).toJson(QJsonDocument::Compact));
-    return true;
+    return savecrypto::writeProgressLevel(currentLevel);
 }
 int loadLevel(){
-    QFile file(levelSaveFilePath());
-    if(!file.exists())return -1;
-    if(file.open(QIODevice::ReadOnly|QIODevice::Text)){
-        QJsonParseError error;
-        const QJsonDocument document=QJsonDocument::fromJson(file.readAll(),&error);
-        if(error.error==QJsonParseError::NoError&&document.isObject()){
-            return document.object().value("level").toInt(1);
-        }else{
-            return -1;
-        }
-    }else{
-        return -1;
-    }
-    return -1;
+    return savecrypto::readProgressLevel(-1);
 }
 }
 
@@ -179,17 +152,12 @@ void LevelChoosePage::init()
 }
 void LevelChoosePage::loadProcess(){
     unlockedLevel=1;
-    QFile file(levelSaveFilePath());
-    bool needsRewrite=!file.exists();
-    if(file.open(QIODevice::ReadOnly|QIODevice::Text)){
-        QJsonParseError error;
-        const QJsonDocument document=QJsonDocument::fromJson(file.readAll(),&error);
-        if(error.error==QJsonParseError::NoError&&document.isObject()){
-            unlockedLevel=document.object().value("level").toInt(1);
-        }else{
-            needsRewrite=true;
-        }
-    }else{
+    bool needsRewrite=!QFileInfo::exists(savecrypto::progressFilePath());
+    int loadedLevel=loadLevel();
+    if(loadedLevel>=level::MinLevelNumber){
+        unlockedLevel=loadedLevel;
+    }
+    else{
         needsRewrite=true;
     }
     unlockedLevel=std::max(level::MinLevelNumber,
@@ -229,5 +197,5 @@ bool LevelChoosePage::isLevelPassed(int levelNumber)
 
 bool LevelChoosePage::hasProgressSave()
 {
-    return QFileInfo::exists(levelSaveFilePath());
+    return savecrypto::progressSaveExists();
 }
