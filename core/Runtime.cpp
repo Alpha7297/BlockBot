@@ -230,7 +230,7 @@ void RobotActions::removeListValue(const std::string&,double){
 void RobotActions::clearList(const std::string&){
 }
 
-void RobotActions::enterCustomBlock(const std::string&,double){
+void RobotActions::enterCustomBlock(const std::string&,const std::vector<double>&){
 }
 
 void RobotActions::leaveCustomBlock(const std::string&){
@@ -373,7 +373,7 @@ bool BlockExecutor::step(const BlockReader& readBlock,RobotActions& actions){
     }
     if(block.type==11){
         if(block.callTarget!=nullptr){
-            actions.enterCustomBlock(block.customName,block.value);
+            actions.enterCustomBlock(block.customName,block.customValues);
             frames.push_back({nullptr,block.next,false,block.customName});
             current=block.callTarget;
         }
@@ -403,14 +403,6 @@ void BlockExecutor::executeOne(int blockType,double floatValue,RobotActions& act
     }
     if(blockType==1){
         actions.turnRight();
-        return;
-    }
-    if(blockType==3){
-        actions.moveForward(1.0);
-        return;
-    }
-    if(blockType==4){
-        actions.waitFrames(std::max(0.0,floatValue));
         return;
     }
 }

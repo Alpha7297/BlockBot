@@ -1,0 +1,243 @@
+{
+    "codeRoots": [
+        {
+            "kind": "start",
+            "next": {
+                "kind": "floatCode",
+                "next": {
+                    "kind": "code",
+                    "next": {
+                        "kind": "floatCode",
+                        "next": {
+                            "kind": "code",
+                            "next": {
+                                "kind": "floatCode",
+                                "next": {
+                                    "kind": "code",
+                                    "next": {
+                                        "kind": "floatCode",
+                                        "next": {
+                                            "kind": "code",
+                                            "next": {
+                                                "kind": "floatCode",
+                                                "next": {
+                                                    "kind": "code",
+                                                    "next": {
+                                                        "kind": "floatCode",
+                                                        "next": {
+                                                            "kind": "code",
+                                                            "next": {
+                                                                "kind": "floatCode",
+                                                                "next": {
+                                                                    "kind": "floatCode",
+                                                                    "next": {
+                                                                        "kind": "code",
+                                                                        "next": {
+                                                                            "kind": "floatCode",
+                                                                            "next": {
+                                                                                "kind": "floatCode",
+                                                                                "next": {
+                                                                                    "kind": "code",
+                                                                                    "next": {
+                                                                                        "kind": "floatCode",
+                                                                                        "next": {
+                                                                                            "kind": "code",
+                                                                                            "next": {
+                                                                                                "kind": "floatCode",
+                                                                                                "next": {
+                                                                                                    "kind": "end",
+                                                                                                    "next": {
+                                                                                                    },
+                                                                                                    "text": "结束",
+                                                                                                    "type": -4,
+                                                                                                    "x": 24,
+                                                                                                    "y": 938
+                                                                                                },
+                                                                                                "text": "向前移动",
+                                                                                                "type": 3,
+                                                                                                "value": {
+                                                                                                    "data": 7,
+                                                                                                    "kind": "number",
+                                                                                                    "type": 0
+                                                                                                },
+                                                                                                "x": 24,
+                                                                                                "y": 898
+                                                                                            },
+                                                                                            "text": "右转",
+                                                                                            "type": 1,
+                                                                                            "x": 24,
+                                                                                            "y": 858
+                                                                                        },
+                                                                                        "text": "向前移动",
+                                                                                        "type": 3,
+                                                                                        "value": {
+                                                                                            "data": 4,
+                                                                                            "kind": "number",
+                                                                                            "type": 0
+                                                                                        },
+                                                                                        "x": 24,
+                                                                                        "y": 818
+                                                                                    },
+                                                                                    "text": "左转",
+                                                                                    "type": 0,
+                                                                                    "x": 24,
+                                                                                    "y": 778
+                                                                                },
+                                                                                "text": "向前移动",
+                                                                                "type": 3,
+                                                                                "value": {
+                                                                                    "data": 6,
+                                                                                    "kind": "number",
+                                                                                    "type": 0
+                                                                                },
+                                                                                "x": 24,
+                                                                                "y": 738
+                                                                            },
+                                                                            "text": "等待",
+                                                                            "type": 4,
+                                                                            "value": {
+                                                                                "data": 1,
+                                                                                "kind": "number",
+                                                                                "type": 0
+                                                                            },
+                                                                            "x": 24,
+                                                                            "y": 698
+                                                                        },
+                                                                        "text": "右转",
+                                                                        "type": 1,
+                                                                        "x": 24,
+                                                                        "y": 658
+                                                                    },
+                                                                    "text": "向前移动",
+                                                                    "type": 3,
+                                                                    "value": {
+                                                                        "data": 6,
+                                                                        "kind": "number",
+                                                                        "type": 0
+                                                                    },
+                                                                    "x": 24,
+                                                                    "y": 618
+                                                                },
+                                                                "text": "等待",
+                                                                "type": 4,
+                                                                "value": {
+                                                                    "data": 1,
+                                                                    "kind": "number",
+                                                                    "type": 0
+                                                                },
+                                                                "x": 24,
+                                                                "y": 578
+                                                            },
+                                                            "text": "右转",
+                                                            "type": 1,
+                                                            "x": 24,
+                                                            "y": 538
+                                                        },
+                                                        "text": "向前移动",
+                                                        "type": 3,
+                                                        "value": {
+                                                            "data": 3,
+                                                            "kind": "number",
+                                                            "type": 0
+                                                        },
+                                                        "x": 24,
+                                                        "y": 498
+                                                    },
+                                                    "text": "左转",
+                                                    "type": 0,
+                                                    "x": 24,
+                                                    "y": 458
+                                                },
+                                                "text": "向前移动",
+                                                "type": 3,
+                                                "value": {
+                                                    "data": 6,
+                                                    "kind": "number",
+                                                    "type": 0
+                                                },
+                                                "x": 24,
+                                                "y": 418
+                                            },
+                                            "text": "右转",
+                                            "type": 1,
+                                            "x": 24,
+                                            "y": 378
+                                        },
+                                        "text": "向前移动",
+                                        "type": 3,
+                                        "value": {
+                                            "data": 7,
+                                            "kind": "number",
+                                            "type": 0
+                                        },
+                                        "x": 24,
+                                        "y": 338
+                                    },
+                                    "text": "右转",
+                                    "type": 1,
+                                    "x": 24,
+                                    "y": 298
+                                },
+                                "text": "向前移动",
+                                "type": 3,
+                                "value": {
+                                    "data": 4,
+                                    "kind": "number",
+                                    "type": 0
+                                },
+                                "x": 24,
+                                "y": 258
+                            },
+                            "text": "左转",
+                            "type": 0,
+                            "x": 24,
+                            "y": 218
+                        },
+                        "text": "向前移动",
+                        "type": 3,
+                        "value": {
+                            "data": 6,
+                            "kind": "number",
+                            "type": 0
+                        },
+                        "x": 24,
+                        "y": 178
+                    },
+                    "text": "右转",
+                    "type": 1,
+                    "x": 24,
+                    "y": 138
+                },
+                "text": "向前移动",
+                "type": 3,
+                "value": {
+                    "data": 2,
+                    "kind": "number",
+                    "type": 0
+                },
+                "x": 24,
+                "y": 98
+            },
+            "text": "开始运行",
+            "type": -1,
+            "x": 24,
+            "y": 58
+        }
+    ],
+    "freeFloats": [
+    ],
+    "levelNumber": 4,
+    "lists": [
+    ],
+    "readOnlyLists": [
+    ],
+    "readOnlyVariables": [
+        "time"
+    ],
+    "variables": [
+        {
+            "name": "time",
+            "value": 62
+        }
+    ]
+}

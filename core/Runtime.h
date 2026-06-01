@@ -62,7 +62,7 @@ public:
     virtual void setListValue(const std::string& name,double index,double value);
     virtual void removeListValue(const std::string& name,double index);
     virtual void clearList(const std::string& name);
-    virtual void enterCustomBlock(const std::string& name,double value);
+    virtual void enterCustomBlock(const std::string& name,const std::vector<double>& values);
     virtual void leaveCustomBlock(const std::string& name);
     virtual void showMessage(const std::string& text,double value);
 };
@@ -78,6 +78,7 @@ public:
         std::string variableName;
         std::string listName;
         std::string customName;
+        std::vector<double> customValues;
         std::string messageText;
         Node next = nullptr;
         Node inside = nullptr;

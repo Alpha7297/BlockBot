@@ -33,7 +33,7 @@ constexpr int ArchiveRightCardWidth=850;
 constexpr int ArchiveCardHeight=500;
 constexpr int ArchiveCardTopMargin=200;
 constexpr int ArchiveRightCardOpacity=220;
-constexpr int ArchiveMenuItemCount=8;
+constexpr int ArchiveMenuItemCount=9;
 constexpr int ArchiveMenuItemWidth=150;
 constexpr int ArchiveMenuItemHeight=50;
 constexpr int ArchiveMenuItemGap=0;
@@ -58,7 +58,7 @@ constexpr int ArchiveCostItemGap=6;
 constexpr int ArchiveControlTopHeight=35;
 constexpr int ArchiveControlInnerHeight=42;
 constexpr int ArchiveControlBottomHeight=20;
-constexpr int ArchiveUnlockedLevelByIndex[ArchiveMenuItemCount]={1,2,3,3,3,4,4,7};
+constexpr int ArchiveUnlockedLevelByIndex[ArchiveMenuItemCount]={1,2,3,4,5,5,5,6,7};
 
 enum class ArchiveBlockKind{
     Simple,
@@ -219,7 +219,7 @@ int archiveUnlockedLevel(){
             unlockedLevel=document.object().value("level").toInt(1);
         }
     }
-    return std::max(1,std::min(unlockedLevel,7));
+    return std::max(1,std::min(unlockedLevel,9));
 }
 
 bool archiveIndexUnlocked(int index,int unlockedLevel){
@@ -728,7 +728,7 @@ void ArchivePage::showArchivePage(int index){
         return label;
     };
 
-    if(index>=8){
+    if(index>=9){
         contentLabel=new QLabel(QString::number(index+1),contentPanel);
         contentLabel->setAlignment(Qt::AlignCenter);
         contentLabel->setGeometry(0,0,ArchiveRightCardWidth,ArchiveCardHeight);
@@ -770,6 +770,53 @@ void ArchivePage::showArchivePage(int index){
     }
 
     if(index==2){
+        addTitle(QString::fromUtf8("学习布尔"),ArchiveContentPadding,16);
+        addText(QString::fromUtf8(
+            "布尔值一般用 0 和 1 表示，在本游戏中简化为 0 和非 0。"),
+            ArchiveContentPadding,64,380,72);
+        auto* boolPreview=new ArchiveBlockPreview({
+            {QString::fromUtf8("=="),QColor(42,105,86),true,true,ArchiveBlockKind::BinaryOp,
+                QString::fromUtf8("a"),QString::fromUtf8("b"),QString(),QString::fromUtf8("1")},
+            {QString::fromUtf8(">"),QColor(42,105,86),true,true,ArchiveBlockKind::BinaryOp,
+                QString::fromUtf8("a"),QString::fromUtf8("b"),QString(),QString::fromUtf8("1")},
+            {QString::fromUtf8("<"),QColor(42,105,86),true,true,ArchiveBlockKind::BinaryOp,
+                QString::fromUtf8("a"),QString::fromUtf8("b"),QString(),QString::fromUtf8("1")},
+            {QString::fromUtf8("not"),QColor(42,105,86),true,true,ArchiveBlockKind::UnaryOp,
+                QString::fromUtf8("x"),QString(),QString(),QString::fromUtf8("1")}
+        },ArchiveBlockPreview::TwoThenOne,contentPanel);
+        boolPreview->setGeometry(430,26,410,115);
+
+        addTitle(QString::fromUtf8("学习条件"),ArchiveContentPadding,148);
+        addText(QString::fromUtf8(
+            "“如果”会在条件不为 0 时执行内部积木。“当”会在条件不为 0 时重复执行内部积木。"),
+            ArchiveContentPadding,196,390,84);
+        auto* controlPreview=new ArchiveBlockPreview({
+            {QString::fromUtf8("如果"),QColor(54,92,122),true,true,
+                ArchiveBlockKind::ControlCode,QString::fromUtf8("x"),QString::fromUtf8("时执行")},
+            {QString::fromUtf8("当"),QColor(54,92,122),true,true,
+                ArchiveBlockKind::ControlCode,QString::fromUtf8("x"),QString::fromUtf8("时重复执行")}
+        },ArchiveBlockPreview::Vertical,contentPanel);
+        controlPreview->setGeometry(455,165,360,220);
+
+        addTitle(QString::fromUtf8("学习交互"),ArchiveContentPadding,330);
+        addText(QString::fromUtf8(
+            "坐标积木返回机器人当前位置。前方能否通行在前方可通行时返回 1，否则返回 0。"),
+            ArchiveContentPadding,378,390,78);
+        auto* interactPreview=new ArchiveBlockPreview({
+            {QString::fromUtf8("当前 x 坐标"),QColor(42,86,150),true,true,
+                ArchiveBlockKind::FloatValue},
+            {QString::fromUtf8("当前 y 坐标"),QColor(42,86,150),true,true,
+                ArchiveBlockKind::FloatValue},
+            {QString::fromUtf8("前方能否通行"),QColor(42,86,150),true,true,
+                ArchiveBlockKind::FloatValue}
+        },ArchiveBlockPreview::Vertical,contentPanel);
+        interactPreview->setGeometry(455,400,350,135);
+
+        showChildren();
+        return;
+    }
+
+    if(index==3){
         addTitle(QString::fromUtf8("学习运算"),ArchiveContentPadding,18);
         addText(QString::fromUtf8("可以使用四则运算，以及最大值、最小值运算。"),
             ArchiveContentPadding,68,370,88);
@@ -817,7 +864,7 @@ void ArchivePage::showArchivePage(int index){
         return;
     }
 
-    if(index==3){
+    if(index==4){
         addTitle(QString::fromUtf8("学习列表"),ArchiveContentPadding,16);
         addText(QString::fromUtf8("列表存储一系列数据，可以读取某一项，也可以读取列表长度。"),
             ArchiveContentPadding,64,360,70);
@@ -839,63 +886,51 @@ void ArchivePage::showArchivePage(int index){
         addText(QString::fromUtf8("清空列表的步数为 x，x 是列表当前长度。"),
             ArchiveContentPadding,136,360,50);
 
-        addTitle(QString::fromUtf8("学习布尔"),ArchiveContentPadding,230);
-        addText(QString::fromUtf8(
-            "布尔值一般用 0 和 1 表示，在本游戏中简化为 0 和非 0。"),
-            ArchiveContentPadding,280,380,100);
-        auto* boolPreview=new ArchiveBlockPreview({
-            {QString::fromUtf8("=="),QColor(42,105,86),true,true,ArchiveBlockKind::BinaryOp,
-                QString::fromUtf8("a"),QString::fromUtf8("b"),QString(),QString::fromUtf8("1")},
-            {QString::fromUtf8(">"),QColor(42,105,86),true,true,ArchiveBlockKind::BinaryOp,
-                QString::fromUtf8("a"),QString::fromUtf8("b"),QString(),QString::fromUtf8("1")},
-            {QString::fromUtf8("<"),QColor(42,105,86),true,true,ArchiveBlockKind::BinaryOp,
-                QString::fromUtf8("a"),QString::fromUtf8("b"),QString(),QString::fromUtf8("1")},
-            {QString::fromUtf8("not"),QColor(42,105,86),true,true,ArchiveBlockKind::UnaryOp,
-                QString::fromUtf8("x"),QString(),QString(),QString::fromUtf8("1")}
-        },ArchiveBlockPreview::TwoThenOne,contentPanel);
-        boolPreview->setGeometry(400,310,430,120);
-
-        showChildren();
-        return;
-    }
-
-    if(index==4){
-        addTitle(QString::fromUtf8("学习条件"),ArchiveContentPadding,16);
-        addText(QString::fromUtf8(
-            "“如果”会在条件不为 0 时执行内部积木。“当”会在条件不为 0 时重复执行内部积木。"),
-            ArchiveContentPadding,64,390,92);
-        auto* controlPreview=new ArchiveBlockPreview({
-            {QString::fromUtf8("如果"),QColor(54,92,122),true,true,
-                ArchiveBlockKind::ControlCode,QString::fromUtf8("x"),QString::fromUtf8("时执行")},
-            {QString::fromUtf8("当"),QColor(54,92,122),true,true,
-                ArchiveBlockKind::ControlCode,QString::fromUtf8("x"),QString::fromUtf8("时重复执行")}
-        },ArchiveBlockPreview::Vertical,contentPanel);
-        controlPreview->setGeometry(455,34,360,220);
-
-        addTitle(QString::fromUtf8("学习存档"),ArchiveContentPadding,176);
+        addTitle(QString::fromUtf8("学习存档"),ArchiveContentPadding,270);
         addText(QString::fromUtf8(
             "编辑区右上角有保存和读档按钮。题目难度较大时，可以先保存当前代码，之后再读取继续尝试。"),
-            ArchiveContentPadding,226,390,95);
-
-        addTitle(QString::fromUtf8("学习交互"),ArchiveContentPadding,344);
-        addText(QString::fromUtf8(
-            "坐标积木返回机器人当前位置。前方块类型在前方可通行时返回 0，否则返回 1。"),
-            ArchiveContentPadding,392,390,78);
-        auto* interactPreview=new ArchiveBlockPreview({
-            {QString::fromUtf8("当前 x 坐标"),QColor(42,86,150),true,true,
-                ArchiveBlockKind::FloatValue},
-            {QString::fromUtf8("当前 y 坐标"),QColor(42,86,150),true,true,
-                ArchiveBlockKind::FloatValue},
-            {QString::fromUtf8("前方块类型"),QColor(42,86,150),true,true,
-                ArchiveBlockKind::FloatValue}
-        },ArchiveBlockPreview::Vertical,contentPanel);
-        interactPreview->setGeometry(455,330,350,135);
+            ArchiveContentPadding,318,390,95);
 
         showChildren();
         return;
     }
 
     if(index==5){
+        addTitle(QString::fromUtf8("学习自定义积木"),ArchiveContentPadding,20);
+        addText(QString::fromUtf8(
+            "把重复出现的动作写成自定义积木。\n"
+            "自定义的积木会加入到工具箱，可以方便调用。"),
+            ArchiveContentPadding,72,390,112);
+
+        const QColor customColor(82,45,122);
+        auto* customCallPreview=new ArchiveBlockPreview({
+            {QString::fromUtf8("走正方形"),customColor,true,true,ArchiveBlockKind::FloatCode,
+                QString::fromUtf8("x")}
+        },ArchiveBlockPreview::Horizontal,contentPanel);
+        customCallPreview->setGeometry(455,46,330,48);
+
+        auto* customDefinePreview=new ArchiveBlockPreview({
+            {QString::fromUtf8("定义走正方形"),customColor,false,true,ArchiveBlockKind::FloatCode,
+                QString::fromUtf8("x")},
+            {QString::fromUtf8("向前移动"),Qt::blue,true,true,ArchiveBlockKind::FloatCode,
+                QString::fromUtf8("x"),QString::fromUtf8("步")},
+            {QString::fromUtf8("右转"),Qt::blue,true,true},
+            {QString::fromUtf8("向前移动"),Qt::blue,true,true,ArchiveBlockKind::FloatCode,
+                QString::fromUtf8("x"),QString::fromUtf8("步")},
+            {QString::fromUtf8("右转"),Qt::blue,true,true},
+            {QString::fromUtf8("向前移动"),Qt::blue,true,true,ArchiveBlockKind::FloatCode,
+                QString::fromUtf8("x"),QString::fromUtf8("步")},
+            {QString::fromUtf8("右转"),Qt::blue,true,true},
+            {QString::fromUtf8("向前移动"),Qt::blue,true,true,ArchiveBlockKind::FloatCode,
+                QString::fromUtf8("x"),QString::fromUtf8("步")}
+        },ArchiveBlockPreview::Vertical,contentPanel);
+        customDefinePreview->setGeometry(455,116,360,330);
+
+        showChildren();
+        return;
+    }
+
+    if(index==6){
         addTitle(QString::fromUtf8("学习哈希"),ArchiveContentPadding,20);
         addText(QString::fromUtf8(
             "R-07 的控制台只支持一维列表。需要把二维坐标压缩成一维编号，推荐编码方式是："),
@@ -912,7 +947,7 @@ void ArchivePage::showArchivePage(int index){
             {QString(),Qt::transparent,true,true,ArchiveBlockKind::CostOnly,
                 QString(),QString(),QString(),QString::fromUtf8("2")}
         },ArchiveBlockPreview::Horizontal,contentPanel);
-        hashCostPreview->setGeometry(724,108,150,45);
+        hashCostPreview->setGeometry(730,95,150,45);
 
         addText(QString::fromUtf8(
             "例如地图宽度为40时，每一行有40个位置。\n先用y找到所在行，40*y再加上x，就能得到唯一的一维下标。"),
@@ -944,54 +979,33 @@ void ArchivePage::showArchivePage(int index){
             {QString(),Qt::transparent,true,true,ArchiveBlockKind::CostOnly,
                 QString(),QString(),QString(),QString::fromUtf8("4")}
         },ArchiveBlockPreview::Horizontal,contentPanel);
-        modCostPreview->setGeometry(736,420,150,45);
-
-        showChildren();
-        return;
-    }
-
-    if(index==6){
-        addTitle(QString::fromUtf8("学习排序"),ArchiveContentPadding,18);
-        addText(QString::fromUtf8(
-            "一种简单方法是：每次找到最小的数字，放到最前面。\n"
-            "3 1 4 2 -> 1 3 4 2 -> 1 2 3 4"),
-            ArchiveContentPadding,66,390,116);
-
-        addTitle(QString::fromUtf8("学习自定义积木"),ArchiveContentPadding,190);
-        addText(QString::fromUtf8(
-            "把重复出现的动作写成自定义积木。\n"
-            "例如“走正方形”只需要写一次，之后调用这个积木就能复用整段动作。"),
-            ArchiveContentPadding,238,390,112);
-
-        const QColor customColor(82,45,122);
-        auto* customCallPreview=new ArchiveBlockPreview({
-            {QString::fromUtf8("走正方形"),customColor,true,true,ArchiveBlockKind::FloatCode,
-                QString::fromUtf8("x")}
-        },ArchiveBlockPreview::Horizontal,contentPanel);
-        customCallPreview->setGeometry(455,70,330,48);
-
-        auto* customDefinePreview=new ArchiveBlockPreview({
-            {QString::fromUtf8("定义走正方形"),customColor,false,true,ArchiveBlockKind::FloatCode,
-                QString::fromUtf8("x")},
-            {QString::fromUtf8("向前移动"),Qt::blue,true,true,ArchiveBlockKind::FloatCode,
-                QString::fromUtf8("x"),QString::fromUtf8("步")},
-            {QString::fromUtf8("右转"),Qt::blue,true,true},
-            {QString::fromUtf8("向前移动"),Qt::blue,true,true,ArchiveBlockKind::FloatCode,
-                QString::fromUtf8("x"),QString::fromUtf8("步")},
-            {QString::fromUtf8("右转"),Qt::blue,true,true},
-            {QString::fromUtf8("向前移动"),Qt::blue,true,true,ArchiveBlockKind::FloatCode,
-                QString::fromUtf8("x"),QString::fromUtf8("步")},
-            {QString::fromUtf8("右转"),Qt::blue,true,true},
-            {QString::fromUtf8("向前移动"),Qt::blue,true,true,ArchiveBlockKind::FloatCode,
-                QString::fromUtf8("x"),QString::fromUtf8("步")}
-        },ArchiveBlockPreview::Vertical,contentPanel);
-        customDefinePreview->setGeometry(455,140,360,330);
+        modCostPreview->setGeometry(680,410,150,45);
 
         showChildren();
         return;
     }
 
     if(index==7){
+        addTitle(QString::fromUtf8("学习输出"),ArchiveContentPadding,18);
+        addText(QString::fromUtf8("输出积木可以在运行时输出某个值，方便运行时调试程序。"),
+            ArchiveContentPadding,66,390,72);
+        auto* outputPreview=new ArchiveBlockPreview({
+            {QString::fromUtf8("输出"),QColor(130,76,180),true,true,ArchiveBlockKind::FloatCode,
+                QString::fromUtf8("x"),QString(),QString(),QString::fromUtf8("1")}
+        },ArchiveBlockPreview::Horizontal,contentPanel);
+        outputPreview->setGeometry(455,34,300,58);
+
+        addTitle(QString::fromUtf8("学习排序"),ArchiveContentPadding,150);
+        addText(QString::fromUtf8(
+            "一种简单方法是：每次找到最小的数字，放到最前面。\n"
+            "3 1 4 2 -> 1 3 4 2 -> 1 2 3 4"),
+            ArchiveContentPadding,198,390,116);
+
+        showChildren();
+        return;
+    }
+
+    if(index==8){
         addTitle(QString::fromUtf8("学习字符串"),ArchiveContentPadding,20);
         addText(QString::fromUtf8(
             "字符串就是一连串的字符，例如 \"HELLO\"。\n"

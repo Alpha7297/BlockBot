@@ -145,7 +145,7 @@ int activeLevelNumber();
 LevelType activeLevelType();
 LevelType defaultLevelTypeForNumber(int levelNumber);
 FreshResult fresh(const TestContext& context);
-void configureActiveLevel(int levelNumber,LevelType type);
+void configureActiveLevel(int levelNumber,LevelType type,bool regenerateDynamicMaps = true);
 void configureSandBoxLevel();
 }
 

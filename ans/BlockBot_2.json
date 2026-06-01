@@ -1,0 +1,84 @@
+{
+    "codeRoots": [
+        {
+            "kind": "start",
+            "next": {
+                "kind": "floatCode",
+                "next": {
+                    "kind": "floatCode",
+                    "next": {
+                        "kind": "floatCode",
+                        "next": {
+                            "kind": "floatCode",
+                            "next": {
+                                "kind": "end",
+                                "next": {
+                                },
+                                "text": "结束",
+                                "type": -4,
+                                "x": 28,
+                                "y": 263
+                            },
+                            "text": "向前移动",
+                            "type": 3,
+                            "value": {
+                                "data": 9,
+                                "kind": "number",
+                                "type": 0
+                            },
+                            "x": 28,
+                            "y": 223
+                        },
+                        "text": "等待",
+                        "type": 4,
+                        "value": {
+                            "data": 10,
+                            "kind": "number",
+                            "type": 0
+                        },
+                        "x": 28,
+                        "y": 183
+                    },
+                    "text": "向前移动",
+                    "type": 3,
+                    "value": {
+                        "data": 6,
+                        "kind": "number",
+                        "type": 0
+                    },
+                    "x": 28,
+                    "y": 143
+                },
+                "text": "等待",
+                "type": 4,
+                "value": {
+                    "data": 14,
+                    "kind": "number",
+                    "type": 0
+                },
+                "x": 28,
+                "y": 103
+            },
+            "text": "开始运行",
+            "type": -1,
+            "x": 28,
+            "y": 63
+        }
+    ],
+    "freeFloats": [
+    ],
+    "levelNumber": 2,
+    "lists": [
+    ],
+    "readOnlyLists": [
+    ],
+    "readOnlyVariables": [
+        "time"
+    ],
+    "variables": [
+        {
+            "name": "time",
+            "value": 39
+        }
+    ]
+}

@@ -1,0 +1,67 @@
+{
+    "codeRoots": [
+        {
+            "kind": "start",
+            "next": {
+                "kind": "floatCode",
+                "next": {
+                    "kind": "code",
+                    "next": {
+                        "kind": "floatCode",
+                        "next": {
+                            "kind": "end",
+                            "next": {
+                            },
+                            "text": "结束",
+                            "type": -4,
+                            "x": 68,
+                            "y": 213
+                        },
+                        "text": "向前移动",
+                        "type": 3,
+                        "value": {
+                            "data": 2,
+                            "kind": "number",
+                            "type": 0
+                        },
+                        "x": 68,
+                        "y": 173
+                    },
+                    "text": "右转",
+                    "type": 1,
+                    "x": 68,
+                    "y": 133
+                },
+                "text": "向前移动",
+                "type": 3,
+                "value": {
+                    "data": 4,
+                    "kind": "number",
+                    "type": 0
+                },
+                "x": 68,
+                "y": 93
+            },
+            "text": "开始运行",
+            "type": -1,
+            "x": 68,
+            "y": 53
+        }
+    ],
+    "freeFloats": [
+    ],
+    "levelNumber": 1,
+    "lists": [
+    ],
+    "readOnlyLists": [
+    ],
+    "readOnlyVariables": [
+        "time"
+    ],
+    "variables": [
+        {
+            "name": "time",
+            "value": 7
+        }
+    ]
+}

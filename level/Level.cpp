@@ -1,5 +1,6 @@
 #include "Level.h"
 #include "LevelConstants.h"
+#include "MazeGenerator.h"
 
 #include <algorithm>
 #include <cmath>
@@ -126,6 +127,13 @@ void setLevel3LightCell(int gridIndex,int cellType){
     currentLevel.setMapCell(baseX+1,baseY,cellType);
     currentLevel.setMapCell(baseX,baseY+1,cellType);
     currentLevel.setMapCell(baseX+1,baseY+1,cellType);
+}
+
+int level3GridIndexForCell(int gridx,int gridy){
+    if(gridy==1){
+        return (2-gridx)+gridy*3;
+    }
+    return gridx+gridy*3;
 }
 
 int level4CellFromRaw(int raw){
@@ -294,7 +302,7 @@ DataTestCase makeLevel7Case(int seed){
 DataTestCase makeLevel8Case(int seed){
     DataTestCase c;
     std::mt19937 rng(seed);
-    int n=randomInt(rng,1,1000);
+    int n=randomInt(rng,1,100);
     c.inputVariables["n"]=n;
     std::vector<double> height;
     for(int i=0;i<n;i++){
@@ -303,7 +311,7 @@ DataTestCase makeLevel8Case(int seed){
     c.inputLists["高度"]=height;
     std::vector<double> threshold;
     for(int i=0;i<n;i++){
-        threshold.push_back(randomInt(rng,0,4));
+        threshold.push_back(randomInt(rng,0,10));
     }
     c.inputLists["压力上限"]=threshold;
     int left=0,right=n-1;
@@ -332,17 +340,17 @@ DataTestCase makeLevel8Case(int seed){
     return c;
 }
 
-void configureMapLevel(int levelNumber){
+void configureMapLevel(int levelNumber,bool regenerateDynamicMaps){
     int size=mapSizeForLevel(levelNumber);
     resetActiveLevel(size,size);
     fillBorderWalls(currentLevel,size);
     if(levelNumber==1){
         currentLevel.setReachPositionGoal(7,5);
-        currentLevel.setRobotStart(3,3,0);
+        currentLevel.setRobotStart(3,3,3);
         currentLevel.setMapCell(7,5,level::CellEnd);
     }
     if(levelNumber==2){
-        currentLevel.setRobotStart(3,10,0);
+        currentLevel.setRobotStart(3,10,3);
         currentLevel.setReachPositionGoal(18,10);
         for(int i=1;i<19;i++){
             for(int j=1;j<19;j++){
@@ -356,7 +364,7 @@ void configureMapLevel(int levelNumber){
         currentLevel.setMapCell(18,10,CellEnd);
     }
     if(levelNumber==3){
-        currentLevel.setRobotStart(1,1,0);
+        currentLevel.setRobotStart(1,1,3);
         currentLevel.setReachPositionGoal(18,18);
         const std::vector<std::vector<int>> rawMap=readMapFile("level/level3.txt",20,20);
         if(!rawMap.empty()){
@@ -379,7 +387,7 @@ void configureMapLevel(int levelNumber){
                     int raw=rawMap[y][x];
                     currentLevel.setMapCell(x,y,level4CellFromRaw(raw));
                     if(raw==2){
-                        currentLevel.setRobotStart(x,y,3);
+                        currentLevel.setRobotStart(x,y,2);
                     }
                     else if(raw==4){
                         currentLevel.setReachPositionGoal(x,y);
@@ -412,21 +420,26 @@ void configureMapLevel(int levelNumber){
         }
     }
     if(levelNumber==5){
+        if(regenerateDynamicMaps){
+            runMazeGenerator();
+        }
         const std::vector<std::vector<int>> rawMap=readMapFile("level/level5.txt",40,40);
-        for(int i=0;i<40;i++){
-            for(int j=0;j<40;j++){
-                if(rawMap[i][j]==1){
-                    currentLevel.setMapCell(i,j,CellWall);
-                }
-                else{
-                    currentLevel.setMapCell(i,j,CellEmpty);
+        if(!rawMap.empty()){
+            for(int i=0;i<40;i++){
+                for(int j=0;j<40;j++){
+                    if(rawMap[i][j]==1){
+                        currentLevel.setMapCell(i,j,CellWall);
+                    }
+                    else{
+                        currentLevel.setMapCell(i,j,CellEmpty);
+                    }
                 }
             }
         }
         currentLevel.setMapCell(1,1,CellStart);
         currentLevel.setMapCell(38,38,CellEnd);
         currentLevel.setReachPositionGoal(38,38);
-        currentLevel.setRobotStart(1,1,4);
+        currentLevel.setRobotStart(1,1,3);
     }
     if(levelNumber==9){
         const std::vector<std::vector<int>> rawMap=readMapFile("level/level9.txt",10,10);
@@ -436,7 +449,7 @@ void configureMapLevel(int levelNumber){
                     int raw=rawMap[y][x];
                     currentLevel.setMapCell(x,y,level9CellFromRaw(raw));
                     if(raw==2){
-                        currentLevel.setRobotStart(x,y,0);
+                        currentLevel.setRobotStart(x,y,3);
                     }
                 }
             }
@@ -453,7 +466,7 @@ void configureDataOutputLevel(int levelNumber){
     constexpr int size=40;
     resetActiveLevel(size,size);
     fillBorderWalls(currentLevel,size);
-    currentLevel.setRobotStart(5,5,0);
+    currentLevel.setRobotStart(5,5,3);
     std::vector<DataTestCase> cases;
     std::mt19937 rng(13);
     if(levelNumber==6){
@@ -465,7 +478,7 @@ void configureDataOutputLevel(int levelNumber){
         for(int i=0;i<9;i++){
             cases.push_back(makeGeneratedLevel6Case(
                 randomInt(rng,0,std::numeric_limits<int>::max()),
-                randomInt(rng,0,74)
+                randomInt(rng,1,20)
             ));
         }
     }
@@ -563,10 +576,11 @@ TestResult DataOutputTest::checkCase(int index,const TestContext& context) const
         if(std::abs(value-item.second)>eps){
             std::ostringstream stream;
             stream<<"测试样例"<<(index+1)<<"失败，变量 \""<<item.first
-                  <<"\"值为"<<value<<", 正确值为"<<item.second<<".";
+                  <<"值为"<<value<<", 正确值为"<<item.second<<".";
             return {false,stream.str()};
         }
     }
+    int levelNumber=activeLevelNumber();
     for(const auto& item:testCase.expectedLists){
         int actualSize=context.runtime->listSize(item.first);
         if(actualSize<0){
@@ -578,13 +592,34 @@ TestResult DataOutputTest::checkCase(int index,const TestContext& context) const
                   <<"\" 大小是 "<<actualSize<<", 正确答案大小是"<<item.second.size()<<".";
             return {false,stream.str()};
         }
+        if(levelNumber==8){
+            std::set<double> ans;
+            std::set<double> playerAns;
+            for(int i=0;i<actualSize;i++){
+                double value=0.0;
+                context.runtime->getListValue(item.first,i,&value);
+                ans.insert(item.second[i]);
+                playerAns.insert(value);
+            }
+            for(double data:ans){
+                if(playerAns.find(data)==playerAns.end()){
+                    std::ostringstream stream;
+                    stream<<"测试样例"<<(index+1)<<" 失败:列表 \""<<item.first
+                      <<"\"中"<<data<<"不存在";
+                    return {false,stream.str()};
+                }
+            }
+            std::ostringstream stream;
+            stream<<"测试样例"<<(index+1)<<"通过";
+            return {true,stream.str()};
+        }
         for(int i=0;i<actualSize;i++){
             double value=0.0;
             context.runtime->getListValue(item.first,i,&value);
             if(std::abs(value-item.second[i])>eps){
                 std::ostringstream stream;
                 stream<<"测试样例"<<(index+1)<<" 失败:列表 \""<<item.first
-                      <<"\"["<<i<<"] is "<<value<<", 正确值是 "<<item.second[i]<<".";
+                      <<"\""<<i+1<<"项是 "<<value<<", 正确值是 "<<item.second[i]<<".";
                 return {false,stream.str()};
             }
         }
@@ -828,10 +863,11 @@ FreshResult fresh(const TestContext& context){
         int gridy=(yy-1)/6;
         int basex=gridx*6+1;
         int basey=gridy*6+1;
-        int currGrid=gridx+gridy*3;
+        int currGrid=level3GridIndexForCell(gridx,gridy);
         int time=context.time;
-        if(value[currGrid]==0){
-            if(time%200>10*(currGrid+1)){
+        const int unlockTimes[9]={10,20,30,60,90,120,150,180,210};
+        if(currGrid>=0&&currGrid<9&&value[currGrid]==0){
+            if(time>unlockTimes[currGrid]){
                 value[currGrid]=1;
                 context.runtime->forceSetList("light",value,true);
                 setLevel3LightCell(currGrid,CellLightG);
@@ -955,7 +991,7 @@ FreshResult fresh(const TestContext& context){
     return {false,false,""};
 }
 
-void configureActiveLevel(int levelNumber,LevelType type){
+void configureActiveLevel(int levelNumber,LevelType type,bool regenerateDynamicMaps){
     levelNumber=std::max(MinLevelNumber,std::min(levelNumber,TotalLevelCount));
     currentLevelNumber=levelNumber;
     currentLevelType=type;
@@ -963,7 +999,7 @@ void configureActiveLevel(int levelNumber,LevelType type){
         configureDataOutputLevel(levelNumber);
         return;
     }
-    else if(type==LevelType::Map)configureMapLevel(levelNumber);
+    else if(type==LevelType::Map)configureMapLevel(levelNumber,regenerateDynamicMaps);
     else configureSandBoxLevel();
 }
 

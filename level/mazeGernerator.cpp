@@ -29,7 +29,7 @@ private:
     std::mt19937 rng;
     std::priority_queue<Node>q;
 public:
-    Maze(int n_,int m_):oldn(n_),oldm(m_),rng()//如果要改变种子，改rng的构造函数
+    Maze(int n_,int m_):oldn(n_),oldm(m_),rng(std::random_device{}())
     {
         del[0][0]=-1;del[0][1]=0;
         del[1][0]=0;del[1][1]=-1;

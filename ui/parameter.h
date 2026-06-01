@@ -3,7 +3,7 @@
 
 namespace settings{
 
-inline int WorkspaceEditLength = 10;
+inline int WorkspaceEditLength = 5;
 inline int RuntimeActionBlockIntervalMs = 40;
 inline int RuntimeCodeBlockIntervalMs = 1;
 

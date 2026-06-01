@@ -3,6 +3,8 @@
 #include <QDir>
 #include <QDialog>
 #include <QDialogButtonBox>
+#include <QComboBox>
+#include <QLabel>
 #include <QFile>
 #include <QFileInfo>
 #include <QFormLayout>
@@ -171,6 +173,11 @@ void refreshVariableToolbox();
 void updateToolboxScrollRange();
 void checkEditedFloatWorkspaceWidth(FloatBlock* block);
 void checkEditedCodeWorkspaceWidth(CodeBlock* block);
+bool toolboxAllowsVariableBlocks();
+bool toolboxAllowsListBlocks();
+bool toolboxAllowsCustomBlocks();
+bool toolboxAllowsOperationBlocks();
+bool toolboxAllowsOutputBlocks();
 QRectF workspaceRect();
 void clearContextMenu();
 void showUndoContextMenu(QPointF scenePos);
@@ -618,7 +625,8 @@ public:
     QPointF calculatePos(){
         CodeBlock* curr=this;
         QPointF dist=QPointF(0,0);
-        while(curr->pre!=nullptr){
+        std::set<CodeBlock*> visited;
+        while(curr->pre!=nullptr&&visited.insert(curr).second){
             curr=curr->pre;
             dist+=QPointF(0,curr->wid);
         }
@@ -1890,7 +1898,7 @@ QColor customBlockColor(){
     return QColor(82,45,122);
 }
 
-double customParameterValue(const QString& customName);
+double customParameterValue(const QString& customName,const QString& parameterName);
 
 class CustomParamBlock:public FloatBlock{
 public:
@@ -1908,7 +1916,7 @@ public:
     }
 
     double getValue() const override{
-        return customParameterValue(customName);
+        return customParameterValue(customName,parameterName);
     }
 
     void setParameterName(const QString& name){
@@ -1941,29 +1949,36 @@ public:
 class CustomHatBlock:public CodeBlock{
 public:
     QString customName;
-    QString parameterName;
-    CustomParamBlock* parameterBlock;
+    vector<QString> parameterNames;
+    vector<CustomParamBlock*> parameterBlocks;
 
-    CustomHatBlock(QString name,QString paramName="x",int base=false,QGraphicsItem* parent=nullptr):
+    CustomHatBlock(QString name,vector<QString> params=vector<QString>(),int base=false,QGraphicsItem* parent=nullptr):
         CodeBlock(-3,name,base,parent){
         customName=name;
-        parameterName=paramName.trimmed();
-        parameterBlock=parameterName.isEmpty()?nullptr:
-            new CustomParamBlock(customName,parameterName,true,this);
+        for(QString paramName:params){
+            paramName=paramName.trimmed();
+            if(paramName.isEmpty()){
+                continue;
+            }
+            parameterNames.push_back(paramName);
+            parameterBlocks.push_back(new CustomParamBlock(customName,paramName,true,this));
+        }
         setBrush(customBlockColor());
         refreshSize();
     }
 
     bool hasParameter() const{
-        return !parameterName.isEmpty();
+        return !parameterNames.empty();
     }
 
     void refreshSize() override{
         qreal textWidth=text->boundingRect().width();
         qreal textHeight=text->boundingRect().height();
         if(!hasParameter()){
-            if(parameterBlock!=nullptr){
-                parameterBlock->hide();
+            for(CustomParamBlock* block:parameterBlocks){
+                if(block!=nullptr){
+                    block->hide();
+                }
             }
             wid=40;
             len=static_cast<int>(std::ceil(textWidth+30));
@@ -1971,20 +1986,34 @@ public:
             text->setPos(10,(wid-textHeight)/2);
             return;
         }
-        if(parameterBlock!=nullptr){
-            parameterBlock->show();
+        qreal x=20+textWidth+10;
+        qreal maxHeight=40;
+        for(size_t i=0;i<parameterBlocks.size();i++){
+            CustomParamBlock* block=parameterBlocks[i];
+            if(block==nullptr){
+                continue;
+            }
+            block->show();
+            block->setParameterName(parameterNames[i]);
+            maxHeight=std::max(maxHeight,static_cast<qreal>(block->wid+10));
+            x+=block->len+10;
         }
-        wid=std::max(40,parameterBlock->wid+10);
-        len=static_cast<int>(std::ceil(20+textWidth+10+parameterBlock->len+10));
+        wid=static_cast<int>(std::ceil(maxHeight));
+        len=static_cast<int>(std::ceil(x));
         setCodeBlockShape(this,shadow,len,wid,false,true);
         text->setPos(10,(wid-textHeight)/2);
-        parameterBlock->setParameterName(parameterName);
-        parameterBlock->setPos(20+textWidth+10,(wid-parameterBlock->wid)/2);
-
+        x=20+textWidth+10;
+        for(CustomParamBlock* block:parameterBlocks){
+            if(block==nullptr){
+                continue;
+            }
+            block->setPos(x,(wid-block->wid)/2);
+            x+=block->len+10;
+        }
     }
 
     CodeBlock* copy() override{
-        CustomHatBlock* newBlock=new CustomHatBlock(customName,parameterName,false);
+        CustomHatBlock* newBlock=new CustomHatBlock(customName,parameterNames,false);
         newBlock->setPos(pos());
         return newBlock;
     }
@@ -1993,55 +2022,75 @@ public:
 class CustomCallBlock:public CodeBlock{
 public:
     QString customName;
-    QString parameterName;
-    FloatBlock* value;
+    vector<QString> parameterNames;
+    vector<FloatBlock*> values;
 
-    CustomCallBlock(QString name,QString paramName="",FloatBlock* _value=nullptr,
+    CustomCallBlock(QString name,vector<QString> params=vector<QString>(),
+                    vector<FloatBlock*> _values=vector<FloatBlock*>(),
                     int base=false,QGraphicsItem* parent=nullptr):
         CodeBlock(11,name,base,parent){
         customName=name;
-        parameterName=paramName.trimmed();
-        value=nullptr;
-        if(parameterName.isEmpty()){
-            value=nullptr;
+        for(QString paramName:params){
+            paramName=paramName.trimmed();
+            if(!paramName.isEmpty()){
+                parameterNames.push_back(paramName);
+            }
         }
-        else if(_value==nullptr){
-            value=new FloatBlock(0,false,this);
-        }
-        else{
-            value=_value->copy();
-            value->setParentItem(this);
-        }
-        if(value!=nullptr){
+        for(size_t i=0;i<parameterNames.size();i++){
+            FloatBlock* value=nullptr;
+            if(i<_values.size()&&_values[i]!=nullptr){
+                value=_values[i]->copy();
+                value->setParentItem(this);
+            }
+            else{
+                value=new FloatBlock(0,false,this);
+            }
             value->setMovable(!base);
+            values.push_back(value);
         }
         setBrush(customBlockColor());
         refreshSize();
     }
 
     bool hasParameter() const{
-        return !parameterName.isEmpty();
+        return !parameterNames.empty();
     }
 
     void refreshSize() override{
         qreal textWidth=text->boundingRect().width();
         qreal textHeight=text->boundingRect().height();
-        if(!hasParameter()||value==nullptr){
+        if(!hasParameter()){
             wid=40;
             len=static_cast<int>(std::ceil(textWidth+30));
             setCodeBlockShape(this,shadow,len,wid,true,true);
             text->setPos(10,(wid-textHeight)/2);
             return;
         }
-        wid=std::max(40,value->wid+10);
-        len=static_cast<int>(std::ceil(20+textWidth+10+value->len+10));
+        qreal x=20+textWidth+10;
+        qreal maxHeight=40;
+        for(FloatBlock* value:values){
+            if(value==nullptr){
+                continue;
+            }
+            maxHeight=std::max(maxHeight,static_cast<qreal>(value->wid+10));
+            x+=value->len+10;
+        }
+        wid=static_cast<int>(std::ceil(maxHeight));
+        len=static_cast<int>(std::ceil(x));
         setCodeBlockShape(this,shadow,len,wid,true,true);
         text->setPos(10,(wid-textHeight)/2);
-        value->setPos(20+textWidth,(wid-value->wid)/2);
+        x=20+textWidth+10;
+        for(FloatBlock* value:values){
+            if(value==nullptr){
+                continue;
+            }
+            value->setPos(x,(wid-value->wid)/2);
+            x+=value->len+10;
+        }
     }
 
     CodeBlock* copy() override{
-        CustomCallBlock* newBlock=new CustomCallBlock(customName,parameterName,value,false);
+        CustomCallBlock* newBlock=new CustomCallBlock(customName,parameterNames,values,false);
         newBlock->setPos(pos());
         return newBlock;
     }
@@ -2115,10 +2164,10 @@ public:
 
     Robot(QGraphicsItem * parent=nullptr):QGraphicsPixmapItem(parent){
         iconSprite=trimTransparentPixmap(loadImageAsset("icons/robot.png"));
-        directionSprites[0]=trimTransparentPixmap(loadPaintingAsset("right.png"));
-        directionSprites[1]=trimTransparentPixmap(loadPaintingAsset("back.png"));
-        directionSprites[2]=trimTransparentPixmap(loadPaintingAsset("left.png"));
-        directionSprites[3]=trimTransparentPixmap(loadPaintingAsset("straight.png"));
+        directionSprites[0]=trimTransparentPixmap(loadPaintingAsset("back.png"));
+        directionSprites[1]=trimTransparentPixmap(loadPaintingAsset("left.png"));
+        directionSprites[2]=trimTransparentPixmap(loadPaintingAsset("straight.png"));
+        directionSprites[3]=trimTransparentPixmap(loadPaintingAsset("right.png"));
         gridx=0;
         gridy=0;
         direction=0;
@@ -2138,16 +2187,16 @@ public:
         qreal pad=cellSize*0.22;
         QPolygonF shape;
         if(direction==0){
-            shape<<QPointF(pad,pad)<<QPointF(cellSize-pad,cellSize/2.0)<<QPointF(pad,cellSize-pad);
-        }
-        else if(direction==1){
             shape<<QPointF(pad,pad)<<QPointF(cellSize-pad,pad)<<QPointF(cellSize/2.0,cellSize-pad);
         }
-        else if(direction==2){
+        else if(direction==1){
             shape<<QPointF(cellSize-pad,pad)<<QPointF(pad,cellSize/2.0)<<QPointF(cellSize-pad,cellSize-pad);
         }
-        else{
+        else if(direction==2){
             shape<<QPointF(pad,cellSize-pad)<<QPointF(cellSize-pad,cellSize-pad)<<QPointF(cellSize/2.0,pad);
+        }
+        else{
+            shape<<QPointF(pad,pad)<<QPointF(cellSize-pad,cellSize/2.0)<<QPointF(pad,cellSize-pad);
         }
         painter.drawPolygon(shape);
         return pixmap;
@@ -2167,8 +2216,8 @@ public:
         if(iconSprite.isNull()){
             return QPixmap();
         }
-        // robot.png faces left. Directions are: 0 right, 1 down, 2 left, 3 up.
-        const int rotationDegrees[]={180,90,0,270};
+        // robot.png faces down. Directions are: 0 down, 1 left, 2 up, 3 right.
+        const int rotationDegrees[]={0,90,180,270};
         QTransform transform;
         transform.rotate(rotationDegrees[direction]);
         return iconSprite.transformed(transform,Qt::SmoothTransformation);
@@ -2190,16 +2239,16 @@ public:
         int newx=gridx;
         int newy=gridy;
         if(direction==0){
-            newx+=sign;
-        }
-        if(direction==1){
             newy+=sign;
         }
-        if(direction==2){
+        if(direction==1){
             newx-=sign;
         }
-        if(direction==3){
+        if(direction==2){
             newy-=sign;
+        }
+        if(direction==3){
+            newx+=sign;
         }
         if(newx<0||newx>=currentMapWidth()||newy<0||newy>=currentMapHeight()){
             return;
@@ -2222,10 +2271,14 @@ extern Robot* player;
 
 bool isPassableMapCell(int cell){
     return cell==level::CellEmpty||
+           cell==level::CellStart||
            cell==level::CellPlate||
+           cell==level::CellSpikeDown||
            cell==level::CellLightG||
            cell==level::CellLightR||
            cell==level::CellLightY||
+           cell==level::CellBeam1||
+           cell==level::CellBeam2||
            cell==level::CellEnd;
 }
 
@@ -2235,26 +2288,26 @@ bool isBlockingMapCell(int cell){
 
 int frontMapType(){
     if(player==nullptr){
-        return 1;
+        return 0;
     }
     int x=player->gridx;
     int y=player->gridy;
     if(player->direction==0){
-        x++;
-    }
-    else if(player->direction==1){
         y++;
     }
-    else if(player->direction==2){
+    else if(player->direction==1){
         x--;
     }
-    else if(player->direction==3){
+    else if(player->direction==2){
         y--;
     }
-    if(x<0||x>=currentMapWidth()||y<0||y>=currentMapHeight()){
-        return 1;
+    else if(player->direction==3){
+        x++;
     }
-    return isBlockingMapCell(mapdata[x][y])?1:0;
+    if(x<0||x>=currentMapWidth()||y<0||y>=currentMapHeight()){
+        return 0;
+    }
+    return isPassableMapCell(mapdata[x][y])?1:0;
 }
 
 class RobotCoordBlock:public FloatBlock{
@@ -2296,7 +2349,7 @@ class RobotFrontMapBlock:public FloatBlock{
 public:
     RobotFrontMapBlock(int base=false,QGraphicsItem* parent=nullptr):
         FloatBlock(103,base,parent){
-        text->setPlainText("前方块类型");
+        text->setPlainText("前方能否通行");
         refreshSize();
         setBrush(robotCoordColor());
     }
@@ -2321,7 +2374,8 @@ public:
     }
 };
 
-extern std::map<QString,vector<double>> customParameterStacks;
+extern std::map<QString,vector<std::map<QString,double>>> customParameterStacks;
+extern std::map<QString,CustomHatBlock*> customHatBlocks;
 
 class RobotActionAdapter:public core::RobotActions{
 public:
@@ -2457,8 +2511,18 @@ public:
         }
     }
 
-    void enterCustomBlock(const std::string& name,double value) override{
-        customParameterStacks[QString::fromStdString(name)].push_back(value);
+    void enterCustomBlock(const std::string& name,const std::vector<double>& values) override{
+        QString key=QString::fromStdString(name);
+        std::map<QString,double> frame;
+        const auto& hats=runtimeCodeSnapshotActive?runtimeCustomHatBlocks:customHatBlocks;
+        auto it=hats.find(key);
+        if(it!=hats.end()&&it->second!=nullptr){
+            const vector<QString>& names=it->second->parameterNames;
+            for(size_t i=0;i<names.size();i++){
+                frame[names[i]]=i<values.size()?values[i]:0.0;
+            }
+        }
+        customParameterStacks[key].push_back(frame);
     }
 
     void leaveCustomBlock(const std::string& name) override{
@@ -2517,7 +2581,7 @@ vector<FloatBlock*> listFloatBaseBlocks;
 vector<CodeBlock*> listCodeBaseBlocks;
 vector<CustomCallBlock*> customCallBaseBlocks;
 std::map<QString,CustomHatBlock*> customHatBlocks;
-std::map<QString,vector<double>> customParameterStacks;
+std::map<QString,vector<std::map<QString,double>>> customParameterStacks;
 SetVariableBlock* variableSetBaseBlock=nullptr;
 IncreaseVariableBlock* variableIncreaseBaseBlock=nullptr;
 StartBlock* currentStartBlock=nullptr;
@@ -2647,7 +2711,7 @@ qreal nextDragZ(){
     return draggingZ+maxZ*1000;
 }
 
-double customParameterValue(const QString& customName){
+double customParameterValue(const QString& customName,const QString& parameterName){
     auto it=customParameterStacks.find(customName);
     if(it==customParameterStacks.end()||it->second.empty()){
         message::otherError("无法调用自定义积木局部变量");
@@ -2655,7 +2719,14 @@ double customParameterValue(const QString& customName){
         runtimeStopRequested=true;
         return 0.0;
     }
-    return it->second.back();
+    auto valueIt=it->second.back().find(parameterName);
+    if(valueIt==it->second.back().end()){
+        message::otherError("无法调用自定义积木局部变量");
+        runtimeSkipCurrentBlock=true;
+        runtimeStopRequested=true;
+        return 0.0;
+    }
+    return valueIt->second;
 }
 
 int stageDisplaySize(){
@@ -2669,6 +2740,9 @@ QPoint stageDisplayOrigin(){
 int stageDisplayCellSize(){
     return stageDisplaySize()/currentMapSide();
 }
+
+constexpr qreal StepStatusTextWidth=92;
+constexpr qreal TimeStatusTextWidth=70;
 
 QRectF informationRect(){
     QPoint origin=stageDisplayOrigin();
@@ -2714,14 +2788,14 @@ void updateInformationGeometry(){
     if(testStatusText!=nullptr){
         qreal scale=rect.height()/107.0;
         testStatusText->setFont(QFont("Arial",std::max(8,int(std::round(20*scale))),QFont::Bold));
-        testStatusText->setTextWidth(70*scale);
+        testStatusText->setTextWidth(StepStatusTextWidth*scale);
         testStatusText->setPos(rect.left()+72*scale,rect.top()+34*scale);
         testStatusText->setZValue(z+1);
     }
     if(timeStatusText!=nullptr){
         qreal scale=rect.height()/107.0;
         timeStatusText->setFont(QFont("Arial",std::max(8,int(std::round(20*scale))),QFont::Bold));
-        timeStatusText->setTextWidth(70*scale);
+        timeStatusText->setTextWidth(TimeStatusTextWidth*scale);
         timeStatusText->setPos(rect.left()+225*scale,rect.top()+34*scale);
         timeStatusText->setZValue(z+1);
     }
@@ -3002,7 +3076,7 @@ AppGraphicsView::AppGraphicsView(QGraphicsScene* scene):QGraphicsView(scene)
             recordRuntimeTimeUse();
         }
         updateTestStatusText();
-        if(levelTestRunning){
+        if(levelTestRunning&&level::activeLevelNumber()!=5){
             if(levelTestStepCount>=levelTestStepLimit){
                 player->SyncCell(stageDisplayCellSize(),stageDisplayOrigin());
                 finishLevelTest(true,
@@ -3256,11 +3330,11 @@ bool outsideWorkspaceVertical(const QRectF& rect){
     return rect.top()<bounds.top()||rect.bottom()>bounds.bottom();
 }
 
-QRectF codeTreeSceneRect(CodeBlock* head){
+QRectF codeTreeSceneRect(CodeBlock* head,std::set<CodeBlock*>& visited){
     QRectF rect;
     bool initialized=false;
     CodeBlock* curr=head;
-    while(curr!=nullptr){
+    while(curr!=nullptr&&visited.insert(curr).second){
         QRectF currRect=curr->sceneBoundingRect();
         if(!initialized){
             rect=currRect;
@@ -3271,11 +3345,16 @@ QRectF codeTreeSceneRect(CodeBlock* head){
         }
         ControlCodeBlock* control=dynamic_cast<ControlCodeBlock*>(curr);
         if(control!=nullptr&&control->inside!=nullptr){
-            rect=rect.united(codeTreeSceneRect(control->inside));
+            rect=rect.united(codeTreeSceneRect(control->inside,visited));
         }
         curr=curr->next;
     }
     return rect;
+}
+
+QRectF codeTreeSceneRect(CodeBlock* head){
+    std::set<CodeBlock*> visited;
+    return codeTreeSceneRect(head,visited);
 }
 
 QPointF clampVerticalDeltaToWorkspace(const QRectF& rect){
@@ -3746,7 +3825,7 @@ void rebuildCustomCallToolbox(){
     }
     customCallBaseBlocks.clear();
 
-    if(appScene==nullptr){
+    if(appScene==nullptr||!toolboxAllowsCustomBlocks()){
         return;
     }
     for(const auto& item:customHatBlocks){
@@ -3756,8 +3835,8 @@ void rebuildCustomCallToolbox(){
         }
         CustomCallBlock* callBlock=new CustomCallBlock(
             hat->customName,
-            hat->parameterName,
-            nullptr,
+            hat->parameterNames,
+            vector<FloatBlock*>(),
             true
         );
         callBlock->setZValue(10);
@@ -3899,15 +3978,25 @@ QJsonObject serializeCodeBlock(CodeBlock* block){
     else if(CustomHatBlock* customHat=dynamic_cast<CustomHatBlock*>(block)){
         object["kind"]="customHat";
         object["name"]=customHat->customName;
-        object["parameter"]=customHat->parameterName;
+        QJsonArray parameters;
+        for(const QString& name:customHat->parameterNames){
+            parameters.append(name);
+        }
+        object["parameters"]=parameters;
     }
     else if(CustomCallBlock* customCall=dynamic_cast<CustomCallBlock*>(block)){
         object["kind"]="customCall";
         object["name"]=customCall->customName;
-        object["parameter"]=customCall->parameterName;
-        if(customCall->value!=nullptr){
-            object["value"]=serializeFloatBlock(customCall->value);
+        QJsonArray parameters;
+        for(const QString& name:customCall->parameterNames){
+            parameters.append(name);
         }
+        object["parameters"]=parameters;
+        QJsonArray values;
+        for(FloatBlock* value:customCall->values){
+            values.append(serializeFloatBlock(value));
+        }
+        object["values"]=values;
     }
     else if(FloatCodeBlock* floatCode=dynamic_cast<FloatCodeBlock*>(block)){
         object["kind"]="floatCode";
@@ -3968,14 +4057,51 @@ CodeBlock* deserializeCodeBlock(const QJsonObject& object){
         block=new EndBlock(false);
     }
     else if(kind=="customHat"){
+        vector<QString> parameters;
+        QJsonArray parameterArray=object["parameters"].toArray();
+        for(const QJsonValue& value:parameterArray){
+            QString parameter=value.toString().trimmed();
+            if(!parameter.isEmpty()){
+                parameters.push_back(parameter);
+            }
+        }
+        if(parameters.empty()){
+            QString parameter=object["parameter"].toString().trimmed();
+            if(!parameter.isEmpty()){
+                parameters.push_back(parameter);
+            }
+        }
         block=new CustomHatBlock(object["name"].toString("custom"),
-            object["parameter"].toString("x"),false);
+            parameters,false);
     }
     else if(kind=="customCall"){
-        FloatBlock* value=deserializeFloatBlock(object["value"].toObject(),nullptr);
+        vector<QString> parameters;
+        QJsonArray parameterArray=object["parameters"].toArray();
+        for(const QJsonValue& item:parameterArray){
+            QString parameter=item.toString().trimmed();
+            if(!parameter.isEmpty()){
+                parameters.push_back(parameter);
+            }
+        }
+        if(parameters.empty()){
+            QString parameter=object["parameter"].toString().trimmed();
+            if(!parameter.isEmpty()){
+                parameters.push_back(parameter);
+            }
+        }
+        vector<FloatBlock*> values;
+        QJsonArray valueArray=object["values"].toArray();
+        for(const QJsonValue& item:valueArray){
+            values.push_back(deserializeFloatBlock(item.toObject(),nullptr));
+        }
+        if(values.empty()&&object.contains("value")){
+            values.push_back(deserializeFloatBlock(object["value"].toObject(),nullptr));
+        }
         block=new CustomCallBlock(object["name"].toString("custom"),
-            object["parameter"].toString(),value,false);
-        deleteFloatBlock(value);
+            parameters,values,false);
+        for(FloatBlock* value:values){
+            deleteFloatBlock(value);
+        }
     }
     else if(kind=="floatCode"){
         FloatBlock* value=deserializeFloatBlock(object["value"].toObject(),nullptr);
@@ -4756,7 +4882,9 @@ void renameVariableReferencesInCode(CodeBlock* head,const QString& oldName,const
         }
         CustomCallBlock* customCall=dynamic_cast<CustomCallBlock*>(curr);
         if(customCall!=nullptr){
-            renameVariableReferencesInFloat(customCall->value,oldName,newName);
+            for(FloatBlock* value:customCall->values){
+                renameVariableReferencesInFloat(value,oldName,newName);
+            }
         }
         curr=curr->next;
     }
@@ -4818,7 +4946,9 @@ void renameListReferencesInCode(CodeBlock* head,const QString& oldName,const QSt
         }
         CustomCallBlock* customCall=dynamic_cast<CustomCallBlock*>(curr);
         if(customCall!=nullptr){
-            renameListReferencesInFloat(customCall->value,oldName,newName);
+            for(FloatBlock* value:customCall->values){
+                renameListReferencesInFloat(value,oldName,newName);
+            }
         }
         curr=curr->next;
     }
@@ -5008,8 +5138,11 @@ void replaceFloatExpressionWithValue(FloatBlock* root){
     if(controlParent!=nullptr&&controlParent->condition==root){
         controlParent->condition=replacementValue;
     }
-    if(customCallParent!=nullptr&&customCallParent->value==root){
-        customCallParent->value=replacementValue;
+    if(customCallParent!=nullptr){
+        auto slot=std::find(customCallParent->values.begin(),customCallParent->values.end(),root);
+        if(slot!=customCallParent->values.end()){
+            *slot=replacementValue;
+        }
     }
 
     deleteFloatBlock(root);
@@ -5115,10 +5248,6 @@ double codeBlockFloatValue(CodeBlock* block){
     if(setListBlock!=nullptr&&setListBlock->value!=nullptr){
         return setListBlock->value->getValue();
     }
-    CustomCallBlock* customCall=dynamic_cast<CustomCallBlock*>(block);
-    if(customCall!=nullptr&&customCall->value!=nullptr){
-        return customCall->value->getValue();
-    }
     ControlCodeBlock* controlBlock=dynamic_cast<ControlCodeBlock*>(block);
     if(controlBlock!=nullptr&&controlBlock->condition!=nullptr){
         return controlBlock->condition->getValue();
@@ -5185,6 +5314,13 @@ core::BlockExecutor::BlockSnapshot readRuntimeBlock(core::BlockExecutor::Node no
     CustomCallBlock* customCall=dynamic_cast<CustomCallBlock*>(block);
     if(customCall!=nullptr){
         snapshot.customName=customCall->customName.toStdString();
+        for(FloatBlock* value:customCall->values){
+            snapshot.customValues.push_back(value!=nullptr?value->getValue():0.0);
+            if(runtimeSkipCurrentBlock){
+                snapshot.type=-999;
+                break;
+            }
+        }
         const auto& hats=runtimeCodeSnapshotActive?runtimeCustomHatBlocks:customHatBlocks;
         auto it=hats.find(customCall->customName);
         if(it!=hats.end()&&it->second!=nullptr){
@@ -5263,7 +5399,8 @@ void rememberFloatBlockStagePos(FloatBlock* block,int area){
 int codeChainHeight(CodeBlock* head){
     int height=0;
     CodeBlock* curr=head;
-    while(curr!=nullptr){
+    std::set<CodeBlock*> visited;
+    while(curr!=nullptr&&visited.insert(curr).second){
         height+=curr->wid;
         curr=curr->next;
     }
@@ -5272,7 +5409,8 @@ int codeChainHeight(CodeBlock* head){
 
 void setCodeChainMoving(CodeBlock* head,bool moving){
     CodeBlock* curr=head;
-    while(curr!=nullptr){
+    std::set<CodeBlock*> visited;
+    while(curr!=nullptr&&visited.insert(curr).second){
         curr->ismoving=moving;
         ControlCodeBlock* control=dynamic_cast<ControlCodeBlock*>(curr);
         if(control!=nullptr){
@@ -5285,7 +5423,8 @@ void setCodeChainMoving(CodeBlock* head,bool moving){
 void syncCodeChainFrom(CodeBlock* head,QPointF startPos){
     CodeBlock* curr=head;
     QPointF currPos=startPos;
-    while(curr!=nullptr){
+    std::set<CodeBlock*> visited;
+    while(curr!=nullptr&&visited.insert(curr).second){
         curr->setPos(currPos);
         ControlCodeBlock* control=dynamic_cast<ControlCodeBlock*>(curr);
         if(control!=nullptr){
@@ -5302,7 +5441,8 @@ void syncInsideCodeChain(ControlCodeBlock* owner){
     }
     CodeBlock* curr=owner->inside;
     QPointF currPos=owner->pos()+QPointF(owner->leftWidth,owner->topHeight);
-    while(curr!=nullptr){
+    std::set<CodeBlock*> visited;
+    while(curr!=nullptr&&visited.insert(curr).second){
         curr->insideParent=owner;
         curr->setPos(currPos);
         ControlCodeBlock* control=dynamic_cast<ControlCodeBlock*>(curr);
@@ -5316,7 +5456,8 @@ void syncInsideCodeChain(ControlCodeBlock* owner){
 
 void offsetCodeChain(CodeBlock* head,QPointF offset){
     CodeBlock* curr=head;
-    while(curr!=nullptr){
+    std::set<CodeBlock*> visited;
+    while(curr!=nullptr&&visited.insert(curr).second){
         curr->setPos(curr->pos()+offset);
         ControlCodeBlock* control=dynamic_cast<ControlCodeBlock*>(curr);
         if(control!=nullptr){
@@ -5333,7 +5474,8 @@ ControlCodeBlock* findInsideOwner(CodeBlock* block){
             continue;
         }
         CodeBlock* curr=control->inside;
-        while(curr!=nullptr){
+        std::set<CodeBlock*> visited;
+        while(curr!=nullptr&&visited.insert(curr).second){
             if(curr==block){
                 return control;
             }
@@ -5348,7 +5490,8 @@ void refreshControlFromInside(ControlCodeBlock* control){
         return;
     }
     CodeBlock* curr=control->inside;
-    while(curr!=nullptr){
+    std::set<CodeBlock*> visited;
+    while(curr!=nullptr&&visited.insert(curr).second){
         ControlCodeBlock* child=dynamic_cast<ControlCodeBlock*>(curr);
         if(child!=nullptr&&!child->dragging&&!child->ismoving){
             refreshControlFromInside(child);
@@ -5369,7 +5512,11 @@ void syncControlInside(ControlCodeBlock* control){
 
 void previewControlAncestorGrowth(ControlCodeBlock* control){
     ControlCodeBlock* curr=findInsideOwner(control);
+    std::set<ControlCodeBlock*> visited;
     while(curr!=nullptr){
+        if(!visited.insert(curr).second){
+            break;
+        }
         int oldWid=curr->wid;
         curr->innerHeight=curr->inside==nullptr?30:codeChainHeight(curr->inside);
         curr->refreshSize();
@@ -5397,7 +5544,8 @@ void previewControlInsideInsert(ControlCodeBlock* control,int insertHeight){
 void refreshAllControlLayouts(){
     for(CodeBlock* block:codeBlocks){
         ControlCodeBlock* control=dynamic_cast<ControlCodeBlock*>(block);
-        if(control!=nullptr&&!control->dragging&&!control->ismoving){
+        if(control!=nullptr&&control->insideParent==nullptr&&
+           !control->dragging&&!control->ismoving){
             refreshControlFromInside(control);
         }
     }
@@ -5494,62 +5642,68 @@ void refreshVariableToolbox(){
         return;
     }
     int y=variableToolboxStartY;
-    for(const auto& item:runtimeState.variables()){
-        QString name=QString::fromStdString(item.first);
-        VariableBlock* block=new VariableBlock(name,true);
-        setFloatBlockStagePos(block,scrollToolbox,QPointF(20,y));
-        block->setZValue(10);
-        block->setAcceptedMouseButtons(canRenameVariableName(name)?
-            (Qt::LeftButton|Qt::RightButton):Qt::LeftButton);
-        appScene->addItem(block);
-        floatBlocks.push_back(block);
-        variableBaseBlocks.push_back(block);
-        y+=block->wid+toolboxFloatBlockGap;
-    }
-    if(variableSetBaseBlock!=nullptr){
-        setCodeBlockStagePos(variableSetBaseBlock,scrollToolbox,QPointF(20,y));
-        y+=variableSetBaseBlock->wid+toolboxCodeBlockGap;
-    }
-    if(variableIncreaseBaseBlock!=nullptr){
-        setCodeBlockStagePos(variableIncreaseBaseBlock,scrollToolbox,QPointF(20,y));
-        y+=variableIncreaseBaseBlock->wid+toolboxCodeBlockGap;
-    }
-    for(const auto& item:runtimeState.lists()){
-        QString name=QString::fromStdString(item.first);
-        FloatBlock* labelBlock=new FloatBlock(-2,true);
-        labelBlock->text->setPlainText(name);
-        labelBlock->refreshSize();
-        labelBlock->setBrush(listColor());
-        labelBlock->setMovable(false);
-        labelBlock->setAcceptedMouseButtons(canRenameListName(name)?
-            Qt::RightButton:Qt::NoButton);
-        setFloatBlockStagePos(labelBlock,scrollToolbox,QPointF(20,y));
-        labelBlock->setZValue(10);
-        appScene->addItem(labelBlock);
-        floatBlocks.push_back(labelBlock);
-        listLabelBaseBlocks.push_back(labelBlock);
-        y+=labelBlock->wid+toolboxFloatBlockGap;
-    }
-    for(FloatBlock* block:listFloatBaseBlocks){
-        if(block==nullptr){
-            continue;
+    if(toolboxAllowsVariableBlocks()){
+        for(const auto& item:runtimeState.variables()){
+            QString name=QString::fromStdString(item.first);
+            VariableBlock* block=new VariableBlock(name,true);
+            setFloatBlockStagePos(block,scrollToolbox,QPointF(20,y));
+            block->setZValue(10);
+            block->setAcceptedMouseButtons(canRenameVariableName(name)?
+                (Qt::LeftButton|Qt::RightButton):Qt::LeftButton);
+            appScene->addItem(block);
+            floatBlocks.push_back(block);
+            variableBaseBlocks.push_back(block);
+            y+=block->wid+toolboxFloatBlockGap;
         }
-        setFloatBlockStagePos(block,scrollToolbox,QPointF(20,y));
-        y+=block->wid+toolboxFloatBlockGap;
-    }
-    for(CodeBlock* block:listCodeBaseBlocks){
-        if(block==nullptr){
-            continue;
+        if(variableSetBaseBlock!=nullptr){
+            setCodeBlockStagePos(variableSetBaseBlock,scrollToolbox,QPointF(20,y));
+            y+=variableSetBaseBlock->wid+toolboxCodeBlockGap;
         }
-        setCodeBlockStagePos(block,scrollToolbox,QPointF(20,y));
-        y+=block->wid+toolboxCodeBlockGap;
-    }
-    for(CustomCallBlock* block:customCallBaseBlocks){
-        if(block==nullptr){
-            continue;
+        if(variableIncreaseBaseBlock!=nullptr){
+            setCodeBlockStagePos(variableIncreaseBaseBlock,scrollToolbox,QPointF(20,y));
+            y+=variableIncreaseBaseBlock->wid+toolboxCodeBlockGap;
         }
-        setCodeBlockStagePos(block,scrollToolbox,QPointF(20,y));
-        y+=block->wid+toolboxCodeBlockGap;
+    }
+    if(toolboxAllowsListBlocks()){
+        for(const auto& item:runtimeState.lists()){
+            QString name=QString::fromStdString(item.first);
+            FloatBlock* labelBlock=new FloatBlock(-2,true);
+            labelBlock->text->setPlainText(name);
+            labelBlock->refreshSize();
+            labelBlock->setBrush(listColor());
+            labelBlock->setMovable(false);
+            labelBlock->setAcceptedMouseButtons(canRenameListName(name)?
+                Qt::RightButton:Qt::NoButton);
+            setFloatBlockStagePos(labelBlock,scrollToolbox,QPointF(20,y));
+            labelBlock->setZValue(10);
+            appScene->addItem(labelBlock);
+            floatBlocks.push_back(labelBlock);
+            listLabelBaseBlocks.push_back(labelBlock);
+            y+=labelBlock->wid+toolboxFloatBlockGap;
+        }
+        for(FloatBlock* block:listFloatBaseBlocks){
+            if(block==nullptr){
+                continue;
+            }
+            setFloatBlockStagePos(block,scrollToolbox,QPointF(20,y));
+            y+=block->wid+toolboxFloatBlockGap;
+        }
+        for(CodeBlock* block:listCodeBaseBlocks){
+            if(block==nullptr){
+                continue;
+            }
+            setCodeBlockStagePos(block,scrollToolbox,QPointF(20,y));
+            y+=block->wid+toolboxCodeBlockGap;
+        }
+    }
+    if(toolboxAllowsCustomBlocks()){
+        for(CustomCallBlock* block:customCallBaseBlocks){
+            if(block==nullptr){
+                continue;
+            }
+            setCodeBlockStagePos(block,scrollToolbox,QPointF(20,y));
+            y+=block->wid+toolboxCodeBlockGap;
+        }
     }
     updateToolboxScrollRange();
     syncScrollArea(scrollToolbox);
@@ -5718,11 +5872,15 @@ void eraseCodeEmbeddedFloatRecords(CodeBlock* block){
     }
     CustomHatBlock* customHat=dynamic_cast<CustomHatBlock*>(block);
     if(customHat!=nullptr){
-        eraseFloatTreeRecords(customHat->parameterBlock);
+        for(CustomParamBlock* parameterBlock:customHat->parameterBlocks){
+            eraseFloatTreeRecords(parameterBlock);
+        }
     }
     CustomCallBlock* customCall=dynamic_cast<CustomCallBlock*>(block);
     if(customCall!=nullptr){
-        eraseFloatTreeRecords(customCall->value);
+        for(FloatBlock* value:customCall->values){
+            eraseFloatTreeRecords(value);
+        }
     }
 }
 
@@ -5866,11 +6024,15 @@ void setCodeTreeZValue(CodeBlock* block,qreal z){
         }
         CustomHatBlock* customHat=dynamic_cast<CustomHatBlock*>(curr);
         if(customHat!=nullptr){
-            setFloatTreeZValue(customHat->parameterBlock,z+1);
+            for(CustomParamBlock* parameterBlock:customHat->parameterBlocks){
+                setFloatTreeZValue(parameterBlock,z+1);
+            }
         }
         CustomCallBlock* customCall=dynamic_cast<CustomCallBlock*>(curr);
         if(customCall!=nullptr){
-            setFloatTreeZValue(customCall->value,z+1);
+            for(FloatBlock* value:customCall->values){
+                setFloatTreeZValue(value,z+1);
+            }
         }
         curr=curr->next;
     }
@@ -5971,8 +6133,11 @@ FloatBlock* detachOperatorFromParent(FloatBlock* moving){
     if(controlParent!=nullptr&&controlParent->condition==moving){
         controlParent->condition=replacementValue;
     }
-    if(customCallParent!=nullptr&&customCallParent->value==moving){
-        customCallParent->value=replacementValue;
+    if(customCallParent!=nullptr){
+        auto slot=std::find(customCallParent->values.begin(),customCallParent->values.end(),moving);
+        if(slot!=customCallParent->values.end()){
+            *slot=replacementValue;
+        }
     }
 
     moving->setParentItem(nullptr);
@@ -6088,7 +6253,9 @@ FloatBlock* findAbsorbTarget(FloatBlock* moving){
         }
         CustomCallBlock* customCall=dynamic_cast<CustomCallBlock*>(block);
         if(customCall!=nullptr){
-            collectFloatValueTargets(customCall->value,moving,targets);
+            for(FloatBlock* value:customCall->values){
+                collectFloatValueTargets(value,moving,targets);
+            }
         }
     }
     FloatBlock* bestTarget=nullptr;
@@ -6154,21 +6321,24 @@ void attachOperatorToTarget(FloatBlock* moving,FloatBlock* target){
     RemoveListItemBlock* removeItemParent=dynamic_cast<RemoveListItemBlock*>(target->parentItem());
     ControlCodeBlock* controlParent=dynamic_cast<ControlCodeBlock*>(target->parentItem());
     CustomCallBlock* customCallParent=dynamic_cast<CustomCallBlock*>(target->parentItem());
-    if(customCallParent!=nullptr&&customCallParent->value==target){
-        QPointF targetLocalPos=target->pos();
-        customCallParent->value=moving;
-        eraseFloatTreeRecords(moving);
-        moving->setParentItem(customCallParent);
-        moving->setPos(targetLocalPos);
-        moving->dragging=false;
-        moving->moved=false;
-        resetFloatTreeZValue(moving);
-        setInsertedOperatorInteractivity(moving);
-        deleteFloatBlock(target);
-        customCallParent->refreshSize();
-        refreshAllControlLayouts();
-        checkEditedFloatWorkspaceWidth(moving);
-        return;
+    if(customCallParent!=nullptr){
+        auto slot=std::find(customCallParent->values.begin(),customCallParent->values.end(),target);
+        if(slot!=customCallParent->values.end()){
+            QPointF targetLocalPos=target->pos();
+            *slot=moving;
+            eraseFloatTreeRecords(moving);
+            moving->setParentItem(customCallParent);
+            moving->setPos(targetLocalPos);
+            moving->dragging=false;
+            moving->moved=false;
+            resetFloatTreeZValue(moving);
+            setInsertedOperatorInteractivity(moving);
+            deleteFloatBlock(target);
+            customCallParent->refreshSize();
+            refreshAllControlLayouts();
+            checkEditedFloatWorkspaceWidth(moving);
+            return;
+        }
     }
     if(controlParent!=nullptr&&controlParent->condition==target){
         QPointF targetLocalPos=target->pos();
@@ -6680,6 +6850,7 @@ void CodeBlock::mouseReleaseEvent(QGraphicsSceneMouseEvent* event){
     }
     if(dragging){
         StartBlock* releasedStart=dynamic_cast<StartBlock*>(this);
+        EndBlock* releasedEnd=dynamic_cast<EndBlock*>(this);
         QRectF releaseRect=codeTreeSceneRect(this);
         if(!isbase&&outsideWorkspaceHorizontal(releaseRect)){
             scene()->removeItem(shadow);
@@ -6700,6 +6871,17 @@ void CodeBlock::mouseReleaseEvent(QGraphicsSceneMouseEvent* event){
             scene()->removeItem(shadow);
             deleteCodeBlock(this);
             return;
+        }
+        if(releasedEnd!=nullptr){
+            for(CodeBlock* block:codeBlocks){
+                if(block!=releasedEnd&&isEndCodeBlock(block)){
+                    message::multithreadingNotAllowed();
+                    releasedEnd->ismoving=false;
+                    scene()->removeItem(shadow);
+                    deleteCodeBlock(this);
+                    return;
+                }
+            }
         }
         if(releasedStart!=nullptr){
             currentStartBlock=releasedStart;
@@ -6856,7 +7038,7 @@ void finishLevelTest(bool forcedFail,const QString& message){
         resetRunButtons();
         updateTestStatusText();
         QString text=message.isEmpty()?
-            QString("测试样例 %1 失败: 机器人陷入循环或被陷阱困住")
+            QString(" %1 次测试失败: 机器人陷入循环或被陷阱困住")
                 .arg(levelTestCaseIndex+1):
             message;
         QMessageBox::warning(nullptr,"测试结果",text);
@@ -6880,12 +7062,14 @@ void finishLevelTest(bool forcedFail,const QString& message){
         resetRunButtons();
         updateTestStatusText();
         LevelChoosePage::upgradeLevelUnlocked(levelNumberNow+1);
-        QString successText=result.message.empty()?
-            QString("所有 %1 个测试样例都已通过").arg(levelTestCaseTotal):
-            QString::fromStdString(result.message);
-        QMessageBox::information(nullptr,"测试结果",successText);
+        QMessageBox::information(nullptr,"测试结果",
+            QString("%1 次测试都已通过").arg(levelTestCaseTotal));
         return;
     }
+    QString successText=result.message.empty()?
+        QString(" %1 次测试已通过").arg(levelTestCaseIndex):
+        QString::fromStdString(result.message);
+    QMessageBox::information(nullptr,"测试结果",successText);
     beginLevelTestCase(levelTestCaseIndex);
 }
 
@@ -6943,7 +7127,7 @@ void startLevelTestRun(){
 void ui::resetLevelConfig(){
     clearDataLockedNames();
     level::resetActiveLevel(screensize,screensize);
-    level::setActiveRobotStart(5,5,0);
+    level::setActiveRobotStart(5,5,3);
 }
 
 void ui::setLevelCell(int x,int y,int type){
@@ -7053,7 +7237,7 @@ void syncMapDataFromActiveLevel(){
 }
 
 void resetActiveLevelForRun(){
-    level::configureActiveLevel(level::activeLevelNumber(),level::activeLevelType());
+    level::configureActiveLevel(level::activeLevelNumber(),level::activeLevelType(),false);
     syncMapDataFromActiveLevel();
     updateStageGeometry();
 }
@@ -7097,8 +7281,24 @@ bool toolboxAllowsAdvancedBlocks(){
     return level::activeLevelNumber()>=3;
 }
 
-bool toolboxAllowsCustomBlocks(){
+bool toolboxAllowsOperationBlocks(){
     return level::activeLevelNumber()>=4;
+}
+
+bool toolboxAllowsVariableBlocks(){
+    return level::activeLevelNumber()>=4;
+}
+
+bool toolboxAllowsListBlocks(){
+    return level::activeLevelNumber()>=5;
+}
+
+bool toolboxAllowsCustomBlocks(){
+    return level::activeLevelNumber()>=5;
+}
+
+bool toolboxAllowsOutputBlocks(){
+    return level::activeLevelNumber()>=6;
 }
 
 int runtimeIntervalForBlockType(int blockType){
@@ -7308,7 +7508,7 @@ void drawStage(QGraphicsScene& scene){
     testStatusText->document()->setDocumentMargin(0);
     testStatusText->setDefaultTextColor(QColor(255,255,255));
     testStatusText->setFont(QFont("Arial",20,QFont::Bold));
-    testStatusText->setTextWidth(70);
+    testStatusText->setTextWidth(StepStatusTextWidth);
     testStatusText->setPos(82,494);
     testStatusText->setZValue(21);
     testStatusText->setAcceptedMouseButtons(Qt::NoButton);
@@ -7318,7 +7518,7 @@ void drawStage(QGraphicsScene& scene){
     timeStatusText->document()->setDocumentMargin(0);
     timeStatusText->setDefaultTextColor(QColor(255,255,255));
     timeStatusText->setFont(QFont("Arial",20,QFont::Bold));
-    timeStatusText->setTextWidth(70);
+    timeStatusText->setTextWidth(TimeStatusTextWidth);
     timeStatusText->setPos(235,494);
     timeStatusText->setZValue(21);
     timeStatusText->setAcceptedMouseButtons(Qt::NoButton);
@@ -7326,7 +7526,7 @@ void drawStage(QGraphicsScene& scene){
     updateInformationGeometry();
     updateTestStatusText();
 
-    if(toolboxAllowsAdvancedBlocks()){
+    if(toolboxAllowsVariableBlocks()){
         createVariableButton=new TextButton("创建新变量");
         createVariableButton->setPos(10,577);
         createVariableButton->setFixedSize(160,scaledAssetHeight("create_variable.png",160,40));
@@ -7350,7 +7550,9 @@ void drawStage(QGraphicsScene& scene){
             refreshVariableToolbox();
         };
         scene.addItem(createVariableButton);
+    }
 
+    if(toolboxAllowsListBlocks()){
         createListButton=new TextButton("创建新列表");
         createListButton->setPos(10,617);
         createListButton->setFixedSize(160,scaledAssetHeight("create_list.png",160,40));
@@ -7388,9 +7590,32 @@ void drawStage(QGraphicsScene& scene){
             dialog.setWindowTitle("创建自定义积木");
             QFormLayout layout(&dialog);
             QLineEdit nameEdit;
-            QLineEdit parameterEdit;
+            QComboBox parameterCountBox;
+            vector<QLineEdit*> parameterEdits;
             layout.addRow("自定义积木名",&nameEdit);
-            layout.addRow("参数名(默认无参数)",&parameterEdit);
+            for(int i=0;i<=5;i++){
+                parameterCountBox.addItem(QString::number(i),i);
+            }
+            layout.addRow("参数量",&parameterCountBox);
+            for(int i=0;i<5;i++){
+                QLineEdit* edit=new QLineEdit(&dialog);
+                parameterEdits.push_back(edit);
+                layout.addRow(QString("参数%1").arg(i+1),edit);
+            }
+            auto refreshParameterRows=[&](){
+                int count=parameterCountBox.currentData().toInt();
+                for(int i=0;i<static_cast<int>(parameterEdits.size());i++){
+                    bool visible=i<count;
+                    parameterEdits[i]->setVisible(visible);
+                    QWidget* label=layout.labelForField(parameterEdits[i]);
+                    if(label!=nullptr){
+                        label->setVisible(visible);
+                    }
+                }
+            };
+            QObject::connect(&parameterCountBox,QOverload<int>::of(&QComboBox::currentIndexChanged),
+                &dialog,[&](int){ refreshParameterRows(); });
+            refreshParameterRows();
             QDialogButtonBox buttons(QDialogButtonBox::Ok|QDialogButtonBox::Cancel);
             layout.addWidget(&buttons);
             QObject::connect(&buttons,&QDialogButtonBox::accepted,&dialog,&QDialog::accept);
@@ -7399,19 +7624,32 @@ void drawStage(QGraphicsScene& scene){
                 return;
             }
             QString name=nameEdit.text().trimmed();
-            QString parameterName=parameterEdit.text().trimmed();
+            int parameterCount=parameterCountBox.currentData().toInt();
+            vector<QString> parameterNames;
+            int totalParameterLength=0;
             if(!validVariableName(name)){
                 message::invalidVariableName();
                 return;
             }
-            if(!parameterName.isEmpty()&&!validVariableName(parameterName)){
-                message::invalidVariableName();
+            std::set<QString> seenParameters;
+            for(int i=0;i<parameterCount;i++){
+                QString parameterName=parameterEdits[i]->text().trimmed();
+                if(!validVariableName(parameterName)||seenParameters.find(parameterName)!=seenParameters.end()){
+                    message::invalidVariableName();
+                    return;
+                }
+                totalParameterLength+=parameterName.length();
+                parameterNames.push_back(parameterName);
+                seenParameters.insert(parameterName);
+            }
+            if(totalParameterLength>10){
+                message::otherError("参数名总长度不能超过10");
                 return;
             }
             if(customHatBlocks.find(name)!=customHatBlocks.end()){
                 return;
             }
-            CustomHatBlock* hat=new CustomHatBlock(name,parameterName,false);
+            CustomHatBlock* hat=new CustomHatBlock(name,parameterNames,false);
             setCodeBlockStagePos(hat,scrollWorkspace,QPointF(40,40));
             hat->setZValue(10);
             if(appScene!=nullptr){
@@ -7420,7 +7658,7 @@ void drawStage(QGraphicsScene& scene){
             codeBlocks.push_back(hat);
             customHatBlocks[name]=hat;
 
-            CustomCallBlock* callBlock=new CustomCallBlock(name,parameterName,nullptr,true);
+            CustomCallBlock* callBlock=new CustomCallBlock(name,parameterNames,vector<FloatBlock*>(),true);
             callBlock->setZValue(10);
             if(appScene!=nullptr){
                 appScene->addItem(callBlock);
@@ -7640,69 +7878,77 @@ void drawToolbox(QGraphicsScene& scene){
         addCode(new FloatCodeBlock(4,"等待",nullptr,true));
     }
     if(toolboxAllowsAdvancedBlocks()){
-        addCode(new OutputBlock("x",nullptr,true));
+        if(toolboxAllowsOutputBlocks()){
+            addCode(new OutputBlock("x",nullptr,true));
+        }
         addCode(new ControlCodeBlock(5,"如果",nullptr,true));
         addCode(new ControlCodeBlock(6,"当",nullptr,true));
 
-        const std::pair<int,QString> unaryBlocks[]={
-            {8,"floor"},
-            {9,"abs"},
-            {10,"not"}
-        };
-        for(const auto& item:unaryBlocks){
-            addFloat(new UnaryOpBlock(item.first,item.second,nullptr,true));
-        }
+        if(toolboxAllowsOperationBlocks()){
+            const std::pair<int,QString> unaryBlocks[]={
+                {8,"floor"},
+                {9,"abs"},
+                {10,"not"}
+            };
+            for(const auto& item:unaryBlocks){
+                addFloat(new UnaryOpBlock(item.first,item.second,nullptr,true));
+            }
 
-        const std::pair<int,QString> binaryBlocks[]={
-            {0,"+"},
-            {1,"-"},
-            {2,"*"},
-            {3,"/"},
-            {4,"pow"},
-            {6,"max"},
-            {7,"min"},
-            {8,"=="},
-            {9,"!="},
-            {10,"<"},
-            {11,">"},
-            {12,"and"},
-            {13,"or"}
-        };
-        for(const auto& item:binaryBlocks){
-            addFloat(new BinaryOpBlock(item.first,item.second,nullptr,nullptr,true));
+            const std::pair<int,QString> binaryBlocks[]={
+                {0,"+"},
+                {1,"-"},
+                {2,"*"},
+                {3,"/"},
+                {4,"pow"},
+                {6,"max"},
+                {7,"min"},
+                {8,"=="},
+                {9,"!="},
+                {10,"<"},
+                {11,">"},
+                {12,"and"},
+                {13,"or"}
+            };
+            for(const auto& item:binaryBlocks){
+                addFloat(new BinaryOpBlock(item.first,item.second,nullptr,nullptr,true));
+            }
         }
         addFloat(new RobotCoordBlock(0,true));
         addFloat(new RobotCoordBlock(1,true));
         addFloat(new RobotFrontMapBlock(true));
 
         variableToolboxStartY=y;
-        variableSetBaseBlock=new SetVariableBlock("x",nullptr,true);
-        variableSetBaseBlock->setZValue(10);
-        scene.addItem(variableSetBaseBlock);
-        baseCodeBlocks.push_back(variableSetBaseBlock);
-        variableIncreaseBaseBlock=new IncreaseVariableBlock("x",nullptr,true);
-        variableIncreaseBaseBlock->setZValue(10);
-        scene.addItem(variableIncreaseBaseBlock);
-        baseCodeBlocks.push_back(variableIncreaseBaseBlock);
+        if(toolboxAllowsVariableBlocks()){
+            variableSetBaseBlock=new SetVariableBlock("x",nullptr,true);
+            variableSetBaseBlock->setZValue(10);
+            scene.addItem(variableSetBaseBlock);
+            baseCodeBlocks.push_back(variableSetBaseBlock);
+            variableIncreaseBaseBlock=new IncreaseVariableBlock("x",nullptr,true);
+            variableIncreaseBaseBlock->setZValue(10);
+            scene.addItem(variableIncreaseBaseBlock);
+            baseCodeBlocks.push_back(variableIncreaseBaseBlock);
+        }
 
-        auto addListFloat=[&](FloatBlock* block){
-            block->setZValue(10);
-            scene.addItem(block);
-            floatBlocks.push_back(block);
-            listFloatBaseBlocks.push_back(block);
-        };
-        auto addListCode=[&](CodeBlock* block){
-            block->setZValue(10);
-            scene.addItem(block);
-            baseCodeBlocks.push_back(block);
-            listCodeBaseBlocks.push_back(block);
-        };
-        addListFloat(new ListGetBlock("x",nullptr,true));
-        addListFloat(new ListSizeBlock("x",true));
-        addListCode(new PushListBlock("x",nullptr,true));
-        addListCode(new SetListBlock("x",nullptr,nullptr,true));
-        addListCode(new RemoveListItemBlock("x",nullptr,true));
-        addListCode(new ClearListBlock("x",true));
+        if(toolboxAllowsListBlocks()){
+            auto addListFloat=[&](FloatBlock* block){
+                block->setZValue(10);
+                scene.addItem(block);
+                floatBlocks.push_back(block);
+                listFloatBaseBlocks.push_back(block);
+            };
+            auto addListCode=[&](CodeBlock* block){
+                block->setZValue(10);
+                scene.addItem(block);
+                baseCodeBlocks.push_back(block);
+                listCodeBaseBlocks.push_back(block);
+            };
+            addListFloat(new ListGetBlock("x",nullptr,true));
+            addListFloat(new ListSizeBlock("x",true));
+            addListCode(new PushListBlock("x",nullptr,true));
+            addListCode(new SetListBlock("x",nullptr,nullptr,true));
+            addListCode(new RemoveListItemBlock("x",nullptr,true));
+            addListCode(new ClearListBlock("x",true));
+        }
 
         refreshVariableToolbox();
     }

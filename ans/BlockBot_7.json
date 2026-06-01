@@ -1,0 +1,1183 @@
+{
+    "codeRoots": [
+        {
+            "kind": "start",
+            "next": {
+                "kind": "setVariable",
+                "name": "n",
+                "next": {
+                    "kind": "setVariable",
+                    "name": "temp",
+                    "next": {
+                        "condition": {
+                            "data": 0,
+                            "kind": "binary",
+                            "left": {
+                                "data": 0,
+                                "kind": "variable",
+                                "name": "temp",
+                                "type": 100
+                            },
+                            "right": {
+                                "data": 0,
+                                "kind": "number",
+                                "type": 0
+                            },
+                            "text": ">",
+                            "type": 11
+                        },
+                        "inside": {
+                            "kind": "pushList",
+                            "name": "number",
+                            "next": {
+                                "kind": "setVariable",
+                                "name": "temp",
+                                "next": {
+                                    "kind": "setVariable",
+                                    "name": "n",
+                                    "next": {
+                                    },
+                                    "text": "将变量",
+                                    "type": 7,
+                                    "value": {
+                                        "data": 0,
+                                        "kind": "binary",
+                                        "left": {
+                                            "data": 0,
+                                            "kind": "variable",
+                                            "name": "n",
+                                            "type": 100
+                                        },
+                                        "right": {
+                                            "data": 1,
+                                            "kind": "number",
+                                            "type": 0
+                                        },
+                                        "text": "+",
+                                        "type": 0
+                                    },
+                                    "x": 31,
+                                    "y": 284.75
+                                },
+                                "text": "将变量",
+                                "type": 7,
+                                "value": {
+                                    "data": 0,
+                                    "kind": "unary",
+                                    "slot": {
+                                        "data": 0,
+                                        "kind": "binary",
+                                        "left": {
+                                            "data": 0,
+                                            "kind": "variable",
+                                            "name": "temp",
+                                            "type": 100
+                                        },
+                                        "right": {
+                                            "data": 10,
+                                            "kind": "number",
+                                            "type": 0
+                                        },
+                                        "text": "/",
+                                        "type": 3
+                                    },
+                                    "text": "floor",
+                                    "type": 8
+                                },
+                                "x": 31,
+                                "y": 237.75
+                            },
+                            "text": "在列表",
+                            "type": 8,
+                            "value": {
+                                "data": 0,
+                                "kind": "binary",
+                                "left": {
+                                    "data": 0,
+                                    "kind": "variable",
+                                    "name": "temp",
+                                    "type": 100
+                                },
+                                "right": {
+                                    "data": 0,
+                                    "kind": "binary",
+                                    "left": {
+                                        "data": 10,
+                                        "kind": "number",
+                                        "type": 0
+                                    },
+                                    "right": {
+                                        "data": 0,
+                                        "kind": "unary",
+                                        "slot": {
+                                            "data": 0,
+                                            "kind": "binary",
+                                            "left": {
+                                                "data": 0,
+                                                "kind": "variable",
+                                                "name": "temp",
+                                                "type": 100
+                                            },
+                                            "right": {
+                                                "data": 10,
+                                                "kind": "number",
+                                                "type": 0
+                                            },
+                                            "text": "/",
+                                            "type": 3
+                                        },
+                                        "text": "floor",
+                                        "type": 8
+                                    },
+                                    "text": "*",
+                                    "type": 2
+                                },
+                                "text": "-",
+                                "type": 1
+                            },
+                            "x": 31,
+                            "y": 178.75
+                        },
+                        "kind": "control",
+                        "next": {
+                            "kind": "setVariable",
+                            "name": "temp",
+                            "next": {
+                                "condition": {
+                                    "data": 0,
+                                    "kind": "unary",
+                                    "slot": {
+                                        "data": 0,
+                                        "kind": "binary",
+                                        "left": {
+                                            "data": 0,
+                                            "kind": "variable",
+                                            "name": "n",
+                                            "type": 100
+                                        },
+                                        "right": {
+                                            "data": 0,
+                                            "kind": "binary",
+                                            "left": {
+                                                "data": 0,
+                                                "kind": "variable",
+                                                "name": "temp",
+                                                "type": 100
+                                            },
+                                            "right": {
+                                                "data": 2,
+                                                "kind": "number",
+                                                "type": 0
+                                            },
+                                            "text": "*",
+                                            "type": 2
+                                        },
+                                        "text": "<",
+                                        "type": 10
+                                    },
+                                    "text": "not",
+                                    "type": 10
+                                },
+                                "inside": {
+                                    "kind": "setVariable",
+                                    "name": "明文",
+                                    "next": {
+                                        "kind": "setVariable",
+                                        "name": "ttemp",
+                                        "next": {
+                                            "index": {
+                                                "data": 0,
+                                                "kind": "variable",
+                                                "name": "temp",
+                                                "type": 100
+                                            },
+                                            "kind": "setList",
+                                            "name": "number",
+                                            "next": {
+                                                "index": {
+                                                    "data": 0,
+                                                    "kind": "variable",
+                                                    "name": "ttemp",
+                                                    "type": 100
+                                                },
+                                                "kind": "setList",
+                                                "name": "number",
+                                                "next": {
+                                                    "kind": "setVariable",
+                                                    "name": "temp",
+                                                    "next": {
+                                                    },
+                                                    "text": "将变量",
+                                                    "type": 7,
+                                                    "value": {
+                                                        "data": 0,
+                                                        "kind": "binary",
+                                                        "left": {
+                                                            "data": 0,
+                                                            "kind": "variable",
+                                                            "name": "temp",
+                                                            "type": 100
+                                                        },
+                                                        "right": {
+                                                            "data": 1,
+                                                            "kind": "number",
+                                                            "type": 0
+                                                        },
+                                                        "text": "+",
+                                                        "type": 0
+                                                    },
+                                                    "x": 31,
+                                                    "y": 607.75
+                                                },
+                                                "text": "将列表",
+                                                "type": 9,
+                                                "value": {
+                                                    "data": 0,
+                                                    "kind": "variable",
+                                                    "name": "明文",
+                                                    "type": 100
+                                                },
+                                                "x": 31,
+                                                "y": 567.75
+                                            },
+                                            "text": "将列表",
+                                            "type": 9,
+                                            "value": {
+                                                "data": 0,
+                                                "index": {
+                                                    "data": 0,
+                                                    "kind": "variable",
+                                                    "name": "ttemp",
+                                                    "type": 100
+                                                },
+                                                "kind": "listGet",
+                                                "name": "number",
+                                                "type": 101
+                                            },
+                                            "x": 31,
+                                            "y": 526.75
+                                        },
+                                        "text": "将变量",
+                                        "type": 7,
+                                        "value": {
+                                            "data": 0,
+                                            "kind": "binary",
+                                            "left": {
+                                                "data": 0,
+                                                "kind": "binary",
+                                                "left": {
+                                                    "data": 0,
+                                                    "kind": "variable",
+                                                    "name": "n",
+                                                    "type": 100
+                                                },
+                                                "right": {
+                                                    "data": 0,
+                                                    "kind": "variable",
+                                                    "name": "temp",
+                                                    "type": 100
+                                                },
+                                                "text": "-",
+                                                "type": 1
+                                            },
+                                            "right": {
+                                                "data": 1,
+                                                "kind": "number",
+                                                "type": 0
+                                            },
+                                            "text": "+",
+                                            "type": 0
+                                        },
+                                        "x": 31,
+                                        "y": 479.75
+                                    },
+                                    "text": "将变量",
+                                    "type": 7,
+                                    "value": {
+                                        "data": 0,
+                                        "index": {
+                                            "data": 0,
+                                            "kind": "variable",
+                                            "name": "temp",
+                                            "type": 100
+                                        },
+                                        "kind": "listGet",
+                                        "name": "number",
+                                        "type": 101
+                                    },
+                                    "x": 31,
+                                    "y": 438.75
+                                },
+                                "kind": "control",
+                                "next": {
+                                    "kind": "setVariable",
+                                    "name": "temp",
+                                    "next": {
+                                        "condition": {
+                                            "data": 0,
+                                            "kind": "unary",
+                                            "slot": {
+                                                "data": 0,
+                                                "kind": "binary",
+                                                "left": {
+                                                    "data": 0,
+                                                    "kind": "variable",
+                                                    "name": "n",
+                                                    "type": 100
+                                                },
+                                                "right": {
+                                                    "data": 0,
+                                                    "kind": "variable",
+                                                    "name": "temp",
+                                                    "type": 100
+                                                },
+                                                "text": "<",
+                                                "type": 10
+                                            },
+                                            "text": "not",
+                                            "type": 10
+                                        },
+                                        "inside": {
+                                            "condition": {
+                                                "data": 0,
+                                                "kind": "binary",
+                                                "left": {
+                                                    "data": 0,
+                                                    "kind": "binary",
+                                                    "left": {
+                                                        "data": 0,
+                                                        "kind": "variable",
+                                                        "name": "temp",
+                                                        "type": 100
+                                                    },
+                                                    "right": {
+                                                        "data": 2,
+                                                        "kind": "number",
+                                                        "type": 0
+                                                    },
+                                                    "text": "+",
+                                                    "type": 0
+                                                },
+                                                "right": {
+                                                    "data": 0,
+                                                    "kind": "variable",
+                                                    "name": "n",
+                                                    "type": 100
+                                                },
+                                                "text": ">",
+                                                "type": 11
+                                            },
+                                            "inside": {
+                                                "kind": "pushList",
+                                                "name": "num",
+                                                "next": {
+                                                },
+                                                "text": "在列表",
+                                                "type": 8,
+                                                "value": {
+                                                    "data": 0,
+                                                    "index": {
+                                                        "data": 0,
+                                                        "kind": "binary",
+                                                        "left": {
+                                                            "data": 0,
+                                                            "kind": "binary",
+                                                            "left": {
+                                                                "data": 0,
+                                                                "kind": "variable",
+                                                                "name": "temp",
+                                                                "type": 100
+                                                            },
+                                                            "right": {
+                                                                "data": 2,
+                                                                "kind": "number",
+                                                                "type": 0
+                                                            },
+                                                            "text": "+",
+                                                            "type": 0
+                                                        },
+                                                        "right": {
+                                                            "data": 0,
+                                                            "kind": "variable",
+                                                            "name": "n",
+                                                            "type": 100
+                                                        },
+                                                        "text": "-",
+                                                        "type": 1
+                                                    },
+                                                    "kind": "listGet",
+                                                    "name": "number",
+                                                    "type": 101
+                                                },
+                                                "x": 41,
+                                                "y": 802.75
+                                            },
+                                            "kind": "control",
+                                            "next": {
+                                                "condition": {
+                                                    "data": 0,
+                                                    "kind": "unary",
+                                                    "slot": {
+                                                        "data": 0,
+                                                        "kind": "binary",
+                                                        "left": {
+                                                            "data": 0,
+                                                            "kind": "binary",
+                                                            "left": {
+                                                                "data": 0,
+                                                                "kind": "variable",
+                                                                "name": "temp",
+                                                                "type": 100
+                                                            },
+                                                            "right": {
+                                                                "data": 2,
+                                                                "kind": "number",
+                                                                "type": 0
+                                                            },
+                                                            "text": "+",
+                                                            "type": 0
+                                                        },
+                                                        "right": {
+                                                            "data": 0,
+                                                            "kind": "variable",
+                                                            "name": "n",
+                                                            "type": 100
+                                                        },
+                                                        "text": ">",
+                                                        "type": 11
+                                                    },
+                                                    "text": "not",
+                                                    "type": 10
+                                                },
+                                                "inside": {
+                                                    "kind": "pushList",
+                                                    "name": "num",
+                                                    "next": {
+                                                    },
+                                                    "text": "在列表",
+                                                    "type": 8,
+                                                    "value": {
+                                                        "data": 0,
+                                                        "index": {
+                                                            "data": 0,
+                                                            "kind": "binary",
+                                                            "left": {
+                                                                "data": 0,
+                                                                "kind": "variable",
+                                                                "name": "temp",
+                                                                "type": 100
+                                                            },
+                                                            "right": {
+                                                                "data": 2,
+                                                                "kind": "number",
+                                                                "type": 0
+                                                            },
+                                                            "text": "+",
+                                                            "type": 0
+                                                        },
+                                                        "kind": "listGet",
+                                                        "name": "number",
+                                                        "type": 101
+                                                    },
+                                                    "x": 41,
+                                                    "y": 928.75
+                                                },
+                                                "kind": "control",
+                                                "next": {
+                                                    "kind": "setVariable",
+                                                    "name": "temp",
+                                                    "next": {
+                                                    },
+                                                    "text": "将变量",
+                                                    "type": 7,
+                                                    "value": {
+                                                        "data": 0,
+                                                        "kind": "binary",
+                                                        "left": {
+                                                            "data": 0,
+                                                            "kind": "variable",
+                                                            "name": "temp",
+                                                            "type": 100
+                                                        },
+                                                        "right": {
+                                                            "data": 1,
+                                                            "kind": "number",
+                                                            "type": 0
+                                                        },
+                                                        "text": "+",
+                                                        "type": 0
+                                                    },
+                                                    "x": 31,
+                                                    "y": 995.75
+                                                },
+                                                "text": "如果",
+                                                "type": 5,
+                                                "x": 31,
+                                                "y": 875.75
+                                            },
+                                            "text": "如果",
+                                            "type": 5,
+                                            "x": 31,
+                                            "y": 755.75
+                                        },
+                                        "kind": "control",
+                                        "next": {
+                                            "kind": "setVariable",
+                                            "name": "temp",
+                                            "next": {
+                                                "condition": {
+                                                    "data": 0,
+                                                    "kind": "unary",
+                                                    "slot": {
+                                                        "data": 0,
+                                                        "kind": "binary",
+                                                        "left": {
+                                                            "data": 0,
+                                                            "kind": "variable",
+                                                            "name": "n",
+                                                            "type": 100
+                                                        },
+                                                        "right": {
+                                                            "data": 0,
+                                                            "kind": "variable",
+                                                            "name": "temp",
+                                                            "type": 100
+                                                        },
+                                                        "text": "<",
+                                                        "type": 10
+                                                    },
+                                                    "text": "not",
+                                                    "type": 10
+                                                },
+                                                "inside": {
+                                                    "kind": "setVariable",
+                                                    "name": "ttemp",
+                                                    "next": {
+                                                        "condition": {
+                                                            "data": 0,
+                                                            "kind": "binary",
+                                                            "left": {
+                                                                "data": 3,
+                                                                "kind": "number",
+                                                                "type": 0
+                                                            },
+                                                            "right": {
+                                                                "data": 0,
+                                                                "kind": "variable",
+                                                                "name": "ttemp",
+                                                                "type": 100
+                                                            },
+                                                            "text": ">",
+                                                            "type": 11
+                                                        },
+                                                        "inside": {
+                                                            "index": {
+                                                                "data": 0,
+                                                                "kind": "variable",
+                                                                "name": "temp",
+                                                                "type": 100
+                                                            },
+                                                            "kind": "setList",
+                                                            "name": "num",
+                                                            "next": {
+                                                            },
+                                                            "text": "将列表",
+                                                            "type": 9,
+                                                            "value": {
+                                                                "data": 0,
+                                                                "kind": "binary",
+                                                                "left": {
+                                                                    "data": 7,
+                                                                    "kind": "number",
+                                                                    "type": 0
+                                                                },
+                                                                "right": {
+                                                                    "data": 0,
+                                                                    "index": {
+                                                                        "data": 0,
+                                                                        "kind": "variable",
+                                                                        "name": "temp",
+                                                                        "type": 100
+                                                                    },
+                                                                    "kind": "listGet",
+                                                                    "name": "num",
+                                                                    "type": 101
+                                                                },
+                                                                "text": "+",
+                                                                "type": 0
+                                                            },
+                                                            "x": 41,
+                                                            "y": 1225.75
+                                                        },
+                                                        "kind": "control",
+                                                        "next": {
+                                                            "condition": {
+                                                                "data": 0,
+                                                                "kind": "binary",
+                                                                "left": {
+                                                                    "data": 0,
+                                                                    "kind": "variable",
+                                                                    "name": "ttemp",
+                                                                    "type": 100
+                                                                },
+                                                                "right": {
+                                                                    "data": 2,
+                                                                    "kind": "number",
+                                                                    "type": 0
+                                                                },
+                                                                "text": ">",
+                                                                "type": 11
+                                                            },
+                                                            "inside": {
+                                                                "index": {
+                                                                    "data": 0,
+                                                                    "kind": "variable",
+                                                                    "name": "temp",
+                                                                    "type": 100
+                                                                },
+                                                                "kind": "setList",
+                                                                "name": "num",
+                                                                "next": {
+                                                                },
+                                                                "text": "将列表",
+                                                                "type": 9,
+                                                                "value": {
+                                                                    "data": 0,
+                                                                    "kind": "binary",
+                                                                    "left": {
+                                                                        "data": 0,
+                                                                        "index": {
+                                                                            "data": 0,
+                                                                            "kind": "variable",
+                                                                            "name": "temp",
+                                                                            "type": 100
+                                                                        },
+                                                                        "kind": "listGet",
+                                                                        "name": "num",
+                                                                        "type": 101
+                                                                    },
+                                                                    "right": {
+                                                                        "data": 3,
+                                                                        "kind": "number",
+                                                                        "type": 0
+                                                                    },
+                                                                    "text": "-",
+                                                                    "type": 1
+                                                                },
+                                                                "x": 41,
+                                                                "y": 1333.75
+                                                            },
+                                                            "kind": "control",
+                                                            "next": {
+                                                                "kind": "setVariable",
+                                                                "name": "temp",
+                                                                "next": {
+                                                                },
+                                                                "text": "将变量",
+                                                                "type": 7,
+                                                                "value": {
+                                                                    "data": 0,
+                                                                    "kind": "binary",
+                                                                    "left": {
+                                                                        "data": 0,
+                                                                        "kind": "variable",
+                                                                        "name": "temp",
+                                                                        "type": 100
+                                                                    },
+                                                                    "right": {
+                                                                        "data": 1,
+                                                                        "kind": "number",
+                                                                        "type": 0
+                                                                    },
+                                                                    "text": "+",
+                                                                    "type": 0
+                                                                },
+                                                                "x": 31,
+                                                                "y": 1400.75
+                                                            },
+                                                            "text": "如果",
+                                                            "type": 5,
+                                                            "x": 31,
+                                                            "y": 1292.75
+                                                        },
+                                                        "text": "如果",
+                                                        "type": 5,
+                                                        "x": 31,
+                                                        "y": 1184.75
+                                                    },
+                                                    "text": "将变量",
+                                                    "type": 7,
+                                                    "value": {
+                                                        "data": 0,
+                                                        "index": {
+                                                            "data": 0,
+                                                            "kind": "variable",
+                                                            "name": "temp",
+                                                            "type": 100
+                                                        },
+                                                        "kind": "listGet",
+                                                        "name": "num",
+                                                        "type": 101
+                                                    },
+                                                    "x": 31,
+                                                    "y": 1143.75
+                                                },
+                                                "kind": "control",
+                                                "next": {
+                                                    "kind": "setVariable",
+                                                    "name": "temp",
+                                                    "next": {
+                                                        "condition": {
+                                                            "data": 0,
+                                                            "kind": "unary",
+                                                            "slot": {
+                                                                "data": 0,
+                                                                "kind": "binary",
+                                                                "left": {
+                                                                    "data": 0,
+                                                                    "kind": "variable",
+                                                                    "name": "n",
+                                                                    "type": 100
+                                                                },
+                                                                "right": {
+                                                                    "data": 0,
+                                                                    "kind": "variable",
+                                                                    "name": "temp",
+                                                                    "type": 100
+                                                                },
+                                                                "text": "<",
+                                                                "type": 10
+                                                            },
+                                                            "text": "not",
+                                                            "type": 10
+                                                        },
+                                                        "inside": {
+                                                            "kind": "setVariable",
+                                                            "name": "ttemp",
+                                                            "next": {
+                                                                "index": {
+                                                                    "data": 0,
+                                                                    "kind": "variable",
+                                                                    "name": "temp",
+                                                                    "type": 100
+                                                                },
+                                                                "kind": "setList",
+                                                                "name": "number",
+                                                                "next": {
+                                                                    "kind": "setVariable",
+                                                                    "name": "temp",
+                                                                    "next": {
+                                                                    },
+                                                                    "text": "将变量",
+                                                                    "type": 7,
+                                                                    "value": {
+                                                                        "data": 0,
+                                                                        "kind": "binary",
+                                                                        "left": {
+                                                                            "data": 0,
+                                                                            "kind": "variable",
+                                                                            "name": "temp",
+                                                                            "type": 100
+                                                                        },
+                                                                        "right": {
+                                                                            "data": 1,
+                                                                            "kind": "number",
+                                                                            "type": 0
+                                                                        },
+                                                                        "text": "+",
+                                                                        "type": 0
+                                                                    },
+                                                                    "x": 31,
+                                                                    "y": 1641.75
+                                                                },
+                                                                "text": "将列表",
+                                                                "type": 9,
+                                                                "value": {
+                                                                    "data": 0,
+                                                                    "kind": "variable",
+                                                                    "name": "ttemp",
+                                                                    "type": 100
+                                                                },
+                                                                "x": 31,
+                                                                "y": 1601.75
+                                                            },
+                                                            "text": "将变量",
+                                                            "type": 7,
+                                                            "value": {
+                                                                "data": 0,
+                                                                "index": {
+                                                                    "data": 0,
+                                                                    "kind": "binary",
+                                                                    "left": {
+                                                                        "data": 0,
+                                                                        "kind": "binary",
+                                                                        "left": {
+                                                                            "data": 0,
+                                                                            "kind": "variable",
+                                                                            "name": "n",
+                                                                            "type": 100
+                                                                        },
+                                                                        "right": {
+                                                                            "data": 0,
+                                                                            "kind": "variable",
+                                                                            "name": "temp",
+                                                                            "type": 100
+                                                                        },
+                                                                        "text": "-",
+                                                                        "type": 1
+                                                                    },
+                                                                    "right": {
+                                                                        "data": 1,
+                                                                        "kind": "number",
+                                                                        "type": 0
+                                                                    },
+                                                                    "text": "+",
+                                                                    "type": 0
+                                                                },
+                                                                "kind": "listGet",
+                                                                "name": "num",
+                                                                "type": 101
+                                                            },
+                                                            "x": 31,
+                                                            "y": 1548.75
+                                                        },
+                                                        "kind": "control",
+                                                        "next": {
+                                                            "kind": "setVariable",
+                                                            "name": "明文",
+                                                            "next": {
+                                                                "kind": "setVariable",
+                                                                "name": "temp",
+                                                                "next": {
+                                                                    "condition": {
+                                                                        "data": 0,
+                                                                        "kind": "unary",
+                                                                        "slot": {
+                                                                            "data": 0,
+                                                                            "kind": "binary",
+                                                                            "left": {
+                                                                                "data": 0,
+                                                                                "kind": "variable",
+                                                                                "name": "n",
+                                                                                "type": 100
+                                                                            },
+                                                                            "right": {
+                                                                                "data": 0,
+                                                                                "kind": "variable",
+                                                                                "name": "temp",
+                                                                                "type": 100
+                                                                            },
+                                                                            "text": "<",
+                                                                            "type": 10
+                                                                        },
+                                                                        "text": "not",
+                                                                        "type": 10
+                                                                    },
+                                                                    "inside": {
+                                                                        "kind": "setVariable",
+                                                                        "name": "明文",
+                                                                        "next": {
+                                                                            "kind": "setVariable",
+                                                                            "name": "temp",
+                                                                            "next": {
+                                                                            },
+                                                                            "text": "将变量",
+                                                                            "type": 7,
+                                                                            "value": {
+                                                                                "data": 0,
+                                                                                "kind": "binary",
+                                                                                "left": {
+                                                                                    "data": 1,
+                                                                                    "kind": "number",
+                                                                                    "type": 0
+                                                                                },
+                                                                                "right": {
+                                                                                    "data": 0,
+                                                                                    "kind": "variable",
+                                                                                    "name": "temp",
+                                                                                    "type": 100
+                                                                                },
+                                                                                "text": "+",
+                                                                                "type": 0
+                                                                            },
+                                                                            "x": 31,
+                                                                            "y": 1876.75
+                                                                        },
+                                                                        "text": "将变量",
+                                                                        "type": 7,
+                                                                        "value": {
+                                                                            "data": 0,
+                                                                            "kind": "binary",
+                                                                            "left": {
+                                                                                "data": 0,
+                                                                                "index": {
+                                                                                    "data": 0,
+                                                                                    "kind": "variable",
+                                                                                    "name": "temp",
+                                                                                    "type": 100
+                                                                                },
+                                                                                "kind": "listGet",
+                                                                                "name": "number",
+                                                                                "type": 101
+                                                                            },
+                                                                            "right": {
+                                                                                "data": 0,
+                                                                                "kind": "binary",
+                                                                                "left": {
+                                                                                    "data": 0,
+                                                                                    "kind": "variable",
+                                                                                    "name": "明文",
+                                                                                    "type": 100
+                                                                                },
+                                                                                "right": {
+                                                                                    "data": 10,
+                                                                                    "kind": "number",
+                                                                                    "type": 0
+                                                                                },
+                                                                                "text": "*",
+                                                                                "type": 2
+                                                                            },
+                                                                            "text": "+",
+                                                                            "type": 0
+                                                                        },
+                                                                        "x": 31,
+                                                                        "y": 1829.75
+                                                                    },
+                                                                    "kind": "control",
+                                                                    "next": {
+                                                                        "kind": "end",
+                                                                        "next": {
+                                                                        },
+                                                                        "text": "结束",
+                                                                        "type": -4,
+                                                                        "x": 21,
+                                                                        "y": 1937.75
+                                                                    },
+                                                                    "text": "当",
+                                                                    "type": 6,
+                                                                    "x": 21,
+                                                                    "y": 1782.75
+                                                                },
+                                                                "text": "将变量",
+                                                                "type": 7,
+                                                                "value": {
+                                                                    "data": 1,
+                                                                    "kind": "number",
+                                                                    "type": 0
+                                                                },
+                                                                "x": 21,
+                                                                "y": 1742.75
+                                                            },
+                                                            "text": "将变量",
+                                                            "type": 7,
+                                                            "value": {
+                                                                "data": 0,
+                                                                "kind": "number",
+                                                                "type": 0
+                                                            },
+                                                            "x": 21,
+                                                            "y": 1702.75
+                                                        },
+                                                        "text": "当",
+                                                        "type": 6,
+                                                        "x": 21,
+                                                        "y": 1501.75
+                                                    },
+                                                    "text": "将变量",
+                                                    "type": 7,
+                                                    "value": {
+                                                        "data": 1,
+                                                        "kind": "number",
+                                                        "type": 0
+                                                    },
+                                                    "x": 21,
+                                                    "y": 1461.75
+                                                },
+                                                "text": "当",
+                                                "type": 6,
+                                                "x": 21,
+                                                "y": 1096.75
+                                            },
+                                            "text": "将变量",
+                                            "type": 7,
+                                            "value": {
+                                                "data": 1,
+                                                "kind": "number",
+                                                "type": 0
+                                            },
+                                            "x": 21,
+                                            "y": 1056.75
+                                        },
+                                        "text": "当",
+                                        "type": 6,
+                                        "x": 21,
+                                        "y": 708.75
+                                    },
+                                    "text": "将变量",
+                                    "type": 7,
+                                    "value": {
+                                        "data": 1,
+                                        "kind": "number",
+                                        "type": 0
+                                    },
+                                    "x": 21,
+                                    "y": 668.75
+                                },
+                                "text": "当",
+                                "type": 6,
+                                "x": 21,
+                                "y": 385.75
+                            },
+                            "text": "将变量",
+                            "type": 7,
+                            "value": {
+                                "data": 1,
+                                "kind": "number",
+                                "type": 0
+                            },
+                            "x": 21,
+                            "y": 345.75
+                        },
+                        "text": "当",
+                        "type": 6,
+                        "x": 21,
+                        "y": 137.75
+                    },
+                    "text": "将变量",
+                    "type": 7,
+                    "value": {
+                        "data": 0,
+                        "kind": "variable",
+                        "name": "密码",
+                        "type": 100
+                    },
+                    "x": 21,
+                    "y": 97.75
+                },
+                "text": "将变量",
+                "type": 7,
+                "value": {
+                    "data": 0,
+                    "kind": "number",
+                    "type": 0
+                },
+                "x": 21,
+                "y": 57.75
+            },
+            "text": "开始运行",
+            "type": -1,
+            "x": 21,
+            "y": 17.75
+        },
+        {
+            "index": {
+                "data": 0,
+                "kind": "variable",
+                "name": "temp",
+                "type": 100
+            },
+            "kind": "setList",
+            "name": "number",
+            "next": {
+            },
+            "text": "将列表",
+            "type": 9,
+            "value": {
+                "data": 0,
+                "index": {
+                    "data": 0,
+                    "kind": "variable",
+                    "name": "ttemp",
+                    "type": 100
+                },
+                "kind": "listGet",
+                "name": "number",
+                "type": 101
+            },
+            "x": 563,
+            "y": 491.75
+        },
+        {
+            "index": {
+                "data": 0,
+                "kind": "variable",
+                "name": "temp",
+                "type": 100
+            },
+            "kind": "setList",
+            "name": "number",
+            "next": {
+            },
+            "text": "将列表",
+            "type": 9,
+            "value": {
+                "data": 0,
+                "index": {
+                    "data": 0,
+                    "kind": "variable",
+                    "name": "ttemp",
+                    "type": 100
+                },
+                "kind": "listGet",
+                "name": "number",
+                "type": 101
+            },
+            "x": 563,
+            "y": 491.75
+        }
+    ],
+    "freeFloats": [
+    ],
+    "levelNumber": 7,
+    "lists": [
+        {
+            "name": "num",
+            "values": [
+                4,
+                1,
+                4,
+                4,
+                0,
+                7
+            ]
+        },
+        {
+            "name": "number",
+            "values": [
+                7,
+                0,
+                4,
+                4,
+                1,
+                4
+            ]
+        }
+    ],
+    "readOnlyLists": [
+    ],
+    "readOnlyVariables": [
+        "密码"
+    ],
+    "variables": [
+        {
+            "name": "n",
+            "value": 6
+        },
+        {
+            "name": "temp",
+            "value": 7
+        },
+        {
+            "name": "ttemp",
+            "value": 4
+        },
+        {
+            "name": "密码",
+            "value": 307477
+        },
+        {
+            "name": "明文",
+            "value": 704414
+        }
+    ]
+}
