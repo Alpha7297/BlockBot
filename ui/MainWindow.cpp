@@ -1,10 +1,12 @@
 #include "MainWindow.h"
 #include "LevelChoosePage.h"
+#include "AudioManager.h"
 #include "../tale/TaleWindow.h"
 #include <QVBoxLayout>
 #include <QLabel>
 #include"../message/Message.h"
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
+    audio::playMenuMusic();
     this->setFixedSize(1200, 800);
     QPixmap background(loadAsset("images/background/background.png")); // 你的游戏背景图路径
     QPalette palette;
@@ -87,6 +89,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
 }
 void MainWindow::onLevelButtonClicked()
 {
+    audio::playMenuMusic();
     const bool hasProgress=LevelChoosePage::hasProgressSave();
     if(levelChoosePage==nullptr)
     {
@@ -105,9 +108,11 @@ void MainWindow::onLevelButtonClicked()
     };
     if(!hasProgress){
         QWidget* taleWindow=tale::createTaleWindow(tale::TaleScene::Start,showLevelChoose);
+        taleWindow->setParent(this);
+        taleWindow->setWindowFlags(Qt::Widget);
+        taleWindow->setGeometry(0,0,width(),height());
         taleWindow->show();
         taleWindow->raise();
-        taleWindow->activateWindow();
         return;
     }
     showLevelChoose();
@@ -115,8 +120,7 @@ void MainWindow::onLevelButtonClicked()
 void MainWindow::onChooseLevelPageClosed()
 {
     if(levelChoosePage!=nullptr){
-        levelChoosePage->deleteLater();
-        levelChoosePage=nullptr;
+        levelChoosePage->hide();
     }
     if(centralWidget()!=nullptr){
         centralWidget()->show();
@@ -125,6 +129,7 @@ void MainWindow::onChooseLevelPageClosed()
 
 void MainWindow::onArchiveButtonClicked()
 {
+    audio::playMenuMusic();
     if(archivePage==nullptr)
     {
         archivePage=new ArchivePage(this);
@@ -142,6 +147,7 @@ void MainWindow::onArchiveButtonClicked()
 
 void MainWindow::onArchivePageClosed()
 {
+    audio::playMenuMusic();
     if(centralWidget()!=nullptr){
         centralWidget()->show();
     }

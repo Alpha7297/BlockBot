@@ -6,7 +6,7 @@
 class AppGraphicsView:public QGraphicsView{
 public:
     std::function<void()> onClosed;
-    AppGraphicsView(QGraphicsScene* scene);
+    AppGraphicsView(QGraphicsScene* scene,QWidget* parent=nullptr);
 protected:
     void closeEvent(QCloseEvent *event) override;
     void mousePressEvent(QMouseEvent* event) override;

@@ -1,5 +1,6 @@
 #include "ArchivePage.h"
 #include "AppGraphicsView.h"
+#include "AudioManager.h"
 #include "SaveCrypto.h"
 #include "UiConstants.h"
 #include "../level/LevelConstants.h"
@@ -582,6 +583,7 @@ ArchivePage::ArchivePage(QWidget* parent):QDialog(parent){
 }
 
 void ArchivePage::init(){
+    audio::playMenuMusic();
     for(QWidget* child:findChildren<QWidget*>(QString(),Qt::FindDirectChildrenOnly)){
         delete child;
     }

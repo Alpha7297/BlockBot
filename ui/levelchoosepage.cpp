@@ -1,5 +1,6 @@
 #include "LevelChoosePage.h"
 #include "fstream"
+#include "AudioManager.h"
 #include "SaveCrypto.h"
 #include "../level/LevelConstants.h"
 #include"../message/Message.h"
@@ -151,6 +152,7 @@ void LevelChoosePage::init()
     connect(backBtn, &QPushButton::clicked, this, &LevelChoosePage::close);
 }
 void LevelChoosePage::loadProcess(){
+    audio::playMenuMusic();
     unlockedLevel=1;
     bool needsRewrite=!QFileInfo::exists(savecrypto::progressFilePath());
     int loadedLevel=loadLevel();

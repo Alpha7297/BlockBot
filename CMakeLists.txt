@@ -5,7 +5,7 @@ project(BlockBot LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Widgets)
+find_package(Qt6 REQUIRED COMPONENTS Widgets Multimedia)
 qt_standard_project_setup()
 
 qt_add_executable(BlockBot
@@ -14,6 +14,8 @@ qt_add_executable(BlockBot
     ui/ArchivePage.h
     ui/App.cpp
     ui/App.h
+    ui/AudioManager.cpp
+    ui/AudioManager.h
     ui/hint.cpp
     ui/hint.h
     ui/AppGraphicsView.h
@@ -47,7 +49,7 @@ qt_add_executable(BlockBot
     core/Value.h
 )
 
-target_link_libraries(BlockBot PRIVATE Qt6::Widgets)
+target_link_libraries(BlockBot PRIVATE Qt6::Widgets Qt6::Multimedia)
 if(WIN32)
     target_link_libraries(BlockBot PRIVATE Crypt32)
 endif()

@@ -2,6 +2,7 @@
 #define UI_WIDGETS_H
 
 #include "UiConstants.h"
+#include "AudioManager.h"
 
 #include <QBrush>
 #include <QGraphicsPolygonItem>
@@ -97,6 +98,7 @@ public:
     }
 
     void mousePressEvent(QGraphicsSceneMouseEvent* event) override{
+        audio::playSelectSound();
         if(onClick){
             onClick();
         }

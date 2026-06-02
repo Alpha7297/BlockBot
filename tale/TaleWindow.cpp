@@ -1,5 +1,6 @@
 #include "TaleWindow.h"
 #include "../ui/AppGraphicsView.h"
+#include "../ui/AudioManager.h"
 
 #include <QApplication>
 #include <QBrush>
@@ -826,6 +827,7 @@ private:
             return;
         }
         visibleTextLength++;
+        audio::playTypeSound();
         textItem->setPlainText(text.left(visibleTextLength));
         if(visibleTextLength>=text.size()){
             textTimer.stop();

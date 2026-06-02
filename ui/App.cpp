@@ -39,6 +39,7 @@
 #include <QCloseEvent>
 #include <QMainWindow>
 #include <QPixmap>
+#include <QAbstractButton>
 #include <algorithm>
 #include <cmath>
 #include <functional>
@@ -49,6 +50,7 @@
 #include <vector>
 
 #include "App.h"
+#include "AudioManager.h"
 #include "hint.h"
 #include "SaveCrypto.h"
 #include "UiConstants.h"
@@ -171,14 +173,27 @@ tale::TaleScene taleWinSceneForResult(int levelNumber,const level::TestResult& r
     }
 }
 
+bool playMusicForTaleScene(tale::TaleScene scene);
+
 void showTaleScene(tale::TaleScene scene,std::function<void()> onClosed={}){
-    QWidget* window=tale::createTaleWindow(scene,[onClosed=std::move(onClosed)](){
+    bool restorePuzzleMusic=playMusicForTaleScene(scene);
+    QWidget* window=tale::createTaleWindow(scene,
+        [onClosed=std::move(onClosed),restorePuzzleMusic](){
         activeTaleWindow=nullptr;
+        if(restorePuzzleMusic){
+            audio::playPuzzleMusic();
+        }
         if(onClosed){
             onClosed();
         }
     });
     activeTaleWindow=window;
+    QWidget* host=QApplication::activeWindow();
+    if(host!=nullptr){
+        window->setParent(host);
+        window->setWindowFlags(Qt::Widget);
+        window->setGeometry(host->rect());
+    }
     window->show();
     window->raise();
     window->activateWindow();
@@ -203,6 +218,54 @@ bool shouldKeepLevel9ProgressAtCurrentLevel(tale::TaleScene scene){
            scene==tale::TaleScene::Level9SendOnly;
 }
 
+bool isGentleWinTaleScene(tale::TaleScene scene){
+    switch(scene){
+    case tale::TaleScene::Level1Win:
+    case tale::TaleScene::Level2Win:
+    case tale::TaleScene::Level3Win:
+    case tale::TaleScene::Level4Win:
+    case tale::TaleScene::Level5Win:
+    case tale::TaleScene::Level6Win:
+    case tale::TaleScene::Level7Win:
+    case tale::TaleScene::Level8Win:
+        return true;
+    default:
+        return false;
+    }
+}
+
+bool playMusicForTaleScene(tale::TaleScene scene){
+    if(taleStartSceneForLevel(1)==scene||
+       taleStartSceneForLevel(2)==scene||
+       taleStartSceneForLevel(3)==scene||
+       taleStartSceneForLevel(4)==scene||
+       taleStartSceneForLevel(5)==scene||
+       taleStartSceneForLevel(6)==scene||
+       taleStartSceneForLevel(7)==scene||
+       taleStartSceneForLevel(8)==scene||
+       taleStartSceneForLevel(9)==scene){
+        audio::playEnterLevelMusic();
+        return false;
+    }
+    if(isGentleWinTaleScene(scene)){
+        audio::playGentleMusic();
+        return true;
+    }
+    if(scene==tale::TaleScene::Level9EscapeOnly){
+        audio::playEscapeButLoseMusic();
+        return true;
+    }
+    if(scene==tale::TaleScene::Level9SendOnly){
+        audio::playMessageButLoseMusic();
+        return true;
+    }
+    if(scene==tale::TaleScene::Level9Complete){
+        audio::playFinaleMusic();
+        return true;
+    }
+    return false;
+}
+
 void recordRuntimeStepUse(){
     if(runtimeCountersActive){
         levelTestStepCount++;
@@ -224,6 +287,7 @@ void syncMapDataFromActiveLevel();
 void updateStageGeometry();
 void stopProgram();
 void installRuntimeCancelFilter();
+void installSelectSoundFilter();
 void resetActiveLevelForRun();
 
 void recordRuntimeTimeUse(){
@@ -549,6 +613,7 @@ public:
     }
 
     void mousePressEvent(QGraphicsSceneMouseEvent* event) override{
+        audio::playSelectSound();
         if(onClick){
             onClick();
         }
@@ -3114,8 +3179,9 @@ void updateTestStatusText();
 void finishLevelTest(bool forcedFail,const QString& message=QString());
 void resetRunButtons();
 core::BlockExecutor::BlockSnapshot readRuntimeBlock(core::BlockExecutor::Node node);
-AppGraphicsView::AppGraphicsView(QGraphicsScene* scene):QGraphicsView(scene)
+AppGraphicsView::AppGraphicsView(QGraphicsScene* scene,QWidget* parent):QGraphicsView(scene,parent)
 {
+    audio::playPuzzleMusic();
     installRuntimeCancelFilter();
     resetSceneGlobals();
     appScene=scene;
@@ -3228,11 +3294,18 @@ AppGraphicsView::AppGraphicsView(QGraphicsScene* scene):QGraphicsView(scene)
     setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     setFixedSize(appWidth,appHeight);
-    setWindowFlags(windowFlags()&~Qt::WindowMaximizeButtonHint);
+    if(parent!=nullptr){
+        setWindowFlags(Qt::Widget);
+        setGeometry(parent->rect());
+    }
+    else{
+        setWindowFlags(windowFlags()&~Qt::WindowMaximizeButtonHint);
+    }
 }
 
 void AppGraphicsView::closeEvent(QCloseEvent* event){
     clearWorkspaceAndCacheOnExit();
+    audio::playMenuMusic();
     if(!editorExitToDesktopRequested&&onClosed){
         onClosed();
     }
@@ -3372,10 +3445,32 @@ protected:
     }
 };
 
+class SelectSoundFilter:public QObject{
+public:
+    explicit SelectSoundFilter(QObject* parent=nullptr):QObject(parent){}
+
+protected:
+    bool eventFilter(QObject* object,QEvent* event) override{
+        if(event->type()==QEvent::MouseButtonPress&&
+           qobject_cast<QAbstractButton*>(object)!=nullptr){
+            audio::playSelectSound();
+        }
+        return QObject::eventFilter(object,event);
+    }
+};
+
 void installRuntimeCancelFilter(){
     static RuntimeCancelFilter* filter=nullptr;
     if(filter==nullptr&&QApplication::instance()!=nullptr){
         filter=new RuntimeCancelFilter(QApplication::instance());
+        QApplication::instance()->installEventFilter(filter);
+    }
+}
+
+void installSelectSoundFilter(){
+    static SelectSoundFilter* filter=nullptr;
+    if(filter==nullptr&&QApplication::instance()!=nullptr){
+        filter=new SelectSoundFilter(QApplication::instance());
         QApplication::instance()->installEventFilter(filter);
     }
 }
@@ -8115,8 +8210,9 @@ void LevelChoosePage::startLevel(int levelNumber)
         }
         scene=nullptr;
     }
-    scene = new QGraphicsScene(this);
-    view = new AppGraphicsView(scene);
+    QWidget* host=parentWidget()==nullptr?this:parentWidget();
+    scene = new QGraphicsScene(host);
+    view = new AppGraphicsView(scene,host);
     view->onClosed=[this]()
     {
         AppGraphicsView* closedView=view;
@@ -8132,9 +8228,9 @@ void LevelChoosePage::startLevel(int levelNumber)
         }
         emit pageClosed();
     };
-    closingToEditor=true;
-    close();
+    hide();
     view->show();
+    view->raise();
 }
 void MainWindow::onStartButtonClicked()
 {
@@ -8172,7 +8268,7 @@ void MainWindow::onStartButtonClicked()
         scene=nullptr;
     }
     scene = new QGraphicsScene(this);
-    view = new AppGraphicsView(scene);
+    view = new AppGraphicsView(scene,this);
     view->onClosed=[this]()
     {
         AppGraphicsView* closedView=view;
@@ -8185,15 +8281,21 @@ void MainWindow::onStartButtonClicked()
         if(closedScene!=nullptr){
             closedScene->deleteLater();
         }
-        this->show();
+        if(centralWidget()!=nullptr){
+            centralWidget()->show();
+        }
     };
-    this->hide();
+    if(centralWidget()!=nullptr){
+        centralWidget()->hide();
+    }
     view->show();
+    view->raise();
 }
 
 int ui::runApp(int argc,char* argv[]){
     init();
     QApplication app(argc,argv);
+    installSelectSoundFilter();
     player=new Robot();
     MainWindow* mainWindow=new MainWindow();
     mainWindow->show();
