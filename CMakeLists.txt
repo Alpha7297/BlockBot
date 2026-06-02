@@ -8,6 +8,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(Qt6 REQUIRED COMPONENTS Widgets Multimedia)
 qt_standard_project_setup()
 
+qt_add_big_resources(BlockBotResources resource.qrc)
+
 qt_add_executable(BlockBot
     main.cpp
     ui/ArchivePage.cpp
@@ -47,6 +49,7 @@ qt_add_executable(BlockBot
     core/Ops.h
     core/Value.cpp
     core/Value.h
+    ${BlockBotResources}
 )
 
 target_link_libraries(BlockBot PRIVATE Qt6::Widgets Qt6::Multimedia)

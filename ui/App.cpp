@@ -378,6 +378,18 @@ QColor panelBackgroundColor(){
 }
 
 QPixmap loadImageAsset(const QString& fileName){
+    QStringList resourcePaths;
+    resourcePaths<<QString(":/images/%1").arg(fileName)
+                 <<QString(":/images/bars/%1").arg(fileName)
+                 <<QString(":/images/floor/%1").arg(fileName)
+                 <<QString(":/images/icons/%1").arg(fileName)
+                 <<QString(":/images/background/%1").arg(fileName);
+    for(const QString& path:resourcePaths){
+        QPixmap pixmap(path);
+        if(!pixmap.isNull()){
+            return pixmap;
+        }
+    }
     QStringList roots;
     roots<<QDir::currentPath()
          <<QCoreApplication::applicationDirPath()
@@ -401,6 +413,15 @@ QPixmap loadImageAsset(const QString& fileName){
 }
 
 QPixmap loadPaintingAsset(const QString& fileName){
+    QStringList resourcePaths;
+    resourcePaths<<QString(":/images/painting/%1").arg(fileName)
+                 <<QString(":/painting/%1").arg(fileName);
+    for(const QString& path:resourcePaths){
+        QPixmap pixmap(path);
+        if(!pixmap.isNull()){
+            return pixmap;
+        }
+    }
     QStringList roots;
     roots<<QDir::currentPath()
          <<QCoreApplication::applicationDirPath()
@@ -5905,7 +5926,7 @@ void updateToolboxScrollRange(){
             bottom=std::max<qreal>(bottom,block->stagePos.y()+block->wid);
         }
     }
-    toolboxMaxScrollY=std::max<qreal>(0,bottom+20-toolboxHeight);
+    toolboxMaxScrollY=std::max<qreal>(0,bottom+220-toolboxHeight);
     if(toolboxSlider!=nullptr){
         toolboxSlider->setValue(toolboxSlider->value());
     }
@@ -8104,11 +8125,20 @@ void drawToolbox(QGraphicsScene& scene){
         addCode(new ControlCodeBlock(5,"如果",nullptr,true));
         addCode(new ControlCodeBlock(6,"当",nullptr,true));
 
+        addFloat(new UnaryOpBlock(10,"not",nullptr,true));
+        const std::pair<int,QString> booleanBlocks[]={
+            {8,"=="},
+            {10,"<"},
+            {11,">"}
+        };
+        for(const auto& item:booleanBlocks){
+            addFloat(new BinaryOpBlock(item.first,item.second,nullptr,nullptr,true));
+        }
+
         if(toolboxAllowsOperationBlocks()){
             const std::pair<int,QString> unaryBlocks[]={
                 {8,"floor"},
-                {9,"abs"},
-                {10,"not"}
+                {9,"abs"}
             };
             for(const auto& item:unaryBlocks){
                 addFloat(new UnaryOpBlock(item.first,item.second,nullptr,true));
@@ -8122,10 +8152,7 @@ void drawToolbox(QGraphicsScene& scene){
                 {4,"pow"},
                 {6,"max"},
                 {7,"min"},
-                {8,"=="},
                 {9,"!="},
-                {10,"<"},
-                {11,">"},
                 {12,"and"},
                 {13,"or"}
             };

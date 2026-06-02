@@ -15,6 +15,13 @@ QString currentTrack;
 QString currentEffect;
 bool switchToPuzzleWhenCurrentTrackEnds=false;
 
+QUrl assetUrl(const QString& path){
+    if(path.startsWith(QStringLiteral(":/"))){
+        return QUrl(QStringLiteral("qrc") + path);
+    }
+    return QUrl::fromLocalFile(path);
+}
+
 void ensurePlayer(){
     if(musicPlayer!=nullptr){
         return;
@@ -51,7 +58,7 @@ void playEffect(const QString& assetPath){
         return;
     }
     if(currentEffect!=path){
-        effectPlayer->setSource(QUrl::fromLocalFile(path));
+        effectPlayer->setSource(assetUrl(path));
         currentEffect=path;
     }
     effectPlayer->stop();
@@ -68,7 +75,7 @@ void playTrack(const QString& assetPath){
         return;
     }
     if(currentTrack!=path){
-        musicPlayer->setSource(QUrl::fromLocalFile(path));
+        musicPlayer->setSource(assetUrl(path));
         currentTrack=path;
     }
     if(musicPlayer->playbackState()!=QMediaPlayer::PlayingState){
@@ -97,7 +104,7 @@ void playEnterLevelMusic(){
     }
     musicPlayer->setLoops(1);
     if(currentTrack!=path){
-        musicPlayer->setSource(QUrl::fromLocalFile(path));
+        musicPlayer->setSource(assetUrl(path));
         currentTrack=path;
     }
     musicPlayer->play();

@@ -20,6 +20,9 @@
 core
 .claude/
 !core/
+release/
+*.dll
+*.exe
 tags
 .DS_Store
 .directory

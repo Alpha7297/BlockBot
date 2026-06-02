@@ -4,48 +4,118 @@
         <file>images/background/level__current.png</file>
         <file>images/background/level__gray.png</file>
         <file>images/background/level__normal.png</file>
+        <file>images/background/level1.png</file>
+        <file>images/background/level1_small.png</file>
+        <file>images/background/level2.png</file>
+        <file>images/background/level2_small.png</file>
+        <file>images/background/level3.png</file>
+        <file>images/background/level3_small.png</file>
+        <file>images/background/level4.png</file>
+        <file>images/background/level4_small.png</file>
+        <file>images/background/level5.png</file>
+        <file>images/background/level5_small.png</file>
+        <file>images/background/level6.png</file>
+        <file>images/background/level6_small.png</file>
+        <file>images/background/level7.png</file>
+        <file>images/background/level7_small.png</file>
+        <file>images/background/level8.png</file>
+        <file>images/background/level8_small.png</file>
+        <file>images/background/level9.png</file>
+        <file>images/background/level9_small.png</file>
+        <file>images/background/level9-1.png</file>
+        <file>images/background/level9-2.png</file>
+        <file>images/background/level9-3.png</file>
+        <file>images/background/level9-4.png</file>
+        <file>images/background/start.png</file>
+        <file>images/bars/archive.png</file>
+        <file>images/bars/archive_logo.png</file>
+        <file>images/bars/archive_panel.png</file>
+        <file>images/bars/archive_select.png</file>
+        <file>images/bars/archive-6.png</file>
+        <file>images/bars/archive-7.png</file>
+        <file>images/bars/archive-8.png</file>
+        <file>images/bars/console.png</file>
         <file>images/bars/create_custom.png</file>
         <file>images/bars/create_list.png</file>
         <file>images/bars/create_variable.png</file>
         <file>images/bars/exit.png</file>
+        <file>images/bars/hint_panel.png</file>
         <file>images/bars/information.png</file>
         <file>images/bars/levelmode.png</file>
         <file>images/bars/logo.png</file>
         <file>images/bars/logo-flatten.png</file>
         <file>images/bars/run.png</file>
         <file>images/bars/sandboxmode.png</file>
+        <file>images/bars/settings.png</file>
         <file>images/bars/stop.png</file>
         <file>images/bars/title_bar.png</file>
         <file>images/floor/antenna.png</file>
         <file>images/floor/antenna2.png</file>
+        <file>images/floor/antenna-plate1.png</file>
+        <file>images/floor/antenna-plate2.png</file>
+        <file>images/floor/beam.png</file>
         <file>images/floor/box.png</file>
         <file>images/floor/floor.png</file>
         <file>images/floor/light1.png</file>
         <file>images/floor/light2.png</file>
         <file>images/floor/light3.png</file>
+        <file>images/floor/light4.png</file>
         <file>images/floor/liquid.png</file>
+        <file>images/floor/liquid2.png</file>
+        <file>images/floor/liquid-plate1.png</file>
+        <file>images/floor/liquid-plate2.png</file>
+        <file>images/floor/plate.png</file>
         <file>images/floor/scope.png</file>
         <file>images/floor/spike1.png</file>
         <file>images/floor/spike2.png</file>
         <file>images/floor/target.png</file>
         <file>images/floor/valve.png</file>
+        <file>images/floor/valve2.png</file>
+        <file>images/floor/valve-plate1.png</file>
+        <file>images/floor/valve-plate2.png</file>
+        <file>images/icons/information.png</file>
         <file>images/icons/larger.png</file>
         <file>images/icons/level.png</file>
         <file>images/icons/open.png</file>
         <file>images/icons/pipe1.png</file>
         <file>images/icons/pipeC.png</file>
+        <file>images/icons/pipeCr.png</file>
         <file>images/icons/return.png</file>
+        <file>images/icons/robot.png</file>
         <file>images/icons/save.png</file>
+        <file>images/icons/settings.png</file>
         <file>images/icons/slider.png</file>
+        <file>images/icons/slider2.png</file>
         <file>images/icons/smaller.png</file>
-        <file>painting/back1.png</file>
-        <file>painting/echo.png</file>
-        <file>painting/left1.png</file>
-        <file>painting/logo.png</file>
-        <file>painting/mother.png</file>
-        <file>painting/old_robot.png</file>
-        <file>painting/right1.png</file>
-        <file>painting/robot0.png</file>
-        <file>painting/straight1.png</file>
+        <file>images/icons/step.png</file>
+        <file>images/icons/time.png</file>
+        <file>images/painting/angry.png</file>
+        <file>images/painting/chip.png</file>
+        <file>images/painting/close.png</file>
+        <file>images/painting/curious.png</file>
+        <file>images/painting/curl.png</file>
+        <file>images/painting/damage.png</file>
+        <file>images/painting/determined.png</file>
+        <file>images/painting/echo.png</file>
+        <file>images/painting/glad.png</file>
+        <file>images/painting/mother.png</file>
+        <file>images/painting/old_robot.png</file>
+        <file>images/painting/puzzled.png</file>
+        <file>images/painting/questioning.png</file>
+        <file>images/painting/quiver.png</file>
+        <file>images/painting/record.png</file>
+        <file>images/painting/robot.png</file>
+        <file>images/painting/sad.png</file>
+        <file>images/painting/surprise.png</file>
+        <file>images/painting/tired.png</file>
+        <file>music/enter_level.mp3</file>
+        <file>music/escape_but_lose.mp3</file>
+        <file>music/finale.mp3</file>
+        <file>music/gentle.mp3</file>
+        <file>music/menu.mp3</file>
+        <file>music/message_but_lose.mp3</file>
+        <file>music/puzzle.mp3</file>
+        <file>music/select.wav</file>
+        <file>music/type.wav</file>
     </qresource>
 </RCC>

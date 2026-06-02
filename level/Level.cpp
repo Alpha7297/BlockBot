@@ -4,11 +4,9 @@
 
 #include <algorithm>
 #include <cmath>
-#include <fstream>
 #include <limits>
 #include <random>
 #include <sstream>
-#include <QDebug>
 
 namespace level{
 
@@ -17,6 +15,7 @@ namespace{
 LevelConfig currentLevel;
 int currentLevelNumber=MinLevelNumber;
 LevelType currentLevelType=LevelType::Map;
+std::vector<std::vector<int>> level5RawMap;
 
 int randomInt(std::mt19937& rng,int minValue,int maxValue){
     std::uniform_int_distribution<int> dist(minValue,maxValue);
@@ -51,50 +50,64 @@ int mapSizeForLevel(int levelNumber){
     return 40;
 }
 
-std::vector<std::vector<int>> readMapFile(const std::string& fileName,int width,int height){
-    const std::vector<std::string> candidates={
-        fileName,
-        "../"+fileName,
-        "../../"+fileName
-    };
-    for(const std::string& path:candidates){
-        std::ifstream file(path);
-        if(!file.is_open()){
-            continue;
-        }
-        std::vector<std::vector<int>> rows;
-        std::string line;
-        while(std::getline(file,line)){
-            std::istringstream stream(line);
-            std::vector<int> row;
-            int value=0;
-            while(stream>>value){
-                row.push_back(value);
-            }
-            if(!row.empty()){
-                rows.push_back(row);
-            }
-        }
-        if(static_cast<int>(rows.size())!=height){
-            qDebug()<<"Map file has wrong row count:"<<path.c_str();
-            continue;
-        }
-        bool valid=true;
-        for(const auto& row:rows){
-            if(static_cast<int>(row.size())!=width){
-                valid=false;
-                break;
-            }
-        }
-        if(!valid){
-            qDebug()<<"Map file has wrong column count:"<<path.c_str();
-            continue;
-        }
-        return rows;
-    }
-    qDebug()<<"Failed to load map file:"<<fileName.c_str();
-    return {};
-}
+constexpr int Level3RawMap[20][20]={
+    {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1},
+    {1,2,2,0,0,0,0,2,2,0,0,0,0,2,2,0,0,0,0,1},
+    {1,2,2,0,0,0,0,2,2,0,0,0,0,2,2,0,0,0,0,1},
+    {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
+    {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
+    {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
+    {1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,1},
+    {1,0,0,0,0,2,2,0,0,0,0,2,2,0,0,0,0,2,2,1},
+    {1,0,0,0,0,2,2,0,0,0,0,2,2,0,0,0,0,2,2,1},
+    {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
+    {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
+    {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
+    {1,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1},
+    {1,2,2,0,0,0,0,2,2,0,0,0,0,2,2,0,0,0,0,1},
+    {1,2,2,0,0,0,0,2,2,0,0,0,0,2,2,0,0,0,0,1},
+    {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
+    {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
+    {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
+    {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
+    {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1}
+};
+
+constexpr int Level4RawMap[20][20]={
+    {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1},
+    {1,0,0,0,1,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1},
+    {1,0,0,0,1,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1},
+    {1,0,0,1,1,0,0,0,1,1,1,0,0,0,0,1,0,0,0,1},
+    {1,1,1,1,0,0,0,0,1,0,1,0,0,0,0,1,1,1,1,1},
+    {1,0,0,0,0,0,3,0,1,0,1,0,0,3,0,0,0,0,0,1},
+    {1,0,0,0,0,0,0,0,1,0,1,0,0,0,0,0,0,0,0,1},
+    {1,0,0,0,0,0,0,0,1,0,1,0,0,0,0,0,0,0,0,1},
+    {1,2,0,0,1,1,1,1,1,0,1,0,0,0,0,0,0,0,0,1},
+    {1,1,1,1,1,0,0,0,0,0,1,1,1,1,1,1,1,0,0,1},
+    {1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,1},
+    {1,0,0,1,1,1,1,1,1,0,1,0,0,3,0,0,0,0,0,1},
+    {1,0,0,1,0,0,0,0,1,0,1,0,0,0,0,0,0,0,0,1},
+    {1,0,0,1,0,0,0,0,1,0,1,0,0,0,0,0,0,0,0,1},
+    {1,0,0,1,0,0,0,0,1,0,1,0,0,0,0,0,0,0,0,1},
+    {1,0,0,1,0,0,3,0,1,0,1,0,0,0,0,1,1,1,1,1},
+    {1,0,0,1,0,0,0,0,1,1,1,0,0,0,0,1,0,0,0,1},
+    {1,0,0,1,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1},
+    {1,0,0,1,4,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1},
+    {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1}
+};
+
+constexpr int Level9RawMap[10][10]={
+    {1,1,1,1,1,1,1,1,1,1},
+    {1,2,0,0,1,0,0,5,3,1},
+    {1,0,0,0,1,0,0,0,0,1},
+    {1,0,0,0,0,0,0,1,1,1},
+    {1,0,0,0,0,0,0,0,0,1},
+    {1,1,1,0,0,0,0,0,0,1},
+    {1,0,0,0,0,0,0,0,0,1},
+    {1,0,0,0,0,1,0,0,0,1},
+    {1,4,3,0,0,1,0,6,3,1},
+    {1,1,1,1,1,1,1,1,1,1}
+};
 
 int level3CellFromRaw(int raw){
     if(raw==1){
@@ -366,12 +379,9 @@ void configureMapLevel(int levelNumber,bool regenerateDynamicMaps){
     if(levelNumber==3){
         currentLevel.setRobotStart(1,1,3);
         currentLevel.setReachPositionGoal(18,18);
-        const std::vector<std::vector<int>> rawMap=readMapFile("level/level3.txt",20,20);
-        if(!rawMap.empty()){
-            for(int y=0;y<20;y++){
-                for(int x=0;x<20;x++){
-                    currentLevel.setMapCell(x,y,level3CellFromRaw(rawMap[y][x]));
-                }
+        for(int y=0;y<20;y++){
+            for(int x=0;x<20;x++){
+                currentLevel.setMapCell(x,y,level3CellFromRaw(Level3RawMap[y][x]));
             }
         }
         currentLevel.setMapCell(18,18,CellEnd);
@@ -380,54 +390,50 @@ void configureMapLevel(int levelNumber,bool regenerateDynamicMaps){
         currentLevel.setInputCases({c});
     }
     if(levelNumber==4){
-        const std::vector<std::vector<int>> rawMap=readMapFile("level/level4.txt",20,20);
-        if(!rawMap.empty()){
-            for(int y=0;y<20;y++){
-                for(int x=0;x<20;x++){
-                    int raw=rawMap[y][x];
-                    currentLevel.setMapCell(x,y,level4CellFromRaw(raw));
-                    if(raw==2){
-                        currentLevel.setRobotStart(x,y,2);
-                    }
-                    else if(raw==4){
-                        currentLevel.setReachPositionGoal(x,y);
-                    }
+        for(int y=0;y<20;y++){
+            for(int x=0;x<20;x++){
+                int raw=Level4RawMap[y][x];
+                currentLevel.setMapCell(x,y,level4CellFromRaw(raw));
+                if(raw==2){
+                    currentLevel.setRobotStart(x,y,2);
+                }
+                else if(raw==4){
+                    currentLevel.setReachPositionGoal(x,y);
                 }
             }
-            for(int x=0;x<20;x++){
-                for(int y=0;y<20;y++){
-                    int scopeCell=currentLevel.mapCell(x,y);
-                    int dx=0,dy=0;
-                    if(scopeCell==CellScope1) dy=-1;
-                    else if(scopeCell==CellScope2) dy=1;
-                    else if(scopeCell==CellScope3) dx=-1;
-                    else if(scopeCell==CellScope4) dx=1;
-                    else continue;
-                    int beamCell=dx==0?CellBeam2:CellBeam1;
-                    int beamX=x+dx;
-                    int beamY=y+dy;
-                    while(beamX>=0&&beamY>=0&&beamX<20&&beamY<20){
-                        int cell=currentLevel.mapCell(beamX,beamY);
-                        if(cell==CellWall||isScopeCell(cell)) break;
-                        if(cell!=CellEnd){
-                            currentLevel.setMapCell(beamX,beamY,beamCell);
-                        }
-                        beamX+=dx;
-                        beamY+=dy;
+        }
+        for(int x=0;x<20;x++){
+            for(int y=0;y<20;y++){
+                int scopeCell=currentLevel.mapCell(x,y);
+                int dx=0,dy=0;
+                if(scopeCell==CellScope1) dy=-1;
+                else if(scopeCell==CellScope2) dy=1;
+                else if(scopeCell==CellScope3) dx=-1;
+                else if(scopeCell==CellScope4) dx=1;
+                else continue;
+                int beamCell=dx==0?CellBeam2:CellBeam1;
+                int beamX=x+dx;
+                int beamY=y+dy;
+                while(beamX>=0&&beamY>=0&&beamX<20&&beamY<20){
+                    int cell=currentLevel.mapCell(beamX,beamY);
+                    if(cell==CellWall||isScopeCell(cell)) break;
+                    if(cell!=CellEnd){
+                        currentLevel.setMapCell(beamX,beamY,beamCell);
                     }
+                    beamX+=dx;
+                    beamY+=dy;
                 }
             }
         }
     }
     if(levelNumber==5){
-        if(regenerateDynamicMaps){
-            runMazeGenerator();
+        if(regenerateDynamicMaps||level5RawMap.empty()){
+            level5RawMap=generateMazeMap();
         }
-        const std::vector<std::vector<int>> rawMap=readMapFile("level/level5.txt",40,40);
-        if(!rawMap.empty()){
+        if(!level5RawMap.empty()){
             for(int i=0;i<40;i++){
                 for(int j=0;j<40;j++){
-                    if(rawMap[i][j]==1){
+                    if(level5RawMap[i][j]==1){
                         currentLevel.setMapCell(i,j,CellWall);
                     }
                     else{
@@ -442,15 +448,12 @@ void configureMapLevel(int levelNumber,bool regenerateDynamicMaps){
         currentLevel.setRobotStart(1,1,3);
     }
     if(levelNumber==9){
-        const std::vector<std::vector<int>> rawMap=readMapFile("level/level9.txt",10,10);
-        if(!rawMap.empty()){
-            for(int y=0;y<10;y++){
-                for(int x=0;x<10;x++){
-                    int raw=rawMap[y][x];
-                    currentLevel.setMapCell(x,y,level9CellFromRaw(raw));
-                    if(raw==2){
-                        currentLevel.setRobotStart(x,y,3);
-                    }
+        for(int y=0;y<10;y++){
+            for(int x=0;x<10;x++){
+                int raw=Level9RawMap[y][x];
+                currentLevel.setMapCell(x,y,level9CellFromRaw(raw));
+                if(raw==2){
+                    currentLevel.setRobotStart(x,y,3);
                 }
             }
         }

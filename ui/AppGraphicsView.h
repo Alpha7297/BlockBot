@@ -3,6 +3,8 @@
 #include<QGraphicsView>
 #include<QDir>
 #include<QCoreApplication>
+#include<QFileInfo>
+#include<QStringList>
 class AppGraphicsView:public QGraphicsView{
 public:
     std::function<void()> onClosed;
@@ -15,6 +17,15 @@ protected:
     void wheelEvent(QWheelEvent* event) override;
 };
 inline QString loadAsset(const QString& fileName){
+    QString resourcePath=fileName;
+    resourcePath.replace("\\","/");
+    if(resourcePath.startsWith(":/")){
+        return resourcePath;
+    }
+    QString qrcPath=QString(":/%1").arg(resourcePath);
+    if(QFileInfo::exists(qrcPath)){
+        return qrcPath;
+    }
     QStringList roots;
     roots<<QDir::currentPath()
           <<QCoreApplication::applicationDirPath()
