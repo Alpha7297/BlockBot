@@ -480,6 +480,9 @@ QString archiveDirectoryPath(){
 
 QString archiveDefaultFilePath(){
     QDir dir(archiveDirectoryPath());
+    if(level::activeLevelType()==level::LevelType::SandBox){
+        return dir.filePath(QStringLiteral("BlockBot_sandbox.bbot"));
+    }
     return dir.filePath(QString("BlockBot_%1.bbot").arg(level::activeLevelNumber()));
 }
 
@@ -3407,6 +3410,8 @@ void setRunTextButtonRunning();
 void updateTestStatusText();
 void beginLevelTestCase(int index);
 void startLevelTestRun();
+void startProgram(Button* button,int intervalMs);
+void startConsoleRun();
 void setCodeBlockStagePos(CodeBlock* block,int area,QPointF pos);
 void setFloatBlockStagePos(FloatBlock* block,int area,QPointF pos);
 QPointF sceneToStagePos(int area,QPointF scenePos);
@@ -4568,6 +4573,9 @@ void rebuildFloatBlockRegistryFromScene(){
 
 QJsonObject serializeWorkspace(){
     QJsonObject root;
+    root["workspaceMode"]=level::activeLevelType()==level::LevelType::SandBox?
+        QStringLiteral("sandbox"):
+        QStringLiteral("level");
     root["levelNumber"]=level::activeLevelNumber();
     QJsonArray codeRoots;
     for(CodeBlock* block:workspaceCodeRootsFromScene()){
@@ -7253,7 +7261,7 @@ void finishLevelTest(bool forcedFail,const QString& message){
             QString("%1 次测试都已通过").arg(levelTestCaseTotal));
         maybeShowTaleScene(winScene,
             !alreadyPassed,
-            QString::fromUtf8("该关卡此前已经通过。是否进入结局剧情？"));
+            QString::fromUtf8("该关卡此前已经通过。是否进入剧情？"));
         return;
     }
     QString successText=result.message.empty()?
@@ -7312,6 +7320,14 @@ void startLevelTestRun(){
     levelTestCaseTotal=std::max(1,level::activeTestCaseCount());
     setRunTextButtonRunning();
     beginLevelTestCase(levelTestCaseIndex);
+}
+
+void startConsoleRun(){
+    if(level::activeLevelType()==level::LevelType::SandBox){
+        startProgram(nullptr,settings::RuntimeCodeBlockIntervalMs);
+        return;
+    }
+    startLevelTestRun();
 }
 
 void ui::resetLevelConfig(){
@@ -7460,34 +7476,58 @@ bool isRuntimeActionBlockType(int blockType){
 }
 
 bool isFirstLevelRestrictedToolbox(){
+    if(level::activeLevelType()==level::LevelType::SandBox){
+        return false;
+    }
     return level::activeLevelNumber()==1;
 }
 
 bool toolboxAllowsWaitBlock(){
+    if(level::activeLevelType()==level::LevelType::SandBox){
+        return true;
+    }
     return level::activeLevelNumber()>=2;
 }
 
 bool toolboxAllowsAdvancedBlocks(){
+    if(level::activeLevelType()==level::LevelType::SandBox){
+        return true;
+    }
     return level::activeLevelNumber()>=3;
 }
 
 bool toolboxAllowsOperationBlocks(){
+    if(level::activeLevelType()==level::LevelType::SandBox){
+        return true;
+    }
     return level::activeLevelNumber()>=4;
 }
 
 bool toolboxAllowsVariableBlocks(){
+    if(level::activeLevelType()==level::LevelType::SandBox){
+        return true;
+    }
     return level::activeLevelNumber()>=4;
 }
 
 bool toolboxAllowsListBlocks(){
+    if(level::activeLevelType()==level::LevelType::SandBox){
+        return true;
+    }
     return level::activeLevelNumber()>=5;
 }
 
 bool toolboxAllowsCustomBlocks(){
+    if(level::activeLevelType()==level::LevelType::SandBox){
+        return true;
+    }
     return level::activeLevelNumber()>=5;
 }
 
 bool toolboxAllowsOutputBlocks(){
+    if(level::activeLevelType()==level::LevelType::SandBox){
+        return true;
+    }
     return level::activeLevelNumber()>=6;
 }
 
@@ -7635,7 +7675,7 @@ void drawStage(QGraphicsScene& scene){
     runTextButton->setTexture("run.png");
     runTextButton->setZValue(20);
     runTextButton->onClick=[](){
-        startLevelTestRun();
+        startConsoleRun();
     };
     scene.addItem(runTextButton);
 
@@ -7660,7 +7700,7 @@ void drawStage(QGraphicsScene& scene){
     fullscreenButton->onClick=[](){
         setStageExpanded(true);
         if(!programRunning&&!levelTestRunning){
-            startLevelTestRun();
+            startConsoleRun();
         }
     };
     scene.addItem(fullscreenButton);
@@ -7939,6 +7979,21 @@ void drawStage(QGraphicsScene& scene){
             message::otherError("当前存档格式错误");
             return;
         }
+        QString workspaceMode=checkedRoot.value(QStringLiteral("workspaceMode")).toString(QStringLiteral("level"));
+        bool currentIsSandbox=level::activeLevelType()==level::LevelType::SandBox;
+        bool fileIsSandbox=workspaceMode==QStringLiteral("sandbox");
+        if(currentIsSandbox&&!fileIsSandbox){
+            QMessageBox::warning(nullptr,
+                QString::fromUtf8("存档不一致"),
+                QString::fromUtf8("沙盒模式不能打开关卡存档"));
+            return;
+        }
+        if(!currentIsSandbox&&fileIsSandbox){
+            QMessageBox::warning(nullptr,
+                QString::fromUtf8("存档不一致"),
+                QString::fromUtf8("关卡模式不能打开沙盒存档"));
+            return;
+        }
         int checkedFileLevelNumber=levelValue.toInt(-1);
         if(checkedFileLevelNumber<level::MinLevelNumber||
            checkedFileLevelNumber>level::TotalLevelCount){
@@ -7946,7 +8001,7 @@ void drawStage(QGraphicsScene& scene){
             return;
         }
         int checkedCurrentLevelNumber=level::activeLevelNumber();
-        if(checkedFileLevelNumber!=checkedCurrentLevelNumber){
+        if(!currentIsSandbox&&checkedFileLevelNumber!=checkedCurrentLevelNumber){
             QMessageBox::warning(nullptr,"关卡不一致",
                 QString("当前是第 %1 关，打开的文件是第 %2 关")
                     .arg(checkedCurrentLevelNumber)
@@ -7968,26 +8023,28 @@ void drawStage(QGraphicsScene& scene){
     exitButton->setZValue(topUiZ);
     scene.addItem(exitButton);
 
-    levelInfoPanel=new LevelHintPanel();
-    levelInfoPanel->setPos((appWidth-800)/2,(appHeight-466)/2);
-    levelInfoPanel->setHintText(hintTextForLevel(level::activeLevelNumber()));
-    levelInfoPanel->setZValue(topUiZ+30);
-    levelInfoPanel->setVisible(false);
-    scene.addItem(levelInfoPanel);
+    if(level::activeLevelType()!=level::LevelType::SandBox){
+        levelInfoPanel=new LevelHintPanel();
+        levelInfoPanel->setPos((appWidth-800)/2,(appHeight-466)/2);
+        levelInfoPanel->setHintText(hintTextForLevel(level::activeLevelNumber()));
+        levelInfoPanel->setZValue(topUiZ+30);
+        levelInfoPanel->setVisible(false);
+        scene.addItem(levelInfoPanel);
 
-    levelInfoButton=new TextButton("信息");
-    levelInfoButton->setPos(80,10);
-    levelInfoButton->setFixedSize(60,60);
-    levelInfoButton->setBrush(fileButtonColor());
-    levelInfoButton->setTexture("icons/information.png");
-    levelInfoButton->text->hide();
-    levelInfoButton->setZValue(topUiZ);
-    levelInfoButton->onClick=[](){
-        if(levelInfoPanel!=nullptr){
-            levelInfoPanel->setVisible(!levelInfoPanel->isVisible());
-        }
-    };
-    scene.addItem(levelInfoButton);
+        levelInfoButton=new TextButton("信息");
+        levelInfoButton->setPos(80,10);
+        levelInfoButton->setFixedSize(60,60);
+        levelInfoButton->setBrush(fileButtonColor());
+        levelInfoButton->setTexture("icons/information.png");
+        levelInfoButton->text->hide();
+        levelInfoButton->setZValue(topUiZ);
+        levelInfoButton->onClick=[](){
+            if(levelInfoPanel!=nullptr){
+                levelInfoPanel->setVisible(!levelInfoPanel->isVisible());
+            }
+        };
+        scene.addItem(levelInfoButton);
+    }
 }
 
 void addPanelMasks(QGraphicsScene& scene,QRectF panelRect,bool protectStage=false){
@@ -8234,26 +8291,11 @@ void LevelChoosePage::startLevel(int levelNumber)
 }
 void MainWindow::onStartButtonClicked()
 {
-    bool ok=false;
-    int levelNumber=QInputDialog::getInt(
-        this,
-        QString::fromUtf8("选择关卡"),
-        QString::fromUtf8("请输入关卡编号："),
-        level::MinLevelNumber,
-        level::MinLevelNumber,
-        level::TotalLevelCount,
-        1,
-        &ok
-    );
-    if(!ok){
-        return;
-    }
     editorExitToDesktopRequested=false;
-    level::LevelType levelType=level::defaultLevelTypeForNumber(levelNumber);
-    level::configureActiveLevel(levelNumber,levelType);
+    level::configureActiveLevel(level::MinLevelNumber,level::LevelType::SandBox);
     runtimeState.clearAll();
-    level::prepareActiveTestCase(0,runtimeState);
     ensureBuiltInRuntimeVariables();
+    clearDataLockedNames();
     init();
     stageExpanded=false;
     if(view!=nullptr){
