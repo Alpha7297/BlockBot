@@ -830,12 +830,22 @@ LevelType defaultLevelTypeForNumber(int levelNumber){
 void configureSandBoxLevel()
 {
 
-    constexpr int size=40;
+    constexpr int size=20;
     resetActiveLevel(size,size);
     fillBorderWalls(currentLevel,size);
     currentLevel.setReachPositionGoal(-1,-1);
 }
 FreshResult fresh(const TestContext& context){
+    if(currentLevelType==LevelType::SandBox){
+        int robotCell=currentLevel.mapCell(context.robot.x,context.robot.y);
+        if(robotCell==CellSpikeUp){
+            return {false,true,"沙盒运行终止：机器人在 spikeup 上。"};
+        }
+        if(robotCell==CellWall){
+            return {false,true,"沙盒运行终止：机器人在 wall 上。"};
+        }
+        return {false,false,""};
+    }
     if(currentLevelNumber==2){
         int time=context.time;
         for(int i=1;i<9;i++){

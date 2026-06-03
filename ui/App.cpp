@@ -149,14 +149,24 @@ tale::TaleScene taleLoseSceneForLevel(int levelNumber){
     }
 }
 
-tale::TaleScene taleWinSceneForResult(int levelNumber,const level::TestResult& result){
+tale::TaleScene taleWinSceneForResult(int levelNumber,const level::TestResult&){
     if(levelNumber==9){
-        QString message=QString::fromStdString(result.message);
-        if(message.contains(QString::fromUtf8("孤独逃离"))){
-            return tale::TaleScene::Level9EscapeOnly;
-        }
-        if(message.contains(QString::fromUtf8("日志成功"))){
-            return tale::TaleScene::Level9SendOnly;
+        double door=0.0;
+        double antenna=0.0;
+        bool hasDoor=runtimeState.getVariable("阀门稳定度",&door);
+        bool hasAntenna=runtimeState.getVariable("天线稳定度",&antenna);
+        if(hasDoor&&hasAntenna){
+            bool doorReady=door>=4.0;
+            bool antennaReady=antenna>=5.0;
+            if(doorReady&&!antennaReady){
+                return tale::TaleScene::Level9EscapeOnly;
+            }
+            if(!doorReady&&antennaReady){
+                return tale::TaleScene::Level9SendOnly;
+            }
+            if(doorReady&&antennaReady){
+                return tale::TaleScene::Level9Complete;
+            }
         }
         return tale::TaleScene::Level9Complete;
     }
@@ -289,22 +299,40 @@ void stopProgram();
 void installRuntimeCancelFilter();
 void installSelectSoundFilter();
 void resetActiveLevelForRun();
+void applySandboxMapCellEdit(int x,int y,int type);
+bool isSandboxMapEditable();
+bool chooseSandboxMapCellType(int currentCell,int* selectedType);
 
 void recordRuntimeTimeUse(){
     if(runtimeCountersActive){
         levelTestTimeCount++;
-        if(level::activeLevelType()==level::LevelType::Map){
+        if(level::activeLevelType()==level::LevelType::Map||
+           level::activeLevelType()==level::LevelType::SandBox){
             runtimeState.forceSetVariable("time",levelTestTimeCount,true);
             level::FreshResult freshResult=level::fresh(currentLevelTestContext());
             runtimeWaitActionFrame=false;
             syncMapDataFromActiveLevel();
             updateStageGeometry();
             if(freshResult.reachedGoal){
-                finishLevelTest(false,QString());
+                if(levelTestRunning){
+                    finishLevelTest(false,QString());
+                }
+                else{
+                    stopProgram();
+                }
                 return;
             }
             if(freshResult.trapped){
-                finishLevelTest(true,QString::fromStdString(freshResult.trapMessage));
+                QString trapMessage=QString::fromStdString(freshResult.trapMessage);
+                if(levelTestRunning){
+                    finishLevelTest(true,trapMessage);
+                }
+                else{
+                    stopProgram();
+                    if(!trapMessage.isEmpty()){
+                        QMessageBox::warning(nullptr,"运行终止",trapMessage);
+                    }
+                }
                 return;
             }
         }
@@ -3050,6 +3078,30 @@ QBrush brushForCell(int cell,const std::map<int,QBrush>& brushes){
     return floorIt==brushes.end()?QBrush(Qt::gray):floorIt->second;
 }
 
+class SandboxMapCellItem:public QGraphicsRectItem{
+public:
+    int gridx;
+    int gridy;
+
+    SandboxMapCellItem(int x,int y,QGraphicsItem* parent=nullptr):
+        QGraphicsRectItem(parent),gridx(x),gridy(y){
+        setAcceptedMouseButtons(Qt::LeftButton);
+    }
+
+protected:
+    void mousePressEvent(QGraphicsSceneMouseEvent* event) override{
+        if(event->button()!=Qt::LeftButton||!isSandboxMapEditable()){
+            QGraphicsRectItem::mousePressEvent(event);
+            return;
+        }
+        int selectedType=mapdata[gridx][gridy];
+        if(chooseSandboxMapCellType(selectedType,&selectedType)){
+            applySandboxMapCellEdit(gridx,gridy,selectedType);
+        }
+        event->accept();
+    }
+};
+
 QString platePairAssetForCells(int deviceCell,int plateCell){
     if(plateCell!=level::CellPlate){
         return QString();
@@ -4592,6 +4644,20 @@ void rebuildFloatBlockRegistryFromScene(){
     }
 }
 
+QJsonArray serializeSandboxMap(){
+    QJsonArray columns;
+    int mapWidth=currentMapWidth();
+    int mapHeight=currentMapHeight();
+    for(int i=0;i<mapWidth;i++){
+        QJsonArray column;
+        for(int j=0;j<mapHeight;j++){
+            column.append(mapdata[i][j]);
+        }
+        columns.append(column);
+    }
+    return columns;
+}
+
 QJsonObject serializeWorkspace(){
     QJsonObject root;
     root["workspaceMode"]=level::activeLevelType()==level::LevelType::SandBox?
@@ -4648,6 +4714,9 @@ QJsonObject serializeWorkspace(){
     root["lists"]=lists;
     root["readOnlyVariables"]=readOnlyVariables;
     root["readOnlyLists"]=readOnlyLists;
+    if(level::activeLevelType()==level::LevelType::SandBox){
+        root["sandboxMap"]=serializeSandboxMap();
+    }
     return root;
 }
 
@@ -4696,9 +4765,41 @@ void clearWorkspaceAndCacheOnExit(){
 
 void refreshVariableToolbox();
 
+void restoreSandboxMap(const QJsonObject& root){
+    if(level::activeLevelType()!=level::LevelType::SandBox){
+        return;
+    }
+    QJsonArray columns=root["sandboxMap"].toArray();
+    if(columns.isEmpty()){
+        return;
+    }
+    constexpr int sandboxMapSize=20;
+    int mapWidth=std::min(static_cast<int>(columns.size()),sandboxMapSize);
+    int mapHeight=0;
+    for(const QJsonValue& value:columns){
+        mapHeight=std::max(mapHeight,static_cast<int>(value.toArray().size()));
+    }
+    mapHeight=std::max(1,std::min(mapHeight,sandboxMapSize));
+    level::resetActiveLevel(mapWidth,mapHeight);
+    level::setActiveRobotStart(5,5,3);
+    for(int i=0;i<mapWidth;i++){
+        QJsonArray column=columns[i].toArray();
+        for(int j=0;j<mapHeight&&j<column.size();j++){
+            int cell=column[j].toInt(level::CellEmpty);
+            if(cell!=level::CellEmpty&&cell!=level::CellSpikeUp&&cell!=level::CellWall){
+                cell=level::CellEmpty;
+            }
+            level::setActiveMapCell(i,j,cell);
+        }
+    }
+    syncMapDataFromActiveLevel();
+    updateStageGeometry();
+}
+
 void restoreWorkspace(const QJsonObject& root){//load workplace by Json file
     restoringUndo=true;
     clearWorkspaceForUndo();
+    restoreSandboxMap(root);
     QJsonArray codeRoots=root["codeRoots"].toArray();
     for(const QJsonValue& value:codeRoots){
         QJsonObject object=value.toObject();
@@ -7443,6 +7544,42 @@ void init(){
     syncMapDataFromActiveLevel();
 }
 
+bool chooseSandboxMapCellType(int currentCell,int* selectedType){
+    if(selectedType==nullptr){
+        return false;
+    }
+    QDialog dialog;
+    dialog.setWindowTitle(QStringLiteral("修改地图"));
+    QFormLayout layout(&dialog);
+    QComboBox typeBox;
+    typeBox.addItem(QStringLiteral("empty floor"),level::CellEmpty);
+    typeBox.addItem(QStringLiteral("spikeup"),level::CellSpikeUp);
+    typeBox.addItem(QStringLiteral("wall"),level::CellWall);
+    int currentIndex=0;
+    for(int i=0;i<typeBox.count();i++){
+        if(typeBox.itemData(i).toInt()==currentCell){
+            currentIndex=i;
+            break;
+        }
+    }
+    typeBox.setCurrentIndex(currentIndex);
+    layout.addRow(QStringLiteral("地形"),&typeBox);
+    QDialogButtonBox buttons(QDialogButtonBox::Ok|QDialogButtonBox::Cancel);
+    layout.addWidget(&buttons);
+    QObject::connect(&buttons,&QDialogButtonBox::accepted,&dialog,&QDialog::accept);
+    QObject::connect(&buttons,&QDialogButtonBox::rejected,&dialog,&QDialog::reject);
+    if(dialog.exec()!=QDialog::Accepted){
+        return false;
+    }
+    *selectedType=typeBox.currentData().toInt();
+    return true;
+}
+
+bool isSandboxMapEditable(){
+    return level::activeLevelType()==level::LevelType::SandBox&&
+           !programRunning&&!levelTestRunning&&!runtimeCountersActive;
+}
+
 void syncMapDataFromActiveLevel(){
     const level::LevelConfig& config=level::activeLevel();
     for(int i=0;i<screensize;i++){
@@ -7463,7 +7600,28 @@ void syncMapDataFromActiveLevel(){
     }
 }
 
+void applySandboxMapCellEdit(int x,int y,int type){
+    if(!isSandboxMapEditable()){
+        return;
+    }
+    if(x<0||x>=currentMapWidth()||y<0||y>=currentMapHeight()){
+        return;
+    }
+    if(type!=level::CellEmpty&&type!=level::CellSpikeUp&&type!=level::CellWall){
+        return;
+    }
+    level::setActiveMapCell(x,y,type);
+    mapdata[x][y]=type;
+    updateStageGeometry();
+    saveUndoCheckpoint();
+}
+
 void resetActiveLevelForRun(){
+    if(level::activeLevelType()==level::LevelType::SandBox){
+        syncMapDataFromActiveLevel();
+        updateStageGeometry();
+        return;
+    }
     level::configureActiveLevel(level::activeLevelNumber(),level::activeLevelType(),false);
     syncMapDataFromActiveLevel();
     updateStageGeometry();
@@ -7671,7 +7829,8 @@ void drawStage(QGraphicsScene& scene){
     std::map<int,QBrush> cellBrushes=buildCellBrushes(cellSize);
     for(int i=0;i<screensize;i++){
         for(int j=0;j<screensize;j++){
-            squares[i][j]=scene.addRect(0,0,cellSize,cellSize);
+            squares[i][j]=new SandboxMapCellItem(i,j);
+            scene.addItem(squares[i][j]);
             platePairImages[i][j]=nullptr;
             if(i>=mapWidth||j>=mapHeight){
                 squares[i][j]->setVisible(false);
@@ -8044,28 +8203,30 @@ void drawStage(QGraphicsScene& scene){
     exitButton->setZValue(topUiZ);
     scene.addItem(exitButton);
 
-    if(level::activeLevelType()!=level::LevelType::SandBox){
-        levelInfoPanel=new LevelHintPanel();
-        levelInfoPanel->setPos((appWidth-800)/2,(appHeight-466)/2);
-        levelInfoPanel->setHintText(hintTextForLevel(level::activeLevelNumber()));
-        levelInfoPanel->setZValue(topUiZ+30);
-        levelInfoPanel->setVisible(false);
-        scene.addItem(levelInfoPanel);
+    levelInfoPanel=new LevelHintPanel();
+    levelInfoPanel->setPos((appWidth-800)/2,(appHeight-466)/2);
+    levelInfoPanel->setHintText(
+        level::activeLevelType()==level::LevelType::SandBox?
+        QString::fromUtf8("点击舞台可修改当前位置地板类型，修改完成记得保存存档"):
+        hintTextForLevel(level::activeLevelNumber())
+    );
+    levelInfoPanel->setZValue(topUiZ+30);
+    levelInfoPanel->setVisible(false);
+    scene.addItem(levelInfoPanel);
 
-        levelInfoButton=new TextButton("信息");
-        levelInfoButton->setPos(80,10);
-        levelInfoButton->setFixedSize(60,60);
-        levelInfoButton->setBrush(fileButtonColor());
-        levelInfoButton->setTexture("icons/information.png");
-        levelInfoButton->text->hide();
-        levelInfoButton->setZValue(topUiZ);
-        levelInfoButton->onClick=[](){
-            if(levelInfoPanel!=nullptr){
-                levelInfoPanel->setVisible(!levelInfoPanel->isVisible());
-            }
-        };
-        scene.addItem(levelInfoButton);
-    }
+    levelInfoButton=new TextButton("信息");
+    levelInfoButton->setPos(80,10);
+    levelInfoButton->setFixedSize(60,60);
+    levelInfoButton->setBrush(fileButtonColor());
+    levelInfoButton->setTexture("icons/information.png");
+    levelInfoButton->text->hide();
+    levelInfoButton->setZValue(topUiZ);
+    levelInfoButton->onClick=[](){
+        if(levelInfoPanel!=nullptr){
+            levelInfoPanel->setVisible(!levelInfoPanel->isVisible());
+        }
+    };
+    scene.addItem(levelInfoButton);
 }
 
 void addPanelMasks(QGraphicsScene& scene,QRectF panelRect,bool protectStage=false){
