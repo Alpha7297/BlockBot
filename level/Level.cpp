@@ -832,11 +832,13 @@ void configureSandBoxLevel()
 
     constexpr int size=20;
     resetActiveLevel(size,size);
+    currentLevel.setRobotStart(5,5,0);
     fillBorderWalls(currentLevel,size);
     currentLevel.setReachPositionGoal(-1,-1);
 }
 FreshResult fresh(const TestContext& context){
     if(currentLevelType==LevelType::SandBox){
+        forceRuntimeVariable(context.runtime,"time",context.time);
         int robotCell=currentLevel.mapCell(context.robot.x,context.robot.y);
         if(robotCell==CellSpikeUp){
             return {false,true,"沙盒运行终止：机器人在 spikeup 上。"};

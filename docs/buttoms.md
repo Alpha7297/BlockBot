@@ -1,50 +1,60 @@
 # 按钮整理
 
-本文档记录 `ui/App.cpp` 和 `ui/Widgets.h` 中当前按钮、滑条和主要 UI 控件的类型、颜色、宽度和长度。
+## 基础控件
 
-代码中按钮通常使用屏幕坐标描述矩形，本文档统一写作 `宽 × 高`。
+| 控件 | 类 | 当前来源 | 说明 |
+| --- | --- | --- | --- |
+| 图形按钮 | `Button` | `ui/Widgets.h` | 默认圆形，直径约 20，默认色 `QColor(80,140,235)` |
+| 图形按钮阴影 | `Button::shadow` | `ui/Widgets.h` | `24*24`，`QColor(180,180,180,120)` |
+| 文本/贴图按钮 | `TextButton` | `ui/App.cpp` | `QGraphicsPolygonItem`，默认色 `QColor(80,120,170)`，多数实际按钮会改色并贴图 |
+| 右键菜单按钮 | `ContextMenuButton` | `ui/App.cpp` | `56*24`，`QColor(70,80,96)` |
+| 滚动条滑块 | `ScrollSlider` | `ui/Widgets.h` | `18*60`，默认色 `QColor(75,85,99)`，当前使用 `slider.png` 贴图 |
+| 关卡/沙盒提示面板 | `LevelHintPanel` | `ui/hint.cpp` | `800*466`，点击面板隐藏 |
 
-## 按钮基础类
+## 固定布局常量
 
-| 类型 | 类 | 父类 | 颜色 | 尺寸 |
-| --- | --- | --- | --- | --- |
-| 图形按钮默认形态 | `Button` | `QGraphicsPolygonItem` | `QColor(80,140,235)` | 近似圆形，直径 `20` |
-| 图形按钮阴影 | `Button::shadow` | `QGraphicsPolygonItem` | `QColor(180,180,180,120)` | `24 × 24` |
-| 播放图标 | `Button::setPlayShape()` | `Button` | `QColor(44,135,82)` | 约 `18 × 20` |
-| 闪电图标 | `Button::setLightningShape()` | `Button` | `QColor(202,150,36)` | 约 `15 × 22` |
-| 停止图标 | `Button::setStopShape()` | `Button` | `QColor(180,48,48)` | 约 `22 × 22` |
-| 文本按钮默认形态 | `TextButton` | `QGraphicsPolygonItem` | `QColor(80,120,170)` | 默认 `(文字宽度 + 20) × (文字高度 + 10)` |
-| 右键菜单按钮 | `ContextMenuButton` | `Button` | `QColor(70,80,96)` | `56 × 24` |
-| 滚动条滑块 | `ScrollSlider` | `QGraphicsPolygonItem` | `QColor(75,85,99)` | `18 × 60` |
+| 名称 | 当前值 |
+| --- | --- |
+| 窗口大小 | `1200*800` |
+| 舞台 | `(10,80)`，`320*320` |
+| 工具箱 | `(340,80)`，`280*710` |
+| 工作区 | `(630,80)`，`560*710` |
+| 顶部按钮层级 | `topUiZ=100020` |
 
 ## 当前页面按钮
 
-| 按钮 | 类 | 颜色 | 宽 × 高 | 位置 | 说明 |
-| --- | --- | --- | --- | --- | --- |
-| 运行 | `TextButton` | `QColor(44,135,82)` | `150 × 40` | `(15,410)` | 位于舞台下方 |
-| 停止 | `TextButton` | `QColor(180,48,48)` | `150 × 40` | `(175,410)` | 位于舞台下方 |
-| 保存 | `TextButton` | `QColor(126,70,180)` | `60 × 60` | `(1060,10)` | 顶部文件按钮 |
-| 打开 | `TextButton` | `QColor(126,70,180)` | `60 × 60` | `(1130,10)` | 顶部文件按钮 |
-| 创建新变量 | `TextButton` | `QColor(194,92,0)` | `160 × 40` | `(10,530)` | 左侧工具按钮 |
-| 创建新列表 | `TextButton` | `QColor(125,28,38)` | `160 × 40` | `(10,580)` | 左侧工具按钮 |
-| 创建自定义积木 | `TextButton` | `QColor(82,45,122)` | `160 × 40` | `(10,630)` | 左侧工具按钮 |
-| 退出 | `TextButton` | `QColor(126,70,180)` | `160 × 40` | `(10,680)` | 左侧底部按钮 |
+| 按钮 | 类 | 颜色 | 尺寸 | 位置 | 贴图 | 显示条件/说明 |
+| --- | --- | --- | --- | --- | --- | --- |
+| 运行 | `TextButton` | `QColor(44,135,82)` | `150*scaledAssetHeight("run.png",150,40)` | `(15,410)` | `run.png` | 始终显示；运行中显示“运行中” |
+| 停止 | `TextButton` | `QColor(180,48,48)` | `150*scaledAssetHeight("stop.png",150,40)` | `(175,410)` | `stop.png` | 始终显示 |
+| 全屏舞台 | `TextButton` | `fileButtonColor()` | `60*60` | `(260,577)` | `larger.png` | 文字隐藏；展开舞台时隐藏 |
+| 缩小舞台 | `TextButton` | `fileButtonColor()` | `60*60` | 动态：`informationRect().right()+20,informationRect().top()` | `smaller.png` | 默认隐藏；展开舞台时显示 |
+| 创建新变量 | `TextButton` | `variableColor()` | `160*scaledAssetHeight("create_variable.png",160,40)` | `(10,577)` | `create_variable.png` | 沙盒或第 4 关及以后显示 |
+| 创建新列表 | `TextButton` | `listColor()` | `160*scaledAssetHeight("create_list.png",160,40)` | `(10,617)` | `create_list.png` | 沙盒或第 5 关及以后显示 |
+| 创建自定义积木 | `TextButton` | `customBlockColor()` | `160*scaledAssetHeight("create_custom.png",160,40)` | `(10,657)` | `create_custom.png` | 沙盒或第 5 关及以后显示 |
+| 设置 | `TextButton` | `fileButtonColor()` | `60*60` | `(990,10)` | `icons/settings.png` | 文字隐藏 |
+| 保存 | `TextButton` | `fileButtonColor()` | `60*60` | `(1060,10)` | `save.png` | 文字隐藏；保存 `.bbot` |
+| 打开 | `TextButton` | `fileButtonColor()` | `60*60` | `(1130,10)` | `open.png` | 文字隐藏；支持 `.bbot`，JSON 会弹不安全警告 |
+| 退出 | `TextButton` | `fileButtonColor()` | `60*60` | `(10,10)` | `icons/return.png` | 文字隐藏 |
+| 信息 | `TextButton` | `fileButtonColor()` | `60*60` | `(80,10)` | `icons/information.png` | 文字隐藏；普通关卡显示关卡提示，沙盒显示地图编辑提示 |
 
-## 当前非按钮控件
+## 非按钮主控件
 
-| 控件 | 类 | 颜色 | 宽 × 高 | 位置 | 说明 |
-| --- | --- | --- | --- | --- | --- |
-| LOGO 占位框 | `QGraphicsRectItem` | `QColor(38,44,52)` | `1040 × 60` | `(10,10)` | 当前用长方形和 `LOGO1.png` 临时代替 |
-| LOGO 边框 | `QPen` | `QColor(90,100,112)` | 线宽 `1.5` | 同 LOGO | LOGO 占位框描边 |
-| 信息框 | `QGraphicsRectItem` | `QColor(230,233,238)` | `320 × 60` | `(10,460)` | 舞台下方预留功能框 |
-| 工具箱滑条 | `ScrollSlider` | `QColor(75,85,99)` | `18 × 60` | `toolbox` 右侧 | 根据工具箱内容滚动 |
-| 工作区滑条 | `ScrollSlider` | `QColor(75,85,99)` | `18 × 60` | `workspace` 右侧 | 根据工作区内容滚动 |
+| 控件 | 类 | 位置/尺寸 | 说明 |
+| --- | --- | --- | --- |
+| 舞台背景 | `QGraphicsRectItem` | 当前舞台位置和大小 | 白色底，按当前地图尺寸绘制格子 |
+| 地图格子 | `SandboxMapCellItem` | 舞台内网格 | 沙盒模式下左键点击可选择 `empty floor`、`spikeup`、`wall` |
+| 机器人 | `Robot` | 舞台格子坐标 | `QGraphicsPixmapItem`，按方向旋转/绘制 |
+| 信息面板图片 | `QGraphicsPixmapItem` | `(10,460)`，宽 320 | 使用 `information.png`；失败时用 fallback 矩形 |
+| 步数文字 | `QGraphicsTextItem` | `(82,494)` | 白色 Arial Bold 20 |
+| 时间文字 | `QGraphicsTextItem` | `(235,494)` | 白色 Arial Bold 20 |
+| 工具箱滑块 | `ScrollSlider` | `toolbox` 右侧 | 贴图 `slider.png` |
+| 工作区滑块 | `ScrollSlider` | `workspace` 右侧 | 贴图 `slider.png` |
 
-## 已停用按钮
+## 已停用/保留指针
 
-| 名称 | 当前状态 | 说明 |
-| --- | --- | --- |
-| 快速运行 | 不再创建 | 新布局中已经删除 |
-| 旧 `runButton` 图形按钮 | 指针保留但设为 `nullptr` | 当前使用文本按钮 `运行` |
-| 旧 `fastRunButton` 图形按钮 | 指针保留但设为 `nullptr` | 当前没有对应 UI |
-| `testButton` | 指针保留但设为 `nullptr` | 当前测试入口由其他逻辑处理 |
+| 名称 | 当前状态 |
+| --- | --- |
+| `runButton` | 指针保留，但当前界面不创建旧图形按钮 |
+| `fastRunButton` | 指针保留，但当前界面不创建 |
+| `testButton` | 指针保留并设为 `nullptr`，当前运行入口由“运行”按钮和关卡测试流程处理 |

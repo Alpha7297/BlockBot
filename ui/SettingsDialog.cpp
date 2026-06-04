@@ -42,6 +42,7 @@ constexpr qreal SliderKnobHeight=30;
 
 constexpr std::array<int,7> LengthValues={1,2,5,10,20,50,100};
 constexpr std::array<int,8> SpeedValues={1,5,10,20,50,100,200,500};
+constexpr std::array<int,2> ToggleValues={0,1};
 
 template<size_t N>
 int nearestValueIndex(const std::array<int,N>& values,int value){
@@ -189,6 +190,10 @@ QString speedText(int value){
     return prefix;
 }
 
+QString toggleText(int value){
+    return value==0?QString::fromUtf8("关闭"):QString::fromUtf8("开启");
+}
+
 }
 
 SettingsDialog::SettingsDialog(QWidget* parent):QDialog(parent){
@@ -241,6 +246,10 @@ SettingsDialog::SettingsDialog(QWidget* parent):QDialog(parent){
         LengthLabelY+RowGap*2,[](int value){
             RuntimeCodeBlockIntervalMs=value;
         },speedText);
+    addDiscreteSlider(scene,QString::fromUtf8("停止后复位"),ToggleValues,ResetStageOnStop?1:0,
+        LengthLabelY+RowGap*3,[](int value){
+            ResetStageOnStop=value!=0;
+        },toggleText);
 }
 
 }
