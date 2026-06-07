@@ -10,7 +10,7 @@ qt_standard_project_setup()
 
 qt_add_big_resources(BlockBotResources resource.qrc)
 
-qt_add_executable(BlockBot
+qt_add_executable(BlockBot WIN32
     main.cpp
     ui/ArchivePage.cpp
     ui/ArchivePage.h

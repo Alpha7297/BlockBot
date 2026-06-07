@@ -2103,6 +2103,10 @@ QColor customBlockColor(){
     return QColor(82,45,122);
 }
 
+QString customParameterStorageName(const QString& customName,const QString& parameterName){
+    return customName.trimmed()+"_"+parameterName.trimmed();
+}
+
 double customParameterValue(const QString& customName,const QString& parameterName);
 
 class CustomParamBlock:public FloatBlock{
@@ -2729,7 +2733,7 @@ public:
         if(it!=hats.end()&&it->second!=nullptr){
             const vector<QString>& names=it->second->parameterNames;
             for(size_t i=0;i<names.size();i++){
-                frame[names[i]]=i<values.size()?values[i]:0.0;
+                frame[customParameterStorageName(key,names[i])]=i<values.size()?values[i]:0.0;
             }
         }
         customParameterStacks[key].push_back(frame);
@@ -2930,7 +2934,8 @@ double customParameterValue(const QString& customName,const QString& parameterNa
         runtimeStopRequested=true;
         return 0.0;
     }
-    auto valueIt=it->second.back().find(parameterName);
+    QString storageName=customParameterStorageName(customName,parameterName);
+    auto valueIt=it->second.back().find(storageName);
     if(valueIt==it->second.back().end()){
         message::otherError("无法调用自定义积木局部变量");
         runtimeSkipCurrentBlock=true;
@@ -3734,7 +3739,9 @@ void addCodeTreeToScene(CodeBlock* head){
         }
         CustomHatBlock* customHat=dynamic_cast<CustomHatBlock*>(curr);
         if(customHat!=nullptr){
-            customHatBlocks[customHat->customName]=customHat;
+            if(customHatBlocks.find(customHat->customName)==customHatBlocks.end()){
+                customHatBlocks[customHat->customName]=customHat;
+            }
         }
         ControlCodeBlock* control=dynamic_cast<ControlCodeBlock*>(curr);
         if(control!=nullptr){
@@ -4454,7 +4461,9 @@ void collectRuntimeCodeSnapshot(CodeBlock* block){
             runtimeStartBlock=start;
         }
         if(CustomHatBlock* customHat=dynamic_cast<CustomHatBlock*>(curr)){
-            runtimeCustomHatBlocks[customHat->customName]=customHat;
+            if(runtimeCustomHatBlocks.find(customHat->customName)==runtimeCustomHatBlocks.end()){
+                runtimeCustomHatBlocks[customHat->customName]=customHat;
+            }
         }
         if(ControlCodeBlock* control=dynamic_cast<ControlCodeBlock*>(curr)){
             collectRuntimeCodeSnapshot(control->inside);
@@ -4537,10 +4546,30 @@ bool validateEndBlockForRun(){
     return true;
 }
 
+bool validateCustomHatNamesForRun(){
+    std::set<QString> names;
+    for(CodeBlock* block:workspaceCodeItemsFromScene()){
+        CustomHatBlock* customHat=dynamic_cast<CustomHatBlock*>(block);
+        if(customHat==nullptr){
+            continue;
+        }
+        QString name=customHat->customName.trimmed();
+        if(names.find(name)!=names.end()){
+            runtimeSnapshotError=QString::fromUtf8("自定义积木名称不能重复");
+            return false;
+        }
+        names.insert(name);
+    }
+    return true;
+}
+
 bool buildRuntimeCodeSnapshot(){
     clearRuntimeCodeSnapshot();
     runtimeSnapshotError.clear();
     if(!validateEndBlockForRun()){
+        return false;
+    }
+    if(!validateCustomHatNamesForRun()){
         return false;
     }
     for(CodeBlock* root:workspaceCodeRootsFromScene()){
@@ -4630,7 +4659,9 @@ void rebuildCodeRegistryFromScene(){
         }
         CustomHatBlock* customHat=dynamic_cast<CustomHatBlock*>(block);
         if(customHat!=nullptr){
-            customHatBlocks[customHat->customName]=customHat;
+            if(customHatBlocks.find(customHat->customName)==customHatBlocks.end()){
+                customHatBlocks[customHat->customName]=customHat;
+            }
         }
     }
 }
@@ -8380,6 +8411,7 @@ void drawStage(QGraphicsScene& scene){
                 return;
             }
             if(customHatBlocks.find(name)!=customHatBlocks.end()){
+                message::otherError("自定义积木名称不能重复");
                 return;
             }
             CustomHatBlock* hat=new CustomHatBlock(name,parameterNames,false);
