@@ -19,6 +19,7 @@
 *.*#
 core
 .claude/
+.codex/
 !core/
 release/
 *.dll
