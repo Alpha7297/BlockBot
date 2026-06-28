@@ -525,6 +525,8 @@ h2{
         <a href="#runtime">运行链路</a>
         <a href="#classes">类构造</a>
         <a href="#levels">关卡</a>
+        <a href="#summary">总结</a>
+        <a href="#work">分工</a>
     </nav>
 </header>
 
@@ -546,7 +548,7 @@ h2{
     <section id="overview">
         <div class="section-head">
             <h2>游戏介绍</h2>
-            <p class="section-note">以下内容来自<code>readme.md</code>、<code>docs/hint.md</code>、<code>docs/blocks.md</code>、<code>tale/TaleWindow.cpp</code>和关卡配置代码。</p>
+            <p class="section-note">从玩法目标、角色叙事和关卡解锁三部分介绍这个项目。</p>
         </div>
         <div class="grid-3">
             <article class="item reveal">
@@ -570,7 +572,7 @@ h2{
     <section id="structure">
         <div class="section-head">
             <h2>项目结构</h2>
-            <p class="section-note">目录分工和<code>CMakeLists.txt</code>中的编译目标一致，资源通过<code>resource.qrc</code>打包，同时保留本地路径回退。</p>
+            <p class="section-note">按源码目录和构建入口整理项目结构，说明各部分在游戏中的职责。</p>
         </div>
         <div class="grid-4">
             <div class="item"><h3><code>core/</code></h3><p>运行状态、积木执行器、基础值对象和运算对象。<code>BlockExecutor</code>是当前逐步执行核心。</p></div>
@@ -587,7 +589,7 @@ h2{
     <section id="assets">
         <div class="section-head">
             <h2>贴图资源</h2>
-            <p class="section-note"><code>images</code>下的贴图分为背景、地块、人物立绘、图标和按钮。这里重点描述地块贴图、人物立绘和背景贴图。</p>
+            <p class="section-note">贴图资源分为背景、地块、人物立绘、图标和按钮，并重点展示游戏中最常用的三类素材。</p>
         </div>
         <div class="panel panel-pad">
             <h3>地块贴图</h3>
@@ -735,7 +737,7 @@ h2{
     <section id="runtime">
         <div class="section-head">
             <h2>运行链路</h2>
-            <p class="section-note">源码中没有把逻辑集中到一个Game类，而是由Qt窗口、全局运行状态、关卡配置和执行器协同完成。</p>
+            <p class="section-note">运行流程由Qt窗口、全局运行状态、关卡配置和执行器共同组织。</p>
         </div>
         <div class="panel panel-pad">
             <div class="flow">
@@ -752,7 +754,7 @@ h2{
     <section id="classes">
         <div class="section-head">
             <h2>类的构造细节</h2>
-            <p class="section-note">这里重点说明构造函数或等价初始化路径。未声明自定义构造函数的类按成员默认初始化解释。</p>
+            <p class="section-note">重点记录构造函数和等价初始化路径，便于说明对象创建时的状态来源。</p>
         </div>
 
         <div class="panel panel-pad">
@@ -956,7 +958,7 @@ h2{
                 <div class="class-row">
                     <div class="class-name"><code>savecrypto</code>命名空间</div>
                     <div class="class-detail">
-                        <p>这里不是类，而是一组存档函数。Windows下<code>protectBytes</code>调用<code>CryptProtectData</code>，<code>unprotectBytes</code>调用<code>CryptUnprotectData</code>。写文件时先写<code>BBOTDP01</code>魔数，再写加密后的紧凑JSON。</p>
+                        <p><code>savecrypto</code>不是类，而是一组存档函数。Windows下<code>protectBytes</code>调用<code>CryptProtectData</code>，<code>unprotectBytes</code>调用<code>CryptUnprotectData</code>。写文件时先写<code>BBOTDP01</code>魔数，再写加密后的紧凑JSON。</p>
                         <span class="source"><code>ui/SaveCrypto.cpp</code></span>
                     </div>
                 </div>
@@ -967,7 +969,7 @@ h2{
     <section id="levels">
         <div class="section-head">
             <h2>关卡构造与测试</h2>
-            <p class="section-note"><code>defaultLevelTypeForNumber</code>把第6到第8关设为数据输出关，其余正常编号关卡为地图关，沙盒独立配置。</p>
+            <p class="section-note">第6到第8关设计为数据输出关，其余正常编号关卡保留为地图通关目标。</p>
         </div>
         <div class="levels">
             <div class="level"><strong>1</strong><em>基础移动</em><span>目标坐标测试，控制R-07到达终点。</span></div>
@@ -982,11 +984,49 @@ h2{
         </div>
     </section>
 
-</main>
+    <section id="summary">
+        <div class="section-head">
+            <h2>总结与反思</h2>
+            <p class="section-note">从收获和问题两个角度复盘这个项目。</p>
+        </div>
+        <div class="grid-2">
+            <article class="item reveal">
+                <span class="tag">收获</span>
+                <h3>从玩法原型到完整作品</h3>
+                <p>本项目的主要收获，是将图形化积木、运行时状态、关卡测试和Qt界面串联成一个可玩的整体。项目从积木转可执行代码开始，逐步加入变量、列表、条件、循环、自定义积木、剧情窗口、贴图、音乐、存档和九个关卡。该过程说明游戏程序不能只关注单个功能，还需要让输入、执行、反馈、资源和关卡目标形成闭环，并让玩法难度和界面表达同步推进，避免功能和体验脱节。</p>
+            </article>
+            <article class="item reveal">
+                <span class="tag cyan">反思</span>
+                <h3>工程组织仍需收紧</h3>
+                <p>项目后期的工程组织仍有不足。<code>git_log.txt</code>中多次出现<code>update</code>、<code>bug fixed</code>、<code>回档</code>和合并冲突记录，说明提交粒度和说明还不够清晰；<code>ui/App.cpp</code>承担了大量界面、积木和运行适配逻辑，后续维护成本偏高；<code>release</code>文件也多次进入版本历史。后续应更早拆分模块、规范提交信息，并把参考答案和关卡判定整理成自动化测试。</p>
+            </article>
+        </div>
+    </section>
 
-<footer class="footer">
-    <p>生成文件：<code>report.html</code>。打开方式：直接在浏览器打开仓库根目录下的本文件。</p>
-</footer>
+    <section id="work">
+        <div class="section-head">
+            <h2>团队分工</h2>
+        </div>
+        <div class="grid-3">
+            <article class="item reveal">
+                <span class="tag">Alpha7297</span>
+                <h3>唐家瑞</h3>
+                <p>完成积木块转可执行代码，协调各个界面，并负责关卡实现。</p>
+            </article>
+            <article class="item reveal">
+                <span class="tag cyan">addy101</span>
+                <h3>曹安砥</h3>
+                <p>负责故事剧情与关卡设计。</p>
+            </article>
+            <article class="item reveal">
+                <span class="tag">zjh-baobab-sheep</span>
+                <h3>钟家宏</h3>
+                <p>完成存档功能，负责开始界面与关卡选择界面的设计。</p>
+            </article>
+        </div>
+    </section>
+
+</main>
 
 <script>
 /* === 导航高亮 === */
