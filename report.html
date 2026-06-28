@@ -388,6 +388,11 @@ h2{
     grid-template-columns:repeat(3,minmax(0,1fr));
     gap:16px;
 }
+.asset-overview{
+    display:grid;
+    grid-template-columns:repeat(3,minmax(0,1fr));
+    gap:16px;
+}
 .asset-card{
     border:1px solid rgba(255,255,255,.1);
     background:rgba(255,255,255,.045);
@@ -406,6 +411,36 @@ h2{
 }
 .asset-card.floor img{
     image-rendering:auto;
+}
+.asset-compact{
+    display:flex;
+    flex-direction:column;
+}
+.asset-compact .asset-body{
+    flex:1;
+}
+.asset-strip{
+    display:grid;
+    grid-template-columns:repeat(3,minmax(0,1fr));
+    gap:6px;
+    padding:12px;
+    background:rgba(0,0,0,.18);
+}
+.asset-strip img{
+    width:100%;
+    height:76px;
+    padding:6px;
+    object-fit:contain;
+    border:1px solid rgba(255,255,255,.08);
+    background:#0b0f13;
+}
+.asset-strip.background-strip{
+    grid-template-columns:1fr;
+}
+.asset-strip.background-strip img{
+    height:76px;
+    padding:0;
+    object-fit:cover;
 }
 .asset-body{
     padding:16px;
@@ -475,7 +510,7 @@ h2{
     .grid-3,.grid-2{
         grid-template-columns:1fr;
     }
-    .asset-grid{
+    .asset-grid,.asset-overview{
         grid-template-columns:1fr;
     }
     .flow{
@@ -591,146 +626,46 @@ h2{
             <h2>贴图资源</h2>
             <p class="section-note">贴图资源分为背景、地块、人物立绘、图标和按钮，并重点展示游戏中最常用的三类素材。</p>
         </div>
-        <div class="panel panel-pad">
-            <h3>地块贴图</h3>
-            <div class="asset-grid">
-                <article class="asset-card floor">
+        <div class="asset-overview">
+            <article class="asset-card asset-compact floor">
+                <div class="asset-strip">
                     <img src="images/floor/floor.png"alt="基础金属地板贴图">
-                    <div class="asset-body">
-                        <h3><code>floor.png</code></h3>
-                        <p>基础地板是蓝灰色金属板，四周有铆钉边框，板面带划痕和暗色磨损。普通可通行区域使用这一类工业地面视觉。</p>
-                    </div>
-                </article>
-                <article class="asset-card floor">
                     <img src="images/floor/spike1.png"alt="伸出的红色地刺贴图">
-                    <div class="asset-body">
-                        <h3><code>spike1.png</code>与<code>spike2.png</code></h3>
-                        <p>地刺贴图在同一金属底座上表现两种状态：红色尖刺伸出时是危险格，收回时只露出底座和较低的红色尖端。</p>
-                    </div>
-                </article>
-                <article class="asset-card floor">
                     <img src="images/floor/light4.png"alt="黄色亮起的灯格贴图">
-                    <div class="asset-body">
-                        <h3><code>light1.png</code>到<code>light4.png</code></h3>
-                        <p>灯格使用圆形金属灯罩表现状态变化。关闭状态为深灰玻璃，亮起状态呈现高饱和黄色发光面，用于表达关卡中的信号状态。</p>
-                    </div>
-                </article>
-                <article class="asset-card floor">
                     <img src="images/floor/liquid.png"alt="蓝色冷却液罐贴图">
-                    <div class="asset-body">
-                        <h3><code>liquid.png</code>与<code>liquid2.png</code></h3>
-                        <p>冷却液装置是横向蓝色发光液罐，外壳带铜色金属支架。第九关的冷却目标和相关状态变化使用这一组贴图。</p>
-                    </div>
-                </article>
-                <article class="asset-card floor">
                     <img src="images/floor/valve.png"alt="红色阀门贴图">
-                    <div class="asset-body">
-                        <h3><code>valve.png</code>与<code>valve2.png</code></h3>
-                        <p>阀门贴图以红色手轮作为视觉中心，右侧连接蓝色管道。它和关卡里的阀门稳定度目标对应。</p>
-                    </div>
-                </article>
-                <article class="asset-card floor">
                     <img src="images/floor/antenna.png"alt="天线装置贴图">
-                    <div class="asset-body">
-                        <h3><code>antenna.png</code>与<code>target.png</code></h3>
-                        <p>天线贴图是带圆盘和竖杆的通信装置，目标贴图是一张带蓝色发光标记的纸质图。两者分别承担通信设备和目标提示的视觉职责。</p>
-                    </div>
-                </article>
-            </div>
-        </div>
-        <div class="panel panel-pad">
-            <h3>人物立绘</h3>
-            <div class="asset-grid">
-                <article class="asset-card portrait">
+                </div>
+                <div class="asset-body">
+                    <h3>地块贴图</h3>
+                    <p>地块贴图以金属地板为基础，叠加地刺、灯格、冷却液、阀门、天线和目标标记等机关元素，用于表达通行状态、危险状态和第九关的设备目标。</p>
+                </div>
+            </article>
+            <article class="asset-card asset-compact portrait">
+                <div class="asset-strip">
                     <img src="images/painting/robot.png"alt="R-07机器人立绘">
-                    <div class="asset-body">
-                        <h3><code>robot.png</code></h3>
-                        <p>R-07是白色维修机器人，胸前有黄色编号牌，面屏和关节有青绿色光源，手臂带工具和医疗符号。</p>
-                    </div>
-                </article>
-                <article class="asset-card portrait">
                     <img src="images/painting/echo.png"alt="Echo蓝色全息立绘">
-                    <div class="asset-body">
-                        <h3><code>echo.png</code></h3>
-                        <p>Echo是蓝色全息形象，身体边缘带像素化碎片和发光粒子。它在剧情中与R-07对话时提供明显的数字幽影感。</p>
-                    </div>
-                </article>
-                <article class="asset-card portrait">
                     <img src="images/painting/mother.png"alt="Mother主控机立绘">
-                    <div class="asset-body">
-                        <h3><code>mother.png</code></h3>
-                        <p>Mother是大型主控机立绘，由屏幕、磁带盘、面板、线缆和服务器机箱组成，整体强调工厂主控系统的机械体量。</p>
-                    </div>
-                </article>
-                <article class="asset-card portrait">
                     <img src="images/painting/record.png"alt="日志装置立绘">
-                    <div class="asset-body">
-                        <h3><code>record.png</code></h3>
-                        <p>Record是一册金属封皮日志装置，中心有蓝色发光芯片。剧情中管理员日志和记忆归档视觉围绕这一贴图展开。</p>
-                    </div>
-                </article>
-                <article class="asset-card portrait">
                     <img src="images/painting/old_robot.png"alt="旧机器人立绘">
-                    <div class="asset-body">
-                        <h3><code>old_robot.png</code></h3>
-                        <p>旧机器人立绘用于安保或旧设备角色，和R-07相比颜色更暗，机械部件更重，适合表现巡逻与封锁压力。</p>
-                    </div>
-                </article>
-                <article class="asset-card portrait">
                     <img src="images/painting/damage.png"alt="受损状态立绘">
-                    <div class="asset-body">
-                        <h3>情绪与状态变体</h3>
-                        <p><code>angry</code>、<code>curious</code>、<code>damage</code>、<code>glad</code>、<code>puzzled</code>等文件为R-07提供剧情表情和状态变化。</p>
-                    </div>
-                </article>
-            </div>
-        </div>
-        <div class="panel panel-pad">
-            <h3>背景贴图</h3>
-            <div class="asset-grid">
-                <article class="asset-card">
+                </div>
+                <div class="asset-body">
+                    <h3>人物立绘</h3>
+                    <p>人物立绘服务于剧情窗口，包括R-07、Echo、Mother、管理员日志、旧机器人和情绪状态变体。不同立绘负责区分维修机器人、全息助手、主控机和记忆归档等叙事身份。</p>
+                </div>
+            </article>
+            <article class="asset-card asset-compact">
+                <div class="asset-strip background-strip">
                     <img src="images/background/background.png"alt="主菜单背景">
-                    <div class="asset-body">
-                        <h3><code>background.png</code></h3>
-                        <p>主菜单和部分页面背景是一间带控制台、吊灯、管线和机械臂的工厂室内场景，中部留出大面积深色面板承载UI。</p>
-                    </div>
-                </article>
-                <article class="asset-card">
                     <img src="images/background/start.png"alt="暴雨工厂开场背景">
-                    <div class="asset-body">
-                        <h3><code>start.png</code></h3>
-                        <p>开场背景是暴雨中的大型工厂外景，中央塔体被蓝色闪电击中，用于建立事故后的高压工业氛围。</p>
-                    </div>
-                </article>
-                <article class="asset-card">
-                    <img src="images/background/level1.png"alt="第一关废料堆背景">
-                    <div class="asset-body">
-                        <h3><code>level1.png</code></h3>
-                        <p>第一关背景是堆满机械废料的室内通道，远处有绿色EXIT标识，和R-07寻找出口的早期目标一致。</p>
-                    </div>
-                </article>
-                <article class="asset-card">
                     <img src="images/background/level9.png"alt="第九关主控室背景">
-                    <div class="asset-body">
-                        <h3><code>level9.png</code></h3>
-                        <p>第九关背景是主控室走廊，两侧分别出现冷却系统和信号中继标牌，中间是厚重金属门，呼应最终多目标结算。</p>
-                    </div>
-                </article>
-                <article class="asset-card">
-                    <img src="images/background/level9-1.png"alt="第九关分支背景一">
-                    <div class="asset-body">
-                        <h3><code>level9-1.png</code>到<code>level9-4.png</code></h3>
-                        <p>第九关有多张结局背景图，文件名以<code>level9-</code>编号区分，用于核心故障、逃离、发送日志和完整完成等不同剧情分支。</p>
-                    </div>
-                </article>
-                <article class="asset-card">
-                    <img src="images/background/level5_small.png"alt="关卡缩略图">
-                    <div class="asset-body">
-                        <h3>关卡缩略图</h3>
-                        <p><code>level1_small.png</code>到<code>level9_small.png</code>为关卡选择页按钮提供缩略图，配合<code>level__normal</code>、<code>level__gray</code>和<code>level__current</code>表现状态。</p>
-                    </div>
-                </article>
-            </div>
+                </div>
+                <div class="asset-body">
+                    <h3>背景贴图</h3>
+                    <p>背景贴图覆盖主菜单、开场、关卡和结局场景。主菜单保留深色UI区域，开场用暴雨工厂建立事故氛围，第九关背景用冷却系统和信号中继标牌呼应最终多目标结算。</p>
+                </div>
+            </article>
         </div>
     </section>
 
