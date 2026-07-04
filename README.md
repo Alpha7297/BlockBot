@@ -26,6 +26,10 @@ BlockBot:Factory是一个基于Qt6和C++17的图形化编程解谜游戏。玩�
 
 ## 运行方法
 
+[网盘链接](https://disk.pku.edu.cn/anyshare/zh-cn/link/AAEF4A735F716B48A69C353EA422B03768/13849E329F2E4EAAA51A5E1C84083D9D/BAFCC8A205084346A5C3597F392D1AB2)
+
+网盘包含windows的编译结果，demo文件夹储存演示视频与报告
+
 目前按Windows环境说明。需要先安装Qt6、CMake和可用的C++17编译器,Qt组件至少包括Widgets和Multimedia。
 
 使用CMake构建:

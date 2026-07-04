@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport"content="width=device-width,initial-scale=1.0">
-<title>BlockBot:Factory 项目报告</title>
+<title>BlockBot:Factory项目报告</title>
 <style>
 /* === 基础主题 === */
 :root{
@@ -20,6 +20,9 @@
     --violet:#8e6bb8;
     --blue:#5d8ccf;
     --shadow:0 24px 70px rgba(0,0,0,.35);
+    --sheet-width:210mm;
+    --sheet-height:302.4mm;
+    --sheet-padding:16mm;
 }
 *{
     box-sizing:border-box;
@@ -49,6 +52,8 @@ code{
     padding:.08rem .34rem;
     font-family:"Cascadia Mono","Consolas",monospace;
     font-size:.92em;
+    overflow-wrap:anywhere;
+    word-break:break-word;
 }
 
 /* === 顶部导航 === */
@@ -101,12 +106,16 @@ code{
 
 /* === 首屏 === */
 .hero{
-    min-height:560px;
+    width:min(var(--sheet-width),calc(100vw - 48px));
+    height:min(var(--sheet-height),calc(144vw - 69.12px));
+    margin:32px auto 34px;
+    min-height:0;
     position:relative;
     display:grid;
     align-items:end;
     overflow:hidden;
-    border-bottom:1px solid rgba(255,255,255,.08);
+    border:1px solid rgba(255,255,255,.16);
+    box-shadow:var(--shadow);
 }
 .hero::before{
     content:"";
@@ -127,9 +136,9 @@ code{
 .hero-inner{
     position:relative;
     z-index:2;
-    width:min(1160px,calc(100% - 36px));
+    width:100%;
     margin:0 auto;
-    padding:110px 0 84px;
+    padding:0 var(--sheet-padding) 24mm;
 }
 .kicker{
     display:inline-flex;
@@ -148,9 +157,9 @@ code{
 }
 h1{
     margin:14px 0 12px;
-    max-width:780px;
-    font-size:clamp(44px,7vw,92px);
-    line-height:.98;
+    max-width:100%;
+    font-size:clamp(42px,5.2vw,68px);
+    line-height:1.3;
     letter-spacing:0;
 }
 .lead{
@@ -161,10 +170,10 @@ h1{
 }
 .meta-grid{
     display:grid;
-    grid-template-columns:repeat(4,minmax(0,1fr));
+    grid-template-columns:repeat(2,minmax(0,1fr));
     gap:12px;
     margin-top:34px;
-    max-width:920px;
+    max-width:640px;
 }
 .meta{
     min-height:94px;
@@ -187,12 +196,40 @@ h1{
 
 /* === 内容布局 === */
 main{
-    width:min(1160px,calc(100% - 36px));
+    width:auto;
+    margin:0;
+    padding:0;
+}
+.report-pages{
+    display:grid;
+    gap:34px;
+    padding:0 0 72px;
+}
+.sheet{
+    width:min(var(--sheet-width),calc(100vw - 48px));
+    height:min(var(--sheet-height),calc(144vw - 69.12px));
     margin:0 auto;
-    padding:56px 0 80px;
+    padding:var(--sheet-padding);
+    position:relative;
+    overflow:hidden;
+    border:1px solid rgba(255,255,255,.16);
+    background:
+        radial-gradient(circle at 16% 10%,rgba(224,164,71,.11),transparent 22rem),
+        radial-gradient(circle at 92% 18%,rgba(84,185,199,.09),transparent 20rem),
+        linear-gradient(180deg,rgba(24,29,36,.98),rgba(17,20,24,.98));
+    box-shadow:var(--shadow);
+    break-after:page;
+    page-break-after:always;
+}
+.sheet:last-child{
+    break-after:auto;
+    page-break-after:auto;
 }
 section{
-    margin:0 0 34px;
+    margin:0 0 24px;
+}
+.sheet>section:last-child{
+    margin-bottom:0;
 }
 .section-head{
     display:flex;
@@ -219,7 +256,7 @@ h2{
     box-shadow:var(--shadow);
 }
 .panel-pad{
-    padding:26px;
+    padding:20px;
 }
 .grid-2{
     display:grid;
@@ -233,7 +270,7 @@ h2{
 }
 .grid-4{
     display:grid;
-    grid-template-columns:repeat(4,minmax(0,1fr));
+    grid-template-columns:repeat(2,minmax(0,1fr));
     gap:12px;
 }
 .item{
@@ -271,7 +308,7 @@ h2{
 /* === 结构图 === */
 .flow{
     display:grid;
-    grid-template-columns:repeat(6,minmax(130px,1fr));
+    grid-template-columns:repeat(2,minmax(0,1fr));
     gap:10px;
 }
 .flow-node{
@@ -282,13 +319,7 @@ h2{
     position:relative;
 }
 .flow-node::after{
-    content:"";
-    position:absolute;
-    top:50%;
-    right:-10px;
-    width:10px;
-    height:2px;
-    background:rgba(224,164,71,.78);
+    display:none;
 }
 .flow-node:last-child::after{
     display:none;
@@ -307,39 +338,49 @@ h2{
 /* === 类说明 === */
 .class-table{
     display:grid;
-    gap:10px;
+    gap:6px;
 }
 .class-row{
     display:grid;
-    grid-template-columns:220px 1fr;
-    gap:14px;
+    grid-template-columns:200px minmax(0,1fr);
+    gap:8px;
     align-items:stretch;
     border:1px solid rgba(255,255,255,.1);
     background:rgba(255,255,255,.04);
 }
 .class-name{
-    padding:16px;
+    min-width:0;
+    padding:10px;
     border-right:1px solid rgba(255,255,255,.1);
     background:rgba(0,0,0,.18);
     color:#ffffff;
     font-weight:800;
+    line-height:1.45;
+    overflow-wrap:anywhere;
+    word-break:break-word;
 }
 .class-detail{
-    padding:16px;
+    min-width:0;
+    padding:10px;
     color:var(--muted);
 }
 .class-detail p{
-    margin:0 0 10px;
+    margin:0 0 6px;
+    font-size:13px;
+    line-height:1.55;
 }
 .class-detail p:last-child{
     margin-bottom:0;
 }
 .source{
-    display:inline-flex;
+    display:flex;
+    flex-wrap:wrap;
     align-items:center;
-    margin-top:8px;
+    margin-top:4px;
     color:#b9c6d0;
-    font-size:12px;
+    font-size:11px;
+    line-height:1.45;
+    overflow-wrap:anywhere;
 }
 .source::before{
     content:"src";
@@ -355,12 +396,12 @@ h2{
 /* === 关卡轴 === */
 .levels{
     display:grid;
-    grid-template-columns:repeat(9,minmax(0,1fr));
+    grid-template-columns:repeat(3,minmax(0,1fr));
     gap:8px;
 }
 .level{
-    min-height:145px;
-    padding:14px 12px;
+    min-height:86px;
+    padding:10px 10px;
     border:1px solid rgba(255,255,255,.11);
     background:rgba(255,255,255,.045);
 }
@@ -371,7 +412,7 @@ h2{
 }
 .level em{
     display:block;
-    margin:4px 0 8px;
+    margin:2px 0 4px;
     color:#f3c36d;
     font-style:normal;
     font-size:12px;
@@ -454,6 +495,93 @@ h2{
     margin:0;
     color:var(--muted);
     font-size:14px;
+}
+.asset-level-sheet section{
+    margin-bottom:18px;
+}
+.asset-level-sheet .section-head{
+    display:grid;
+    grid-template-columns:max-content minmax(0,1fr);
+    align-items:end;
+    gap:18px;
+}
+.asset-level-sheet h2{
+    white-space:nowrap;
+}
+.asset-level-sheet .section-note{
+    max-width:none;
+    font-size:13px;
+}
+.compact-assets{
+    gap:10px;
+}
+.compact-assets .asset-strip{
+    gap:4px;
+    padding:8px;
+}
+.compact-assets .asset-strip img{
+    height:56px;
+    padding:4px;
+}
+.compact-assets .asset-strip.background-strip img{
+    height:56px;
+}
+.compact-assets .asset-body{
+    padding:12px;
+}
+.compact-assets .asset-body h3{
+    margin-bottom:4px;
+    font-size:15px;
+}
+.compact-assets .asset-body p{
+    font-size:12px;
+    line-height:1.5;
+}
+.compact-levels{
+    grid-template-columns:repeat(3,minmax(0,1fr));
+    gap:8px;
+}
+.compact-levels .level strong{
+    font-size:18px;
+}
+.compact-levels .level span{
+    font-size:11px;
+}
+.sheet:last-child section{
+    margin-bottom:14px;
+}
+.sheet:last-child .section-head{
+    margin-bottom:10px;
+}
+.sheet:last-child .item{
+    min-height:108px;
+    padding:14px;
+}
+.sheet:last-child .item p{
+    font-size:13px;
+    line-height:1.5;
+}
+.summary-work-sheet section{
+    margin-bottom:26px;
+}
+.summary-work-sheet .section-head{
+    align-items:flex-start;
+}
+.summary-work-sheet .item{
+    min-height:230px;
+}
+.summary-work-sheet .item p{
+    font-size:13px;
+    line-height:1.62;
+}
+.summary-work-sheet .summary-grid{
+    grid-template-columns:repeat(3,minmax(0,1fr));
+}
+.summary-work-sheet .work-grid{
+    grid-template-columns:repeat(3,minmax(0,1fr));
+}
+.summary-work-sheet .work-grid .item{
+    min-height:340px;
 }
 
 /* === 源文件表 === */
@@ -548,6 +676,111 @@ h2{
         columns:1;
     }
 }
+html.image-export,html.image-export body{
+    --sheet-padding:14mm;
+    width:210mm;
+    height:297mm;
+    margin:0;
+    overflow:hidden;
+    background:#111418;
+}
+html.image-export .topbar{
+    display:none!important;
+}
+html.image-export .reveal{
+    animation:none!important;
+    opacity:1!important;
+    transform:none!important;
+}
+html.image-export .hero,html.image-export .sheet{
+    width:210mm;
+    height:297mm;
+    margin:0;
+    border:0;
+    box-shadow:none;
+    break-after:auto;
+    page-break-after:auto;
+}
+html.image-export .report-pages{
+    display:block;
+    gap:0;
+    padding:0;
+}
+html.image-export .meta-grid,html.image-export .grid-2{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+}
+html.image-export .grid-3,html.image-export .asset-grid,html.image-export .asset-overview,html.image-export .compact-assets,html.image-export .levels,html.image-export .compact-levels,html.image-export .summary-work-sheet .summary-grid,html.image-export .summary-work-sheet .work-grid{
+    grid-template-columns:repeat(3,minmax(0,1fr));
+}
+html.image-export .grid-4,html.image-export .flow{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+}
+html.image-export .class-row{
+    grid-template-columns:200px minmax(0,1fr);
+}
+html.image-export .class-name{
+    border-right:1px solid rgba(255,255,255,.1);
+    border-bottom:0;
+}
+@media print{
+    @page{
+        size:A4;
+        margin:0;
+    }
+    :root{
+        --sheet-padding:14mm;
+    }
+    html,body{
+        width:210mm;
+        margin:0;
+        background:#111418;
+    }
+    .topbar{
+        display:none!important;
+    }
+    .reveal{
+        animation:none!important;
+        opacity:1!important;
+        transform:none!important;
+    }
+    .hero,.sheet{
+        width:210mm;
+        height:297mm;
+        margin:0;
+        border:0;
+        box-shadow:none;
+        break-after:page;
+        page-break-after:always;
+    }
+    .hero{
+        height:297mm;
+    }
+    .report-pages{
+        display:block;
+        gap:0;
+        padding:0;
+    }
+    .meta-grid,.grid-2{
+        grid-template-columns:repeat(2,minmax(0,1fr));
+    }
+    .grid-3,.asset-grid,.asset-overview,.compact-assets,.levels,.compact-levels,.summary-work-sheet .summary-grid,.summary-work-sheet .work-grid{
+        grid-template-columns:repeat(3,minmax(0,1fr));
+    }
+    .grid-4,.flow{
+        grid-template-columns:repeat(2,minmax(0,1fr));
+    }
+    .class-row{
+        grid-template-columns:200px minmax(0,1fr);
+    }
+    .class-name{
+        border-right:1px solid rgba(255,255,255,.1);
+        border-bottom:0;
+    }
+    .sheet:last-child{
+        break-after:auto;
+        page-break-after:auto;
+    }
+}
 </style>
 </head>
 <body>
@@ -557,9 +790,8 @@ h2{
         <a href="#overview">介绍</a>
         <a href="#structure">结构</a>
         <a href="#assets">贴图</a>
-        <a href="#runtime">运行链路</a>
-        <a href="#classes">类构造</a>
         <a href="#levels">关卡</a>
+        <a href="#classes">类构造</a>
         <a href="#summary">总结</a>
         <a href="#work">分工</a>
     </nav>
@@ -568,7 +800,7 @@ h2{
 <section id="top"class="hero">
     <div class="hero-inner">
         <div class="kicker">Qt6 C++17 编程解谜游戏</div>
-        <h1>BlockBot:Factory 项目报告</h1>
+        <h1>BlockBot:Factory<br>项目报告</h1>
         <p class="lead">游戏核心是让玩家用可拖拽积木编写程序，控制维修机器人R-07穿过工厂关卡，并在后期处理排序、解密、压力分析和多目标结算任务。</p>
         <div class="meta-grid">
             <div class="meta reveal"><b>构建系统</b><span><code>CMakeLists.txt</code>定义<code>BlockBot</code>，使用Qt6 Widgets和Multimedia。</span></div>
@@ -580,6 +812,8 @@ h2{
 </section>
 
 <main>
+    <div class="report-pages">
+        <div class="sheet">
     <section id="overview">
         <div class="section-head">
             <h2>游戏介绍</h2>
@@ -589,7 +823,7 @@ h2{
             <article class="item reveal">
                 <span class="tag">目标</span>
                 <h3>用积木写程序</h3>
-                <p>玩家在工作区连接<code>开始运行</code>、移动、等待、条件、循环、变量、列表和自定义积木。程序运行时由执行器逐块读取快照，并把动作交给机器人适配器。</p>
+                <p>在工作区连接<code>开始运行</code>、移动、等待、条件、循环、变量、列表和自定义积木。程序运行时由执行器逐块读取快照，并把动作交给机器人适配器。</p>
             </article>
             <article class="item reveal">
                 <span class="tag cyan">角色</span>
@@ -607,7 +841,7 @@ h2{
     <section id="structure">
         <div class="section-head">
             <h2>项目结构</h2>
-            <p class="section-note">按源码目录和构建入口整理项目结构，说明各部分在游戏中的职责。</p>
+            <p class="section-note">说明各部分在游戏中的职责。</p>
         </div>
         <div class="grid-4">
             <div class="item"><h3><code>core/</code></h3><p>运行状态、积木执行器、基础值对象和运算对象。<code>BlockExecutor</code>是当前逐步执行核心。</p></div>
@@ -616,17 +850,19 @@ h2{
             <div class="item"><h3><code>tale/</code></h3><p>剧情枚举、段落数据、角色贴图层和逐字显示窗口。</p></div>
             <div class="item"><h3><code>message/</code></h3><p>运行错误和输出消息的统一弹窗入口，带单弹窗防重入标记。</p></div>
             <div class="item"><h3><code>docs/</code></h3><p>玩法提示、积木整理、档案内容和存档加密说明。</p></div>
-            <div class="item"><h3><code>images/</code>与<code>music/</code></h3><p>背景、按钮、地板、角色绘制、音效和背景音乐。</p></div>
+            <div class="item"><h3><code>images/</code>与<code>music/</code></h3><p>背景、按钮、地板、角色、音效和背景音乐。</p></div>
             <div class="item"><h3><code>ans/</code></h3><p>九个<code>BlockBot_*.json</code>参考答案文件，用于保存或展示解法数据。</p></div>
         </div>
     </section>
+        </div>
 
+        <div class="sheet asset-level-sheet">
     <section id="assets">
         <div class="section-head">
             <h2>贴图资源</h2>
-            <p class="section-note">贴图资源分为背景、地块、人物立绘、图标和按钮，并重点展示游戏中最常用的三类素材。</p>
+            <p class="section-note">展示背景、地块和人物立绘三类常用素材。</p>
         </div>
-        <div class="asset-overview">
+        <div class="asset-overview compact-assets">
             <article class="asset-card asset-compact floor">
                 <div class="asset-strip">
                     <img src="images/floor/floor.png"alt="基础金属地板贴图">
@@ -638,7 +874,7 @@ h2{
                 </div>
                 <div class="asset-body">
                     <h3>地块贴图</h3>
-                    <p>地块贴图以金属地板为基础，叠加地刺、灯格、冷却液、阀门、天线和目标标记等机关元素，用于表达通行状态、危险状态和第九关的设备目标。</p>
+                    <p>地块贴图以金属地板为基础，叠加地刺、灯格、冷却液、阀门、天线和目标标记等机关元素。</p>
                 </div>
             </article>
             <article class="asset-card asset-compact portrait">
@@ -652,7 +888,7 @@ h2{
                 </div>
                 <div class="asset-body">
                     <h3>人物立绘</h3>
-                    <p>人物立绘服务于剧情窗口，包括R-07、Echo、Mother、管理员日志、旧机器人和情绪状态变体。不同立绘负责区分维修机器人、全息助手、主控机和记忆归档等叙事身份。</p>
+                    <p>人物立绘区分维修机器人、全息助手、主控机、日志和损伤状态等剧情身份。</p>
                 </div>
             </article>
             <article class="asset-card asset-compact">
@@ -663,277 +899,134 @@ h2{
                 </div>
                 <div class="asset-body">
                     <h3>背景贴图</h3>
-                    <p>背景贴图覆盖主菜单、开场、关卡和结局场景。主菜单保留深色UI区域，开场用暴雨工厂建立事故氛围，第九关背景用冷却系统和信号中继标牌呼应最终多目标结算。</p>
+                    <p>背景贴图覆盖主菜单、开场、关卡和结局场景，建立工厂事故和最终主控室氛围。</p>
                 </div>
             </article>
-        </div>
-    </section>
-
-    <section id="runtime">
-        <div class="section-head">
-            <h2>运行链路</h2>
-            <p class="section-note">运行流程由Qt窗口、全局运行状态、关卡配置和执行器共同组织。</p>
-        </div>
-        <div class="panel panel-pad">
-            <div class="flow">
-                <div class="flow-node"><strong><code>main.cpp</code></strong><span>调用<code>ui::runApp</code>进入Qt应用。</span></div>
-                <div class="flow-node"><strong><code>runApp</code></strong><span>初始化全局状态，安装选择音效过滤器，创建<code>Robot</code>和<code>MainWindow</code>。</span></div>
-                <div class="flow-node"><strong><code>MainWindow</code></strong><span>显示主菜单，进入关卡模式、沙盒模式或档案页。</span></div>
-                <div class="flow-node"><strong><code>LevelChoosePage</code></strong><span>选择关卡后调用<code>configureActiveLevel</code>并创建编辑器视图。</span></div>
-                <div class="flow-node"><strong><code>AppGraphicsView</code></strong><span>绘制舞台、工具箱、工作区，创建<code>QTimer</code>和<code>BlockExecutor</code>。</span></div>
-                <div class="flow-node"><strong><code>BlockExecutor</code></strong><span>通过<code>readRuntimeBlock</code>读取快照，调用<code>RobotActionAdapter</code>执行动作。</span></div>
-            </div>
-        </div>
-    </section>
-
-    <section id="classes">
-        <div class="section-head">
-            <h2>类的构造细节</h2>
-            <p class="section-note">重点记录构造函数和等价初始化路径，便于说明对象创建时的状态来源。</p>
-        </div>
-
-        <div class="panel panel-pad">
-            <h3>核心运行层</h3>
-            <div class="class-table">
-                <div class="class-row">
-                    <div class="class-name"><code>core::FloatValue</code>与<code>core::BoolValue</code></div>
-                    <div class="class-detail">
-                        <p>默认构造分别把<code>num</code>设为<code>0</code>和<code>false</code>，带参构造直接保存数值。<code>getval()</code>虚函数返回当前值，派生运算类覆盖它形成轻量表达式树。</p>
-                        <span class="source"><code>core/Value.h</code>，<code>core/Value.cpp</code></span>
-                    </div>
-                </div>
-                <div class="class-row">
-                    <div class="class-name"><code>core::UnaryFloatOp</code>与<code>core::BinaryFloatOp</code></div>
-                    <div class="class-detail">
-                        <p>默认构造把操作数指针设为<code>nullptr</code>且<code>type=-1</code>，带参构造保存操作数指针和操作类型。<code>getval()</code>根据<code>type</code>执行三角函数、取整、绝对值、四则运算、比较和逻辑运算。</p>
-                        <span class="source"><code>core/Ops.h</code>，<code>core/Ops.cpp</code></span>
-                    </div>
-                </div>
-                <div class="class-row">
-                    <div class="class-name"><code>core::Block</code>族</div>
-                    <div class="class-detail">
-                        <p><code>Block</code>构造函数初始化<code>before</code>、<code>next</code>和<code>type</code>。<code>StartBlock</code>只把参数传给基类。<code>UnaryBlock</code>额外保存<code>FloatValue* val</code>，<code>BinaryBlock</code>保存变量名和数值指针，<code>LogicBlock</code>保存布尔条件和内部块入口。</p>
-                        <p>这些类保留了较早的链式执行模型，当前UI运行主要通过<code>BlockExecutor</code>快照执行。</p>
-                        <span class="source"><code>core/Block.h</code>，<code>core/Block.cpp</code></span>
-                    </div>
-                </div>
-                <div class="class-row">
-                    <div class="class-name"><code>core::RuntimeState</code></div>
-                    <div class="class-detail">
-                        <p>没有显式构造函数，成员<code>floatVariables</code>、<code>floatLists</code>、<code>readOnlyVariables</code>和<code>readOnlyLists</code>由标准容器默认构造。变量和列表通过<code>create*</code>、<code>forceSet*</code>、<code>clearAll</code>、<code>clearAllMutable</code>维护，并用只读集合保护关卡输入。</p>
-                        <span class="source"><code>core/Runtime.h</code>，<code>core/Runtime.cpp</code></span>
-                    </div>
-                </div>
-                <div class="class-row">
-                    <div class="class-name"><code>core::BlockExecutor</code></div>
-                    <div class="class-detail">
-                        <p>执行器也没有显式构造函数，实际初始化发生在<code>reset(firstBlock)</code>：设置<code>current</code>，清空调用帧，清空等待节点和等待帧数。<code>step()</code>每次读取<code>BlockSnapshot</code>，处理控制帧、自定义调用、等待、移动、变量和列表操作。</p>
-                        <span class="source"><code>core/Runtime.h</code>，<code>core/Runtime.cpp</code></span>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="panel panel-pad">
-            <h3>关卡层</h3>
-            <div class="class-table">
-                <div class="class-row">
-                    <div class="class-name"><code>level::LevelConfig</code></div>
-                    <div class="class-detail">
-                        <p>构造函数直接调用<code>reset()</code>。<code>reset()</code>清空地图和输入样例，重置<code>RobotState</code>，释放测试策略。<code>resizeMap(width,height,defaultCell)</code>用二维<code>vector</code>重建地图。<code>setRobotStart</code>写入起点并归一化方向。</p>
-                        <p><code>setReachPositionGoal</code>构造<code>ReachPositionTest</code>，<code>setDataOutputCases</code>构造<code>DataOutputTest</code>并逐个加入测试样例，因此关卡配置对象通过组合持有具体测试策略。</p>
-                        <span class="source"><code>level/Level.h</code>，<code>level/Level.cpp</code></span>
-                    </div>
-                </div>
-                <div class="class-row">
-                    <div class="class-name"><code>ReachPositionTest</code>与<code>DataOutputTest</code></div>
-                    <div class="class-detail">
-                        <p><code>ReachPositionTest(targetX,targetY)</code>用初始化列表保存目标坐标。<code>DataOutputTest</code>内部维护<code>cases</code>，<code>prepareCase</code>把输入变量和列表写成只读，把期望输出预先创建为可写目标，<code>checkCase</code>按<code>1e-8</code>误差比较变量和列表。</p>
-                        <span class="source"><code>level/Level.cpp</code></span>
-                    </div>
-                </div>
-                <div class="class-row">
-                    <div class="class-name"><code>Maze</code>私有实现类</div>
-                    <div class="class-detail">
-                        <p><code>Maze(n_,m_)</code>保存原始尺寸，构造随机数引擎，初始化四方向偏移，把内部尺寸修正为奇数，并把地图填为墙。<code>generateMazeMap()</code>固定创建<code>Maze(38,38)</code>，生成后转为带边界墙的关卡地图。</p>
-                        <span class="source"><code>level/mazeGernerator.cpp</code></span>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="panel panel-pad">
-            <h3>主界面与编辑器</h3>
-            <div class="class-table">
-                <div class="class-row">
-                    <div class="class-name"><code>MainWindow</code></div>
-                    <div class="class-detail">
-                        <p>构造函数播放菜单音乐，固定窗口为<code>1200x800</code>，加载背景和Logo，创建关卡、沙盒、档案三个按钮并连接槽函数。关卡页和档案页都是懒创建，避免主菜单启动时一次构造所有页面。</p>
-                        <span class="source"><code>ui/MainWindow.h</code>，<code>ui/MainWindow.cpp</code></span>
-                    </div>
-                </div>
-                <div class="class-row">
-                    <div class="class-name"><code>LevelChoosePage</code></div>
-                    <div class="class-detail">
-                        <p>构造函数为空，主要初始化在<code>init()</code>和<code>loadProcess()</code>。<code>init()</code>先删除直接子控件，按固定坐标生成九个关卡按钮、连接管道贴图和返回按钮。<code>loadProcess()</code>读取进度存档并限制到<code>1..10</code>范围。</p>
-                        <p><code>startLevel(levelNumber)</code>配置关卡类型，清空运行状态，准备第一个测试样例，创建新的<code>QGraphicsScene</code>和<code>AppGraphicsView</code>。</p>
-                        <span class="source"><code>ui/LevelChoosePage.h</code>，<code>ui/LevelChoosePage.cpp</code>，<code>ui/App.cpp</code></span>
-                    </div>
-                </div>
-                <div class="class-row">
-                    <div class="class-name"><code>AppGraphicsView</code></div>
-                    <div class="class-detail">
-                        <p>构造函数是编辑器入口：播放解谜音乐，安装运行取消过滤器，重置场景全局变量，画背景、舞台、工具箱和工作区，建立撤销初始点。随后创建<code>QTimer</code>、<code>BlockExecutor</code>和<code>RobotActionAdapter</code>，并在定时器回调中推进执行器。</p>
-                        <span class="source"><code>ui/AppGraphicsView.h</code>，<code>ui/App.cpp</code></span>
-                    </div>
-                </div>
-                <div class="class-row">
-                    <div class="class-name"><code>Button</code>与<code>ScrollSlider</code></div>
-                    <div class="class-detail">
-                        <p><code>Button</code>构造圆形默认按钮、阴影多边形、悬停事件和左键点击回调入口。<code>ScrollSlider</code>构造可拖拽矩形滑块，保存<code>minY/maxY</code>和<code>onChanged</code>，用于工具箱和工作区滚动。</p>
-                        <span class="source"><code>ui/Widgets.h</code></span>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="panel panel-pad">
-            <h3>图形积木类</h3>
-            <div class="class-table">
-                <div class="class-row">
-                    <div class="class-name"><code>CodeBlock</code></div>
-                    <div class="class-detail">
-                        <p>构造函数接收<code>type</code>、显示文本和<code>base</code>标记，创建文字项、代码块多边形和灰色吸附阴影，初始化拖拽状态、前后连接指针、内部控制父节点、滚动区域和舞台坐标。<code>StartBlock</code>和<code>EndBlock</code>只是在此基础上换颜色并改上下接口形状。</p>
-                        <span class="source"><code>ui/App.cpp</code></span>
-                    </div>
-                </div>
-                <div class="class-row">
-                    <div class="class-name"><code>FloatBlock</code></div>
-                    <div class="class-detail">
-                        <p>构造函数把<code>data</code>设为<code>0</code>，创建默认数值文字，建立拖拽、吸附目标和吸附阴影字段，设置灰色数值块样式。它是变量、列表读取、机器人传感和运算块的共同基类。</p>
-                        <span class="source"><code>ui/App.cpp</code></span>
-                    </div>
-                </div>
-                <div class="class-row">
-                    <div class="class-name"><code>UnaryOpBlock</code>与<code>BinaryOpBlock</code></div>
-                    <div class="class-detail">
-                        <p>一元运算块构造一个输入槽，二元运算块构造左右两个输入槽。传入已有子表达式时会调用<code>copy()</code>克隆，否则创建默认<code>FloatBlock</code>。<code>base=true</code>时槽不可移动，用于工具箱模板。</p>
-                        <span class="source"><code>ui/App.cpp</code></span>
-                    </div>
-                </div>
-                <div class="class-row">
-                    <div class="class-name">变量与列表积木</div>
-                    <div class="class-detail">
-                        <p><code>VariableBlock</code>保存变量名并设为变量色。<code>SetVariableBlock</code>构造变量名编辑框、后缀文字和数值槽。<code>IncreaseVariableBlock</code>复用赋值块构造，再把<code>type</code>改为<code>14</code>并把后缀改成“增加”。列表积木同样构造名称框、索引槽和数值槽。</p>
-                        <span class="source"><code>ui/App.cpp</code></span>
-                    </div>
-                </div>
-                <div class="class-row">
-                    <div class="class-name"><code>ControlCodeBlock</code></div>
-                    <div class="class-detail">
-                        <p>构造函数创建条件槽、后缀文字和内部链入口指针。<code>type=5</code>显示“执行”，<code>type=6</code>显示“时重复执行”。<code>refreshSize()</code>根据条件块高度和内部链高度重算C形多边形。</p>
-                        <span class="source"><code>ui/App.cpp</code></span>
-                    </div>
-                </div>
-                <div class="class-row">
-                    <div class="class-name">自定义积木族</div>
-                    <div class="class-detail">
-                        <p><code>CustomHatBlock</code>保存自定义名，过滤空参数名，并为每个参数构造只读的<code>CustomParamBlock</code>显示在定义帽子上。<code>CustomCallBlock</code>保存同一组参数名，并为每个参数构造可填入的<code>FloatBlock</code>实参槽。运行时参数由<code>customParameterStacks</code>按调用帧压栈。</p>
-                        <span class="source"><code>ui/App.cpp</code></span>
-                    </div>
-                </div>
-                <div class="class-row">
-                    <div class="class-name"><code>RobotCoordBlock</code>与<code>RobotFrontMapBlock</code></div>
-                    <div class="class-detail">
-                        <p><code>RobotCoordBlock(coordType)</code>把文本设为“当前x坐标”或“当前y坐标”，运行时返回<code>player->gridx/gridy</code>。<code>RobotFrontMapBlock</code>没有额外参数，显示“前方能否通行”，通过当前朝向查询前方格是否可通过。</p>
-                        <span class="source"><code>ui/App.cpp</code></span>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="panel panel-pad">
-            <h3>机器人、剧情和外围系统</h3>
-            <div class="class-table">
-                <div class="class-row">
-                    <div class="class-name"><code>Robot</code></div>
-                    <div class="class-detail">
-                        <p>构造函数加载机器人图标和四方向角色贴图，初始化<code>gridx=0</code>、<code>gridy=0</code>、<code>direction=0</code>和默认格子尺寸，启用平滑缩放并关闭鼠标交互。移动时只前进一步，且会检查边界和阻挡格。</p>
-                        <span class="source"><code>ui/App.cpp</code></span>
-                    </div>
-                </div>
-                <div class="class-row">
-                    <div class="class-name"><code>RobotActionAdapter</code></div>
-                    <div class="class-detail">
-                        <p>构造函数只保存<code>Robot*</code>。它实现<code>core::RobotActions</code>接口，把转向、移动、等待、变量修改、列表修改、自定义积木入栈出栈和输出消息连接到UI全局运行状态。</p>
-                        <span class="source"><code>ui/App.cpp</code></span>
-                    </div>
-                </div>
-                <div class="class-row">
-                    <div class="class-name"><code>TaleView</code></div>
-                    <div class="class-detail">
-                        <p>构造函数接收<code>TaleScene</code>和关闭回调，立即调用<code>buildTaleContent(scene)</code>取得剧情数据，固定窗口尺寸，创建内部<code>QGraphicsScene</code>，再绘制背景、角色层、文本框和逐字显示定时器。</p>
-                        <span class="source"><code>tale/TaleWindow.cpp</code></span>
-                    </div>
-                </div>
-                <div class="class-row">
-                    <div class="class-name"><code>ArchivePage</code></div>
-                    <div class="class-detail">
-                        <p>构造函数为空，<code>init()</code>播放菜单音乐，删除旧子控件，读取解锁等级，创建背景、返回按钮、档案Logo、菜单项和内容面板。档案中的积木预览由<code>ArchiveBlockPreview</code>和<code>ArchiveExpressionPreview</code>绘制。</p>
-                        <span class="source"><code>ui/ArchivePage.h</code>，<code>ui/ArchivePage.cpp</code></span>
-                    </div>
-                </div>
-                <div class="class-row">
-                    <div class="class-name"><code>SettingsDialog</code></div>
-                    <div class="class-detail">
-                        <p>构造函数创建固定尺寸对话框、<code>QGraphicsScene</code>和<code>QGraphicsView</code>，加载背景与返回按钮，并用<code>DiscreteSlider</code>构造工作区长度、动作速度、代码速度和停止后重置舞台等设置控件。</p>
-                        <span class="source"><code>ui/SettingsDialog.cpp</code></span>
-                    </div>
-                </div>
-                <div class="class-row">
-                    <div class="class-name"><code>savecrypto</code>命名空间</div>
-                    <div class="class-detail">
-                        <p><code>savecrypto</code>不是类，而是一组存档函数。Windows下<code>protectBytes</code>调用<code>CryptProtectData</code>，<code>unprotectBytes</code>调用<code>CryptUnprotectData</code>。写文件时先写<code>BBOTDP01</code>魔数，再写加密后的紧凑JSON。</p>
-                        <span class="source"><code>ui/SaveCrypto.cpp</code></span>
-                    </div>
-                </div>
-            </div>
         </div>
     </section>
 
     <section id="levels">
         <div class="section-head">
-            <h2>关卡构造与测试</h2>
-            <p class="section-note">第6到第8关设计为数据输出关，其余正常编号关卡保留为地图通关目标。</p>
+            <h2>关卡构造</h2>
+            <p class="section-note">第6至第8关为数据输出关，其余为地图通关目标。</p>
         </div>
-        <div class="levels">
-            <div class="level"><strong>1</strong><em>基础移动</em><span>目标坐标测试，控制R-07到达终点。</span></div>
-            <div class="level"><strong>2</strong><em>等待地刺</em><span>周期陷阱，使用等待穿过安全窗口。</span></div>
-            <div class="level"><strong>3</strong><em>条件与传感</em><span>红绿灯控制通行，使用<code>if/while</code>和前方通行检测。</span></div>
-            <div class="level"><strong>4</strong><em>变量与运算</em><span>侦察视野旋转，要求自行计算危险条件。</span></div>
-            <div class="level"><strong>5</strong><em>迷宫</em><span><code>generateMazeMap()</code>动态生成<code>38x38</code>迷宫。</span></div>
-            <div class="level"><strong>6</strong><em>排序输出</em><span>过滤无效坐标，按时间排序并写入结果列表。</span></div>
-            <div class="level"><strong>7</strong><em>密码逆推</em><span>根据倒序、加三、循环右移的逆过程写出明文。</span></div>
-            <div class="level"><strong>8</strong><em>压力分析</em><span>用高度和压力上限列表计算危险点。</span></div>
-            <div class="level"><strong>9</strong><em>多目标结算</em><span>闸门、天线和冷却值共同影响最终剧情。</span></div>
+        <div class="levels compact-levels">
+            <div class="level"><strong>1</strong><em>基础移动</em><span>目标坐标测试。</span></div>
+            <div class="level"><strong>2</strong><em>等待地刺</em><span>周期陷阱等待。</span></div>
+            <div class="level"><strong>3</strong><em>条件与传感</em><span><code>if/while</code>通行检测。</span></div>
+            <div class="level"><strong>4</strong><em>变量与运算</em><span>计算危险条件。</span></div>
+            <div class="level"><strong>5</strong><em>迷宫</em><span><code>38x38</code>动态迷宫。</span></div>
+            <div class="level"><strong>6</strong><em>排序输出</em><span>坐标排序写表。</span></div>
+            <div class="level"><strong>7</strong><em>密码逆推</em><span>逆过程还原明文。</span></div>
+            <div class="level"><strong>8</strong><em>压力分析</em><span>计算危险点。</span></div>
+            <div class="level"><strong>9</strong><em>多目标结算</em><span>影响最终剧情。</span></div>
+        </div>
+    </section>
+        </div>
+
+        <div class="sheet">
+    <section id="classes">
+        <div class="section-head">
+            <h2>类的构造细节</h2>
+            <p class="section-note">概括每个对象的初始化职责。</p>
+        </div>
+        <div class="panel panel-pad">
+            <h3>核心运行层与关卡层</h3>
+            <div class="class-table">
+                <div class="class-row"><div class="class-name"><code>core::FloatValue</code>与<code>core::BoolValue</code></div><div class="class-detail"><p>默认值对象分别保存数值<code>0</code>和布尔<code>false</code>，派生表达式通过<code>getval()</code>参与求值。</p><span class="source"><code>core/Value.h</code>，<code>core/Value.cpp</code></span></div></div>
+                <div class="class-row"><div class="class-name"><code>core::UnaryFloatOp</code>与<code>core::BinaryFloatOp</code></div><div class="class-detail"><p>运算节点保存操作数指针和<code>type</code>，在<code>getval()</code>里完成数学、比较和逻辑运算。</p><span class="source"><code>core/Ops.h</code>，<code>core/Ops.cpp</code></span></div></div>
+                <div class="class-row"><div class="class-name"><code>core::Block</code>族</div><div class="class-detail"><p>旧链式执行模型用<code>before</code>、<code>next</code>、<code>type</code>和内部入口保存积木连接关系。</p><span class="source"><code>core/Block.h</code>，<code>core/Block.cpp</code></span></div></div>
+                <div class="class-row"><div class="class-name"><code>core::RuntimeState</code></div><div class="class-detail"><p>运行状态用标准容器保存变量、列表和只读输入集合，并通过创建、写入和清空接口维护它们。</p><span class="source"><code>core/Runtime.h</code>，<code>core/Runtime.cpp</code></span></div></div>
+                <div class="class-row"><div class="class-name"><code>core::BlockExecutor</code></div><div class="class-detail"><p>执行器在<code>reset(firstBlock)</code>中设置入口并清空调用帧、等待节点和等待帧数。</p><span class="source"><code>core/Runtime.h</code>，<code>core/Runtime.cpp</code></span></div></div>
+                <div class="class-row"><div class="class-name"><code>level::LevelConfig</code></div><div class="class-detail"><p>关卡配置构造时调用<code>reset()</code>，负责地图、机器人起点、输入样例和测试策略的初始状态。</p><span class="source"><code>level/Level.h</code>，<code>level/Level.cpp</code></span></div></div>
+                <div class="class-row"><div class="class-name"><code>ReachPositionTest</code>与<code>DataOutputTest</code></div><div class="class-detail"><p>测试策略分别保存目标坐标或数据样例，并在运行前准备输入、运行后检查输出。</p><span class="source"><code>level/Level.cpp</code></span></div></div>
+                <div class="class-row"><div class="class-name"><code>Maze</code>私有实现类</div><div class="class-detail"><p>迷宫生成器保存尺寸和随机引擎，将内部地图修正为奇数尺寸后生成带边界墙的关卡地图。</p><span class="source"><code>level/mazeGernerator.cpp</code></span></div></div>
+            </div>
+        </div>
+    </section>
+        </div>
+
+        <div class="sheet">
+    <section class="classes-continued">
+        <div class="section-head">
+            <h2>类的构造细节</h2>
+            <p class="section-note">主界面、编辑器和图形积木的初始化职责。</p>
+        </div>
+        <div class="panel panel-pad">
+            <h3>主界面与图形积木</h3>
+            <div class="class-table">
+                <div class="class-row"><div class="class-name"><code>MainWindow</code></div><div class="class-detail"><p>主窗口构造菜单音乐、固定窗口、背景Logo和关卡、沙盒、档案入口。</p><span class="source"><code>ui/MainWindow.h</code>，<code>ui/MainWindow.cpp</code></span></div></div>
+                <div class="class-row"><div class="class-name"><code>LevelChoosePage</code></div><div class="class-detail"><p>关卡页在<code>init()</code>和<code>loadProcess()</code>中重建按钮、连接管道并读取进度。</p><span class="source"><code>ui/LevelChoosePage.h</code>，<code>ui/LevelChoosePage.cpp</code>，<code>ui/App.cpp</code></span></div></div>
+                <div class="class-row"><div class="class-name"><code>AppGraphicsView</code></div><div class="class-detail"><p>编辑器视图构造场景背景、舞台、工具箱、工作区、定时器、执行器和机器人适配器。</p><span class="source"><code>ui/AppGraphicsView.h</code>，<code>ui/App.cpp</code></span></div></div>
+                <div class="class-row"><div class="class-name"><code>Button</code>与<code>ScrollSlider</code></div><div class="class-detail"><p>基础控件分别初始化按钮外形、点击回调和滚动滑块的拖拽范围。</p><span class="source"><code>ui/Widgets.h</code></span></div></div>
+                <div class="class-row"><div class="class-name"><code>CodeBlock</code></div><div class="class-detail"><p>代码积木构造文字、多边形、吸附阴影、拖拽状态、连接指针和舞台坐标。</p><span class="source"><code>ui/App.cpp</code></span></div></div>
+                <div class="class-row"><div class="class-name"><code>FloatBlock</code></div><div class="class-detail"><p>数值积木把<code>data</code>设为<code>0</code>，并初始化显示文字、拖拽状态和吸附字段。</p><span class="source"><code>ui/App.cpp</code></span></div></div>
+            </div>
+        </div>
+    </section>
+        </div>
+
+        <div class="sheet">
+    <section class="classes-continued">
+        <div class="section-head">
+            <h2>类的构造细节</h2>
+            <p class="section-note">表达式积木、自定义积木和机器人相关对象。</p>
+        </div>
+        <div class="panel panel-pad">
+            <h3>积木族与机器人</h3>
+            <div class="class-table">
+                <div class="class-row"><div class="class-name"><code>UnaryOpBlock</code>与<code>BinaryOpBlock</code></div><div class="class-detail"><p>运算积木构造一到两个输入槽，并按已有子表达式克隆或创建默认数值积木。</p><span class="source"><code>ui/App.cpp</code></span></div></div>
+                <div class="class-row"><div class="class-name">变量与列表积木</div><div class="class-detail"><p>变量和列表积木初始化名称框、索引槽、数值槽和对应的类型标记。</p><span class="source"><code>ui/App.cpp</code></span></div></div>
+                <div class="class-row"><div class="class-name"><code>ControlCodeBlock</code></div><div class="class-detail"><p>控制积木构造条件槽、后缀文字和内部链入口，并通过<code>refreshSize()</code>更新C形外轮廓。</p><span class="source"><code>ui/App.cpp</code></span></div></div>
+                <div class="class-row"><div class="class-name">自定义积木族</div><div class="class-detail"><p>自定义定义块和调用块保存同一组参数名，并分别创建只读参数显示和可填实参槽。</p><span class="source"><code>ui/App.cpp</code></span></div></div>
+                <div class="class-row"><div class="class-name"><code>RobotCoordBlock</code>与<code>RobotFrontMapBlock</code></div><div class="class-detail"><p>机器人传感积木根据坐标类型或当前朝向读取机器人位置和前方通行状态。</p><span class="source"><code>ui/App.cpp</code></span></div></div>
+                <div class="class-row"><div class="class-name"><code>Robot</code></div><div class="class-detail"><p>机器人构造图标、四方向贴图、初始坐标、方向、格子尺寸和平滑缩放设置。</p><span class="source"><code>ui/App.cpp</code></span></div></div>
+                <div class="class-row"><div class="class-name"><code>RobotActionAdapter</code></div><div class="class-detail"><p>动作适配器保存<code>Robot*</code>，并把运行时动作转接到UI全局运行状态。</p><span class="source"><code>ui/App.cpp</code></span></div></div>
+            </div>
+        </div>
+    </section>
+        </div>
+
+        <div class="sheet">
+    <section class="classes-continued">
+        <div class="section-head">
+            <h2>类的构造细节</h2>
+            <p class="section-note">剧情、档案、设置和存档相关对象。</p>
+        </div>
+        <div class="panel panel-pad">
+            <h3>外围系统</h3>
+            <div class="class-table">
+                <div class="class-row"><div class="class-name"><code>TaleView</code></div><div class="class-detail"><p>剧情窗口按<code>TaleScene</code>取内容，构造内部场景、背景、角色层、文本框和逐字显示定时器。</p><span class="source"><code>tale/TaleWindow.cpp</code></span></div></div>
+                <div class="class-row"><div class="class-name"><code>ArchivePage</code></div><div class="class-detail"><p>档案页在<code>init()</code>中读取解锁等级并重建背景、返回按钮、菜单项和内容面板。</p><span class="source"><code>ui/ArchivePage.h</code>，<code>ui/ArchivePage.cpp</code></span></div></div>
+                <div class="class-row"><div class="class-name"><code>SettingsDialog</code></div><div class="class-detail"><p>设置对话框构造固定尺寸图形场景，并用离散滑块表示工作区长度和速度等选项。</p><span class="source"><code>ui/SettingsDialog.cpp</code></span></div></div>
+                <div class="class-row"><div class="class-name"><code>savecrypto</code>命名空间</div><div class="class-detail"><p>存档函数在Windows下调用DPAPI保护JSON，并在文件前写入<code>BBOTDP01</code>魔数。</p><span class="source"><code>ui/SaveCrypto.cpp</code></span></div></div>
+            </div>
         </div>
     </section>
 
+        </div>
+
+        <div class="sheet summary-work-sheet">
     <section id="summary">
         <div class="section-head">
             <h2>总结与反思</h2>
-            <p class="section-note">从收获和问题两个角度复盘这个项目。</p>
+            <p class="section-note">从完成度、工程组织和后续改进三个角度复盘。</p>
         </div>
-        <div class="grid-2">
+        <div class="grid-2 summary-grid">
             <article class="item reveal">
                 <span class="tag">收获</span>
                 <h3>从玩法原型到完整作品</h3>
-                <p>本项目的主要收获，是将图形化积木、运行时状态、关卡测试和Qt界面串联成一个可玩的整体。项目从积木转可执行代码开始，逐步加入变量、列表、条件、循环、自定义积木、剧情窗口、贴图、音乐、存档和九个关卡。该过程说明游戏程序不能只关注单个功能，还需要让输入、执行、反馈、资源和关卡目标形成闭环，并让玩法难度和界面表达同步推进，避免功能和体验脱节。</p>
+                <p>本项目完成了从图形化积木编辑、运行时执行、机器人动作反馈到关卡判定的完整闭环。玩家编写的积木会被转换为执行快照并逐步推进，再通过机器人适配器反馈到场景中。这个闭环让玩法目标、贴图反馈、关卡检测和剧情推进可以围绕同一套状态运行。</p>
             </article>
             <article class="item reveal">
                 <span class="tag cyan">反思</span>
                 <h3>工程组织仍需收紧</h3>
-                <p>项目后期的工程组织仍有不足。<code>git_log.txt</code>中多次出现<code>update</code>、<code>bug fixed</code>、<code>回档</code>和合并冲突记录，说明提交粒度和说明还不够清晰；<code>ui/App.cpp</code>承担了大量界面、积木和运行适配逻辑，后续维护成本偏高；<code>release</code>文件也多次进入版本历史。后续应更早拆分模块、规范提交信息，并把参考答案和关卡判定整理成自动化测试。</p>
+                <p><code>ui/App.cpp</code>仍承担积木绘制、编辑器交互和运行适配等大量职责。后续应拆分图形积木、运行适配和场景管理模块，让类的构造、运行状态和界面事件边界更清楚。参考答案、关卡判定和数据输出样例也应整理成自动化测试，降低修改关卡后的回归成本。</p>
+            </article>
+            <article class="item reveal">
+                <span class="tag green">改进</span>
+                <h3>让内容更容易回归</h3>
+                <p>后续可以把<code>ans/</code>中的参考答案、<code>level/</code>中的关卡判定和<code>docs/</code>中的玩法说明建立对应关系。每次新增或修改关卡时，同步更新提示、标准样例和测试入口。这样报告中的关卡目标、玩家看到的提示和程序实际判定会更容易保持一致。</p>
             </article>
         </div>
     </section>
@@ -942,25 +1035,14 @@ h2{
         <div class="section-head">
             <h2>团队分工</h2>
         </div>
-        <div class="grid-3">
-            <article class="item reveal">
-                <span class="tag">Alpha7297</span>
-                <h3>唐家瑞</h3>
-                <p>完成积木块转可执行代码，协调各个界面，并负责关卡实现。</p>
-            </article>
-            <article class="item reveal">
-                <span class="tag cyan">addy101</span>
-                <h3>曹安砥</h3>
-                <p>负责故事剧情与关卡设计。</p>
-            </article>
-            <article class="item reveal">
-                <span class="tag">zjh-baobab-sheep</span>
-                <h3>钟家宏</h3>
-                <p>完成存档功能，负责开始界面与关卡选择界面的设计。</p>
-            </article>
+        <div class="grid-3 work-grid">
+            <article class="item reveal"><span class="tag">Alpha7297</span><h3>唐家瑞</h3><p>完成积木块转可执行代码和关卡实现，协调主界面、编辑器、执行器和机器人动作之间的衔接。该部分对应报告中的核心玩法、关卡构造和类构造细节，是项目从拖拽积木到场景反馈的主要实现路径。</p></article>
+            <article class="item reveal"><span class="tag cyan">addy101</span><h3>曹安砥</h3><p>负责故事剧情与关卡设计，整理R-07、Echo、Mother等角色线索，并将关卡目标和叙事推进对应起来。该部分支撑游戏介绍中的角色叙事和学习曲线，使不同关卡不只是机制练习，也有明确的剧情推进。</p></article>
+            <article class="item reveal"><span class="tag">zjh-baobab-sheep</span><h3>钟家宏</h3><p>完成存档功能，负责开始界面与关卡选择界面设计，并维护进度读取、关卡入口和菜单交互体验。该部分对应主窗口、关卡页、档案页和存档加密相关内容，保证玩家能从主菜单进入关卡并保留进度。</p></article>
         </div>
     </section>
-
+        </div>
+    </div>
 </main>
 
 <script>
@@ -977,6 +1059,16 @@ const observer=new IntersectionObserver(entries=>{
     });
 },{rootMargin:"-45% 0px -50% 0px",threshold:0});
 sections.forEach(section=>observer.observe(section));
+
+/* === 单页图片导出 === */
+const exportPage=Number(new URLSearchParams(window.location.search).get("exportPage")||0);
+if(Number.isInteger(exportPage)&&exportPage>0){
+    document.documentElement.classList.add("image-export");
+    const exportPages=[document.querySelector(".hero"),...document.querySelectorAll(".sheet")].filter(Boolean);
+    exportPages.forEach((page,index)=>{
+        if(index!==exportPage-1)page.remove();
+    });
+}
 </script>
 </body>
 </html>
